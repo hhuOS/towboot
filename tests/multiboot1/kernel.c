@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <multiboot.h>
+#include "multiboot.h"
 
 /* Macros. */
 
