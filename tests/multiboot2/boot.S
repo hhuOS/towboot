@@ -50,11 +50,11 @@ multiboot_header:
         /*  magic */
         .long   MULTIBOOT2_HEADER_MAGIC
         /*  ISA: i386 */
-        .long   GRUB_MULTIBOOT_ARCHITECTURE_I386
+        .long   MULTIBOOT_ARCHITECTURE_I386
         /*  Header length. */
         .long   multiboot_header_end - multiboot_header
         /*  checksum */
-        .long   -(MULTIBOOT2_HEADER_MAGIC + GRUB_MULTIBOOT_ARCHITECTURE_I386 + (multiboot_header_end - multiboot_header))
+        .long   -(MULTIBOOT2_HEADER_MAGIC + MULTIBOOT_ARCHITECTURE_I386 + (multiboot_header_end - multiboot_header))
 #ifndef __ELF__
 address_tag_start:      
         .short MULTIBOOT_HEADER_TAG_ADDRESS
