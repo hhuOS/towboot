@@ -3,6 +3,8 @@
 #![feature(abi_efiapi)]
 #![feature(global_asm)]
 
+//! a bootloader for Multiboot kernels on UEFI systems
+
 extern crate rlibc;
 extern crate alloc;
 
@@ -25,6 +27,9 @@ mod menu;
 
 #[entry]
 fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
+    // Putting this comment above the function breaks the entry annotation.
+    //! This is the main function.
+    //! Startup happens here.
     uefi_services::init(&systab).expect_success("Failed to initialize utilities");
     writeln!(systab.stdout(), "Hello, world!").unwrap();
     
@@ -54,6 +59,14 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     unreachable!();
 }
 
+
+/// Read a whole file into memory and return the resulting byte vector.
+///
+/// The path is relative to the volume we're loaded from.
+///
+/// Possible errors:
+/// * `Status::NOT_FOUND`: the file does not exist
+/// * `Status::UNSUPPORTED`: the given path does exist, but it's a directory
 fn read_file(name: &str, volume: &mut Directory, systab: &SystemTable<Boot>) -> Result<Vec<u8>, Status> {
     let file_handle = match volume.open(name, FileMode::Read, FileAttribute::READ_ONLY) {
         Ok(file_handle) => file_handle.unwrap(),
