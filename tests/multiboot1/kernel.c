@@ -21,6 +21,7 @@
 
 /* Check if the bit BIT in FLAGS is set. */
 #define CHECK_FLAG(flags,bit)   ((flags) & (1 << (bit)))
+#define SER(v) __asm__("outb %b0, %w1"::"a" (v), "d"(0x3f8))
 
 /* Some screen stuff. */
 /* The number of columns. */
@@ -302,9 +303,13 @@ itoa (char *buf, int base, int d)
 static void
 putchar (int c)
 {
+  // serial port
+  SER(c & 0xff);
+  
   if (c == '\n' || c == '\r')
     {
     newline:
+      SER('\r' & 0xff);
       xpos = 0;
       ypos++;
       if (ypos >= LINES)
