@@ -16,6 +16,8 @@ sudo cp target/i686-unknown-uefi/debug/bootloader.efi image/efi/boot/bootia32.ef
 # sudo cp target/x86_64-unknown-uefi/debug/bootloader.efi image/efi/boot/bootx64.efi
 sudo cp bootloader.toml image/bootloader.toml
 sudo cp ../../kernels/multiboot1.elf image/
+sudo cp ~/dev/hhuOS/loader/boot/hhuOS.bin image/
+sudo cp ~/dev/hhuOS/loader/boot/hhuOS.initrd image/
 sudo umount image/
 sudo losetup -d $LOOP
 

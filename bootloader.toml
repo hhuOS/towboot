@@ -1,4 +1,4 @@
-default = "multiboot1"
+default = "hhuOS"
 timeout = 10
 
 [entries]
@@ -11,3 +11,12 @@ timeout = 10
     #[[entries.multiboot1.modules]]
     #  argv = ""
     #  image = "\\foo.img"
+
+  [entries.hhuOS]
+    argv = "root=hdd0p1,FatDriver bios_enhancements=false linear_frame_buffer=LinearFrameBuffer text_driver=LfbText resolution=800x600x32 log_level=trace log_devices=com1 splash=true pci_names=false"
+    image = "\\hhuOS.bin"
+    name = "hhuOS"
+    
+    [[entries.hhuOS.modules]]
+      argv = "initrd"
+      image = "\\hhuOS.initrd"
