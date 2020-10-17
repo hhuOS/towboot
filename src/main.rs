@@ -8,9 +8,8 @@ extern crate alloc;
 
 use core::convert::TryInto;
 use core::fmt::Write;
-use alloc::collections::btree_map::BTreeMap;
 use alloc::format;
-use alloc::string::{String, ToString};
+use alloc::string::ToString;
 use alloc::vec::Vec;
 
 use uefi::prelude::*;
@@ -18,12 +17,9 @@ use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::media::fs::SimpleFileSystem;
 use uefi::proto::media::file::{Directory, File, FileAttribute, FileInfo, FileMode, FileType};
 
-use serde::Deserialize;
-
 // contains several workarounds for bugs in the Rust UEFI targets
 mod hacks;
-
-const CONFIG_FILE: &str = "\\bootloader.toml";
+mod config;
 
 #[entry]
 fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
@@ -44,36 +40,10 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     let fs = unsafe { &mut *fs.get() };
     let volume = fs.open_volume().expect_success("Failed to open root directory");
     
-    let config = get_config(volume, &systab).expect("failed to read config");
+    let config = config::get_config(volume, &systab).expect("failed to read config");
     writeln!(systab.stdout(), "config: {:?}", config).unwrap();
     
     Status::SUCCESS
-}
-
-fn get_config(volume: Directory, systab: &SystemTable<Boot>) -> Result<Config, Status> {
-    let text = read_file(CONFIG_FILE, volume, &systab)?;
-    Ok(toml::from_slice(text.as_slice()).expect("failed to parse config file"))
-}
-
-#[derive(Deserialize, Debug)]
-struct Config {
-    default: String,
-    timeout: Option<u8>,
-    entries: BTreeMap<String, Entry>,
-}
-
-#[derive(Deserialize, Debug)]
-struct Entry {
-    argv: Option<String>,
-    image: String,
-    name: Option<String>,
-    modules: Option<Vec<Module>>,
-}
-
-#[derive(Deserialize, Debug)]
-struct Module {
-    argv: Option<String>,
-    image: String,
 }
 
 fn read_file(name: &str, mut volume: Directory, systab: &SystemTable<Boot>) -> Result<Vec<u8>, Status> {
