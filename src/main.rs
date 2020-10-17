@@ -17,6 +17,7 @@ use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::media::fs::SimpleFileSystem;
 use uefi::proto::media::file::{Directory, File, FileAttribute, FileInfo, FileMode, FileType};
 
+mod boot;
 // contains several workarounds for bugs in the Rust UEFI targets
 mod hacks;
 mod config;
@@ -39,17 +40,21 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     .handle_protocol::<SimpleFileSystem>(loaded_image.device())
     .expect_success("Failed to open filesystem");
     let fs = unsafe { &mut *fs.get() };
-    let volume = fs.open_volume().expect_success("Failed to open root directory");
+    let mut volume = fs.open_volume().expect_success("Failed to open root directory");
     
-    let config = config::get_config(volume, &systab).expect("failed to read config");
+    let config = config::get_config(&mut volume, &systab).expect("failed to read config");
     writeln!(systab.stdout(), "config: {:?}", config).unwrap();
     let entry_to_boot = menu::choose(&config, &systab);
     writeln!(systab.stdout(), "okay, trying to load {:?}", entry_to_boot).unwrap();
     
-    Status::SUCCESS
+    boot::boot_entry(&entry_to_boot, &mut volume, &systab).expect("failed to boot the entry");
+    // TODO: redisplay the menu or something like that if we end up here again
+    
+    // We've booted the kernel (or we panicked before), so we aren't here.
+    unreachable!();
 }
 
-fn read_file(name: &str, mut volume: Directory, systab: &SystemTable<Boot>) -> Result<Vec<u8>, Status> {
+fn read_file(name: &str, volume: &mut Directory, systab: &SystemTable<Boot>) -> Result<Vec<u8>, Status> {
     let file_handle = match volume.open(name, FileMode::Read, FileAttribute::READ_ONLY) {
         Ok(file_handle) => file_handle.unwrap(),
         Err(e) => return {

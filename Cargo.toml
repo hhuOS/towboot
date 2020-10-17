@@ -19,3 +19,5 @@ rlibc = "1.0"
 toml = { git = "https://github.com/diondokter/toml-rs.git", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 # libm = "0.2"
+
+multiboot1 = { path = "../multiboot1", features = ["elf"] }

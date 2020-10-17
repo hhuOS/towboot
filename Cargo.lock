@@ -34,6 +34,7 @@ checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 name = "bootloader"
 version = "0.1.0"
 dependencies = [
+ "multiboot1",
  "rlibc",
  "serde",
  "toml",
@@ -46,6 +47,15 @@ name = "cfg-if"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
+
+[[package]]
+name = "elfloader"
+version = "0.11.0"
+dependencies = [
+ "bitflags",
+ "log",
+ "xmas-elf",
+]
 
 [[package]]
 name = "hashbrown"
@@ -64,6 +74,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fabed175da42fed1fa0746b0ea71f412aa9d35e76e95e59b192c64b9dc2bf8b"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "multiboot1"
+version = "0.1.0"
+dependencies = [
+ "cfg-if",
+ "elfloader",
 ]
 
 [[package]]
@@ -189,3 +207,18 @@ dependencies = [
  "bit_field 0.9.0",
  "bitflags",
 ]
+
+[[package]]
+name = "xmas-elf"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e74de9a366f6ab8c405fa6b371d9ac24943921fa14b3d64afcb202065c405f11"
+dependencies = [
+ "zero",
+]
+
+[[package]]
+name = "zero"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f1bc8a6b2005884962297587045002d8cfb8dcec9db332f4ca216ddc5de82c5"

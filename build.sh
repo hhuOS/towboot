@@ -15,6 +15,7 @@ sudo mkdir -p image/efi/boot
 sudo cp target/i686-unknown-uefi/debug/bootloader.efi image/efi/boot/bootia32.efi
 # sudo cp target/x86_64-unknown-uefi/debug/bootloader.efi image/efi/boot/bootx64.efi
 sudo cp bootloader.toml image/bootloader.toml
+sudo cp ../../kernels/multiboot1.elf image/
 sudo umount image/
 sudo losetup -d $LOOP
 
