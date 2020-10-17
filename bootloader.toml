@@ -1,0 +1,13 @@
+default = "multiboot1"
+timeout = 10
+
+[entries]
+
+  [entries.multiboot1]
+    argv = ""
+    image = "\\multiboot1.elf"
+    name = "multiboot1"
+
+    #[[entries.multiboot1.modules]]
+    #  argv = ""
+    #  image = "\\foo.img"
