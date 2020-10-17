@@ -20,6 +20,7 @@ use uefi::proto::media::file::{Directory, File, FileAttribute, FileInfo, FileMod
 // contains several workarounds for bugs in the Rust UEFI targets
 mod hacks;
 mod config;
+mod menu;
 
 #[entry]
 fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
@@ -42,6 +43,8 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     
     let config = config::get_config(volume, &systab).expect("failed to read config");
     writeln!(systab.stdout(), "config: {:?}", config).unwrap();
+    let entry_to_boot = menu::choose(&config, &systab);
+    writeln!(systab.stdout(), "okay, trying to load {:?}", entry_to_boot).unwrap();
     
     Status::SUCCESS
 }
