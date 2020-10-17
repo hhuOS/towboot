@@ -8,14 +8,17 @@ extern crate alloc;
 
 use core::convert::TryInto;
 use core::fmt::Write;
+use alloc::collections::btree_map::BTreeMap;
 use alloc::format;
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
 use uefi::prelude::*;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::media::fs::SimpleFileSystem;
 use uefi::proto::media::file::{Directory, File, FileAttribute, FileInfo, FileMode, FileType};
+
+use serde::Deserialize;
 
 const CONFIG_FILE: &str = "\\bootloader.toml";
 
@@ -38,17 +41,36 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     let fs = unsafe { &mut *fs.get() };
     let volume = fs.open_volume().expect_success("Failed to open root directory");
     
-    let config = get_config(volume, &systab);
+    let config = get_config(volume, &systab).expect("failed to read config");
+    writeln!(systab.stdout(), "config: {:?}", config).unwrap();
     
     Status::SUCCESS
 }
 
-fn get_config(volume: Directory, systab: &SystemTable<Boot>) -> Result<(), Status> {
+fn get_config(volume: Directory, systab: &SystemTable<Boot>) -> Result<Config, Status> {
     let text = read_file(CONFIG_FILE, volume, &systab)?;
-    writeln!(systab.stdout(), "read config:").unwrap();
-    writeln!(systab.stdout(), "hex: {:x?}", text.as_slice()).unwrap();
-    // TODO: parse this
-    Ok(())
+    Ok(toml::from_slice(text.as_slice()).expect("failed to parse config file"))
+}
+
+#[derive(Deserialize, Debug)]
+struct Config {
+    default: String,
+    timeout: Option<u8>,
+    entries: BTreeMap<String, Entry>,
+}
+
+#[derive(Deserialize, Debug)]
+struct Entry {
+    argv: Option<String>,
+    image: String,
+    name: Option<String>,
+    modules: Option<Vec<Module>>,
+}
+
+#[derive(Deserialize, Debug)]
+struct Module {
+    argv: Option<String>,
+    image: String,
 }
 
 fn read_file(name: &str, mut volume: Directory, systab: &SystemTable<Boot>) -> Result<Vec<u8>, Status> {
@@ -99,3 +121,18 @@ ___rust_probestack:
     jmp __rust_probestack
 ");
 
+
+// fmod and fmodf seem to not be supported (yet) by compiler_builtins for uefi
+// see https://github.com/rust-lang/compiler-builtins/blob/master/src/math.rs
+// We could use libm::fmod{,f} here, but then we'd need __truncdfsf2.
+// This once was in compiler_builtins, but it's not anymore.
+// see https://github.com/rust-lang/compiler-builtins/pull/262
+// So, let's just hope they are never called.
+#[no_mangle]
+pub extern "C" fn fmod(_x: f64, _y: f64) -> f64 {
+    unimplemented!();
+}
+#[no_mangle]
+pub extern "C" fn fmodf(_x: f32, _y: f32) -> f32 {
+    unimplemented!();
+}

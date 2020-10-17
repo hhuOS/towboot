@@ -15,3 +15,7 @@ uefi-services = "0.3"
 # > does not automatically get enabled. Therefore, we have to manually add support for
 # > the memory functions.
 rlibc = "1.0"
+
+toml = { git = "https://github.com/diondokter/toml-rs.git", default-features = false }
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
+# libm = "0.2"
