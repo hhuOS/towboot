@@ -1,0 +1,17 @@
+[package]
+name = "bootloader"
+version = "0.1.0"
+authors = ["Niklas Sombert <niklas.sombert@uni-duesseldorf.de>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+uefi = { version = "0.6", features = ['exts'] }
+uefi-services = "0.3"
+
+# quoting https://github.com/rust-osdev/uefi-rs/blob/v0.6.0/uefi-test-runner/Cargo.toml:
+# > When building using Cargo's `build-std` feature, the `mem` feature of `compiler-builtins`
+# > does not automatically get enabled. Therefore, we have to manually add support for
+# > the memory functions.
+rlibc = "1.0"
