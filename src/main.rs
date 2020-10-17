@@ -20,6 +20,9 @@ use uefi::proto::media::file::{Directory, File, FileAttribute, FileInfo, FileMod
 
 use serde::Deserialize;
 
+// contains several workarounds for bugs in the Rust UEFI targets
+mod hacks;
+
 const CONFIG_FILE: &str = "\\bootloader.toml";
 
 #[entry]
@@ -111,28 +114,4 @@ fn read_file(name: &str, mut volume: Directory, systab: &SystemTable<Boot>) -> R
     .expect_success(&format!("Failed to read from file '{}'", name).to_string());
     assert_eq!(read_size, size);
     Ok(content_vec)
-}
-
-// this is a bug in Rust's compiler-builtins/src/probestack.rs
-// Noone seems to be using i686-unknown-uefi.
-global_asm!("
-.globl ___rust_probestack
-___rust_probestack:
-    jmp __rust_probestack
-");
-
-
-// fmod and fmodf seem to not be supported (yet) by compiler_builtins for uefi
-// see https://github.com/rust-lang/compiler-builtins/blob/master/src/math.rs
-// We could use libm::fmod{,f} here, but then we'd need __truncdfsf2.
-// This once was in compiler_builtins, but it's not anymore.
-// see https://github.com/rust-lang/compiler-builtins/pull/262
-// So, let's just hope they are never called.
-#[no_mangle]
-pub extern "C" fn fmod(_x: f64, _y: f64) -> f64 {
-    unimplemented!();
-}
-#[no_mangle]
-pub extern "C" fn fmodf(_x: f32, _y: f32) -> f32 {
-    unimplemented!();
 }
