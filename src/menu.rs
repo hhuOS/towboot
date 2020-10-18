@@ -4,9 +4,9 @@
 //! If it's ever written, this will contain a menu to select an entry to boot.
 //! (And maybe edit it. Who knows?)
 
-use core::fmt::Write;
-
 use uefi::prelude::*;
+
+use log::warn;
 
 use crate::config::{Config, Entry};
 
@@ -18,9 +18,9 @@ use crate::config::{Config, Entry};
 /// If the default entry is missing, it will try to use the first one instead.
 /// If there are no entries, it will panic.
 // TODO: perhaps this should return a Result?
-pub fn choose<'a>(config: &'a Config, systab: &SystemTable<Boot>) -> &'a Entry {
+pub fn choose<'a>(config: &'a Config, _systab: &SystemTable<Boot>) -> &'a Entry {
     let default_entry = config.entries.get(&config.default).unwrap_or_else(|| {
-        writeln!(systab.stdout(), "default entry is missing, trying the first one").unwrap();
+        warn!("default entry is missing, trying the first one");
         config.entries.values().next().expect("no entries")
     });
     // TODO: display a menu or something like that

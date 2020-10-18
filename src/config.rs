@@ -12,8 +12,8 @@ use serde::Deserialize;
 const CONFIG_FILE: &str = "\\bootloader.toml";
 
 /// Read and parse the config.
-pub fn get_config(volume: &mut Directory, systab: &SystemTable<Boot>) -> Result<Config, Status> {
-    let text = crate::read_file(CONFIG_FILE, volume, &systab)?;
+pub fn get_config(volume: &mut Directory) -> Result<Config, Status> {
+    let text = crate::read_file(CONFIG_FILE, volume)?;
     Ok(toml::from_slice(text.as_slice()).expect("failed to parse config file"))
 }
 
@@ -21,6 +21,7 @@ pub fn get_config(volume: &mut Directory, systab: &SystemTable<Boot>) -> Result<
 pub struct Config {
     pub default: String,
     pub timeout: Option<u8>,
+    pub log_level: Option<String>,
     pub entries: BTreeMap<String, Entry>,
 }
 

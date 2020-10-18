@@ -5,11 +5,12 @@ use alloc::string::ToString;
 use alloc::vec::Vec;
 
 use core::convert::{identity, TryInto};
-use core::fmt::Write;
 
 use uefi::prelude::*;
 use uefi::proto::media::file::Directory;
 use uefi::table::boot::{AllocateType, MemoryType};
+
+use log::{debug, info};
 
 use multiboot1::Addresses;
 
@@ -28,10 +29,10 @@ use crate::config::Entry;
 /// 8. when on x64_64: switch to x86
 /// 9. jump!
 pub fn boot_entry(entry: &Entry, volume: &mut Directory, image: Handle, systab: SystemTable<Boot>) -> Result<(), ()> {
-    let kernel_vec = crate::read_file(&entry.image, volume, &systab)
+    let kernel_vec = crate::read_file(&entry.image, volume)
     .expect("failed to load image");
     let metadata = multiboot1::parse(kernel_vec.as_slice()).expect("invalid Multiboot header");
-    writeln!(systab.stdout(), "loaded kernel: {:?}", metadata).unwrap();
+    debug!("loaded kernel: {:?}", metadata);
     let addresses = match &metadata.addresses {
         Addresses::Multiboot(addr) => addr,
         Addresses::Elf(elf) => todo!("handle ELF addresses")
@@ -43,7 +44,7 @@ pub fn boot_entry(entry: &Entry, volume: &mut Directory, image: Handle, systab: 
     // The current implementation is fast enough
     // (we're copying just a few megabytes through memory),
     // but in some cases we could block the destination with the source and this would be bad.
-    writeln!(systab.stdout(), "moving the kernel to its desired location...").unwrap();
+    info!("moving the kernel to its desired location...");
     // allocate
     let kernel_length: usize = {
         if addresses.bss_end_address == 0 {addresses.load_end_address - addresses.load_address}
@@ -71,17 +72,17 @@ pub fn boot_entry(entry: &Entry, volume: &mut Directory, image: Handle, systab: 
     // TODO: Don't we lose metadata here? Or did we copy that before?
     
     let modules_vec: Vec<Vec<u8>> = entry.modules.iter().flat_map(identity).map(|module|
-        crate::read_file(&module.image, volume, &systab)
+        crate::read_file(&module.image, volume)
         .expect(&format!("failed to load module '{}", module.image).to_string())
     ).collect();
-    writeln!(systab.stdout(), "loaded {} modules", modules_vec.len()).unwrap();
+    info!("loaded {} modules", modules_vec.len());
     
     
     // TODO: Steps 5 and 6
     
     // allocate memory for the memory map
     // also, keep a bit of room
-    writeln!(systab.stdout(), "exiting boot services...").unwrap();
+    info!("exiting boot services...");
     let mut mmap_vec = Vec::<u8>::new();
     mmap_vec.resize(systab.boot_services().memory_map_size() + 100, 0);
     let (systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())

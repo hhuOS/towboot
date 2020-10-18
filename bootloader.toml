@@ -1,5 +1,6 @@
 default = "hhuOS"
 timeout = 10
+log_level = "debug"
 
 [entries]
 

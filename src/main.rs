@@ -9,7 +9,7 @@ extern crate rlibc;
 extern crate alloc;
 
 use core::convert::TryInto;
-use core::fmt::Write;
+use core::str::FromStr;
 use alloc::format;
 use alloc::string::ToString;
 use alloc::vec::Vec;
@@ -18,6 +18,8 @@ use uefi::prelude::*;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::media::fs::SimpleFileSystem;
 use uefi::proto::media::file::{Directory, File, FileAttribute, FileInfo, FileMode, FileType};
+
+use log::{debug, info, warn, error};
 
 mod boot;
 // contains several workarounds for bugs in the Rust UEFI targets
@@ -46,10 +48,16 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     let fs = unsafe { &mut *fs.get() };
     let mut volume = fs.open_volume().expect_success("Failed to open root directory");
     
-    let config = config::get_config(&mut volume, &systab).expect("failed to read config");
-    writeln!(systab.stdout(), "config: {:?}", config).unwrap();
+    let config = config::get_config(&mut volume).expect("failed to read config");
+    if let Some(level) = &config.log_level {
+        match log::LevelFilter::from_str(&level) {
+            Ok(l) => log::set_max_level(l),
+            Err(_) => warn!("'{}' is not a valid log level, using default", level),
+        }
+    }
+    debug!("config: {:?}", config);
     let entry_to_boot = menu::choose(&config, &systab);
-    writeln!(systab.stdout(), "okay, trying to load {:?}", entry_to_boot).unwrap();
+    debug!("okay, trying to load {:?}", entry_to_boot);
     
     boot::boot_entry(&entry_to_boot, &mut volume, image, systab).expect("failed to boot the entry");
     // TODO: redisplay the menu or something like that if we end up here again
@@ -66,12 +74,12 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
 /// Possible errors:
 /// * `Status::NOT_FOUND`: the file does not exist
 /// * `Status::UNSUPPORTED`: the given path does exist, but it's a directory
-fn read_file(name: &str, volume: &mut Directory, systab: &SystemTable<Boot>) -> Result<Vec<u8>, Status> {
-    writeln!(systab.stdout(), "loading file '{}'...", name).unwrap();
+fn read_file(name: &str, volume: &mut Directory) -> Result<Vec<u8>, Status> {
+    info!("loading file '{}'...", name);
     let file_handle = match volume.open(name, FileMode::Read, FileAttribute::READ_ONLY) {
         Ok(file_handle) => file_handle.unwrap(),
         Err(e) => return {
-            writeln!(systab.stdout(), "Failed to find file '{}': {:?}", name, e).unwrap();
+            error!("Failed to find file '{}': {:?}", name, e);
             Err(Status::NOT_FOUND)
         }
     };
@@ -79,7 +87,7 @@ fn read_file(name: &str, volume: &mut Directory, systab: &SystemTable<Boot>) -> 
     .expect_success(&format!("Failed to open file '{}'", name).to_string()) {
         FileType::Regular(file) => file,
         FileType::Dir(_) => return {
-            writeln!(systab.stdout(), "File '{}' is a directory", name).unwrap();
+            error!("File '{}' is a directory", name);
             Err(Status::UNSUPPORTED)
         }
     };
