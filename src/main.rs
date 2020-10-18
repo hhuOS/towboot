@@ -31,7 +31,6 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     //! This is the main function.
     //! Startup happens here.
     uefi_services::init(&systab).expect_success("Failed to initialize utilities");
-    writeln!(systab.stdout(), "Hello, world!").unwrap();
     
     // get information about the way we were loaded
     // the interesting thing here is the partition handle
@@ -68,6 +67,7 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
 /// * `Status::NOT_FOUND`: the file does not exist
 /// * `Status::UNSUPPORTED`: the given path does exist, but it's a directory
 fn read_file(name: &str, volume: &mut Directory, systab: &SystemTable<Boot>) -> Result<Vec<u8>, Status> {
+    writeln!(systab.stdout(), "loading file '{}'...", name).unwrap();
     let file_handle = match volume.open(name, FileMode::Read, FileAttribute::READ_ONLY) {
         Ok(file_handle) => file_handle.unwrap(),
         Err(e) => return {
@@ -96,7 +96,6 @@ fn read_file(name: &str, volume: &mut Directory, systab: &SystemTable<Boot>) -> 
     let size: usize = file.get_info::<FileInfo>(info_vec.as_mut_slice())
     .expect(&format!("Failed to get metadata of file '{}'", name).to_string())
     .unwrap().file_size().try_into().unwrap();
-    writeln!(systab.stdout(), "File opened.").unwrap();
     // Vec::with_size would allocate enough space, but won't fill it with zeros.
     // file.read seems to need this.
     let mut content_vec = Vec::<u8>::new();

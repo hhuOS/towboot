@@ -81,6 +81,7 @@ pub fn boot_entry(entry: &Entry, volume: &mut Directory, image: Handle, systab: 
     
     // allocate memory for the memory map
     // also, keep a bit of room
+    writeln!(systab.stdout(), "exiting boot services...").unwrap();
     let mut mmap_vec = Vec::<u8>::new();
     mmap_vec.resize(systab.boot_services().memory_map_size() + 100, 0);
     let (systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())
