@@ -52,7 +52,7 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     let entry_to_boot = menu::choose(&config, &systab);
     writeln!(systab.stdout(), "okay, trying to load {:?}", entry_to_boot).unwrap();
     
-    boot::boot_entry(&entry_to_boot, &mut volume, &systab).expect("failed to boot the entry");
+    boot::boot_entry(&entry_to_boot, &mut volume, image, systab).expect("failed to boot the entry");
     // TODO: redisplay the menu or something like that if we end up here again
     
     // We've booted the kernel (or we panicked before), so we aren't here.

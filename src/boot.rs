@@ -23,7 +23,7 @@ use crate::config::Entry;
 /// 6. exit BootServices
 /// 7. when on x64_64: switch to x86
 /// 8. jump!
-pub fn boot_entry(entry: &Entry, volume: &mut Directory, systab: &SystemTable<Boot>) -> Result<(), ()> {
+pub fn boot_entry(entry: &Entry, volume: &mut Directory, image: Handle, systab: SystemTable<Boot>) -> Result<(), ()> {
     let kernel_vec = crate::read_file(&entry.image, volume, &systab)
     .expect("failed to load image");
     let metadata = multiboot1::parse(kernel_vec.as_slice()).expect("invalid Multiboot header");
@@ -36,6 +36,16 @@ pub fn boot_entry(entry: &Entry, volume: &mut Directory, systab: &SystemTable<Bo
     writeln!(systab.stdout(), "loaded {} modules", modules_vec.len()).unwrap();
     
     
-    // TODO: Steps 4 - 8
+    // TODO: Steps 4 and 5
+    
+    // allocate memory for the memory map
+    // also, keep a bit of room
+    let mut mmap_vec = Vec::<u8>::new();
+    mmap_vec.resize(systab.boot_services().memory_map_size() + 100, 0);
+    let (systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())
+    .expect("failed to exit boot services").unwrap();
+    // now, write! won't work anymore. Also, we can't allocate any memory.
+    
+    // TODO: Step 7 and 8
     Ok(())
 }
