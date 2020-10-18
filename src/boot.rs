@@ -87,6 +87,10 @@ pub fn boot_entry(entry: &Entry, volume: &mut Directory, image: Handle, systab: 
     .expect("failed to exit boot services").unwrap();
     // now, write! won't work anymore. Also, we can't allocate any memory.
     
-    // TODO: Step 8 and 9
-    Ok(())
+    // TODO: Step 8
+    
+    // TODO: Not sure whether this works. We don't get any errors.
+    let entry_ptr = unsafe {core::mem::transmute::<u32, fn()>(addresses.entry_address)};
+    entry_ptr();
+    unreachable!();
 }
