@@ -19,9 +19,7 @@ then
 fi
 
 echo "building image…"
-dd if=/dev/zero of=part.img count=50 bs=1M
-mkfs.vfat part.img
-
+mformat -i part.img -C -F -T $(echo "100 * 1024" | bc) -h 1 -s 1024 :: # 50 MiB
 mmd -i part.img efi
 mmd -i part.img efi/boot
 mcopy -i part.img target/i686-unknown-uefi/debug/bootloader.efi ::efi/boot/bootia32.efi
