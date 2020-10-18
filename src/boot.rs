@@ -1,5 +1,10 @@
 //! This module handles the actual boot.
 
+use alloc::format;
+use alloc::string::ToString;
+use alloc::vec::Vec;
+
+use core::convert::identity;
 use core::fmt::Write;
 
 use uefi::prelude::*;
@@ -24,6 +29,13 @@ pub fn boot_entry(entry: &Entry, volume: &mut Directory, systab: &SystemTable<Bo
     let metadata = multiboot1::parse(kernel_vec.as_slice()).expect("invalid Multiboot header");
     writeln!(systab.stdout(), "loaded kernel: {:?}", metadata).unwrap();
     
-    // TODO: Steps 3 - 8
+    let modules_vec: Vec<Vec<u8>> = entry.modules.iter().flat_map(identity).map(|module|
+        crate::read_file(&module.image, volume, &systab)
+        .expect(&format!("failed to load module '{}", module.image).to_string())
+    ).collect();
+    writeln!(systab.stdout(), "loaded {} modules", modules_vec.len()).unwrap();
+    
+    
+    // TODO: Steps 4 - 8
     Ok(())
 }
