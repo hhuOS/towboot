@@ -1,11 +1,12 @@
 //! This module contains structs and functions to parse the main configuration file.
 
-use alloc::collections::btree_map::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 
 use uefi::prelude::*;
 use uefi::proto::media::file::Directory;
+
+use hashbrown::hash_map::HashMap;
 
 use serde::Deserialize;
 
@@ -22,7 +23,7 @@ pub struct Config {
     pub default: String,
     pub timeout: Option<u8>,
     pub log_level: Option<String>,
-    pub entries: BTreeMap<String, Entry>,
+    pub entries: HashMap<String, Entry>,
 }
 
 #[derive(Deserialize, Debug)]

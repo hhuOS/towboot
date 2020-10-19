@@ -22,4 +22,6 @@ toml = { git = "https://github.com/diondokter/toml-rs.git", default-features = f
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 # libm = "0.2"
 
+hashbrown = { version = "0.9", features = ["serde"] }
+
 multiboot1 = { path = "../multiboot1", features = ["elf"] }
