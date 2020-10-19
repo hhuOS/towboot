@@ -87,4 +87,5 @@ then
 fi
 
 echo "launching qemu…"
-qemu-system-$QEMUARCH -machine pc,accel=kvm,kernel-irqchip=off -bios $OVMF_PATH -hda image.img
+qemu-system-$QEMUARCH -machine pc,accel=kvm,kernel-irqchip=off -bios $OVMF_PATH \
+-drive driver=raw,node-name=disk,file.driver=file,file.filename=image.img
