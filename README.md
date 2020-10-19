@@ -22,6 +22,10 @@ To boot the disk image in a virtual machine, QEMU is recommended.
 But running `./build.sh` will do that and also create a disk image
 and boot that with QEMU, so just may just want to run this.
 
+You can configure whether to create a `debug` or `release` build for
+either `i686` or `x86_64` by setting the environment variables
+`BUILD` and `ARCH`. (The defaults are `debug` and `i686`.)
+
 ## documentation
 
 This README file is relatively short (as you can see).
