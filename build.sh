@@ -1,7 +1,23 @@
 #!/bin/sh
 set -eu
-cargo build
-# cargo build --target x86_64-unknown-uefi
+
+ARCH=${ARCH:-i686} # or x86_64
+if [ $ARCH = "i686" ]
+then
+    EFIARCH="ia32"
+    QEMUARCH="i386"
+    OVMF_PATH=~/bin/OVMF.bin
+elif [ $ARCH = "x86_64" ]
+then
+    EFIARCH="x64"
+    QEMUARCH=$ARCH
+    OVMF_PATH="/usr/share/ovmf/OVMF.fd"
+else
+    echo "unknown arch $ARCH"
+    return 1
+fi
+echo "building for $ARCH, set ARCH to override…"
+cargo build --target $ARCH-unknown-uefi
 
 echo "checking whether mkgpt exists and building it if not…"
 if [ ! -d mkgpt ]
@@ -22,8 +38,7 @@ echo "building image…"
 mformat -i part.img -C -F -T $(echo "100 * 1024" | bc) -h 1 -s 1024 :: # 50 MiB
 mmd -i part.img efi
 mmd -i part.img efi/boot
-mcopy -i part.img target/i686-unknown-uefi/debug/bootloader.efi ::efi/boot/bootia32.efi
-mcopy -i part.img target/x86_64-unknown-uefi/debug/bootloader.efi ::efi/boot/bootx64.efi
+mcopy -i part.img target/$ARCH-unknown-uefi/debug/bootloader.efi ::efi/boot/boot$EFIARCH.efi
 mcopy -i part.img bootloader.toml ::
 mcopy -i part.img ../../kernels/multiboot1.elf ::
 mcopy -i part.img ~/dev/hhuOS/loader/boot/hhuOS.bin ::
@@ -33,5 +48,4 @@ mkgpt/mkgpt -o image.img --part part.img --type system
 rm part.img
 
 echo "launching qemu…"
-qemu-system-i386 -machine pc,accel=kvm,kernel-irqchip=off -bios ~/bin/OVMF.bin -hda image.img
-# qemu-system-x86_64 -machine pc,accel=kvm,kernel-irqchip=off -bios /usr/share/ovmf/OVMF.fd -hda image.img
+qemu-system-$QEMUARCH -machine pc,accel=kvm,kernel-irqchip=off -bios $OVMF_PATH -hda image.img
