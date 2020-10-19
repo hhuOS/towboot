@@ -92,7 +92,7 @@ pub fn boot_entry(entry: &Entry, volume: &mut Directory, image: Handle, systab: 
     // TODO: Step 8
     
     // TODO: Not sure whether this works. We don't get any errors.
-    let entry_ptr = unsafe {core::mem::transmute::<u32, fn()>(addresses.entry_address)};
+    let entry_ptr = unsafe {core::mem::transmute::<_, fn()>(addresses.entry_address as usize)};
     entry_ptr();
     unreachable!();
 }
