@@ -63,7 +63,13 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     let fs = unsafe { &mut *fs.get() };
     let mut volume = fs.open_volume().expect_success("Failed to open root directory");
     
-    let config = config::get_config(&mut volume, load_options).expect("failed to read config");
+    let config = match config::get_config(&mut volume, load_options) {
+        Ok(c) => c,
+        Err(e) => {
+            error!("failed to get config: {:?}", e);
+            return Status::INVALID_PARAMETER
+        }
+    };
     if let Some(level) = &config.log_level {
         match log::LevelFilter::from_str(&level) {
             Ok(l) => log::set_max_level(l),
@@ -74,11 +80,14 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     let entry_to_boot = menu::choose(&config, &systab);
     debug!("okay, trying to load {:?}", entry_to_boot);
     
-    boot::boot_entry(&entry_to_boot, &mut volume, image, systab).expect("failed to boot the entry");
-    // TODO: redisplay the menu or something like that if we end up here again
-    
-    // We've booted the kernel (or we panicked before), so we aren't here.
-    unreachable!();
+    match boot::boot_entry(&entry_to_boot, &mut volume, image, systab) {
+        Ok(_) => unreachable!(), // We've booted the kernel, so we aren't here.
+        Err(e) => {
+            error!("failed to boot the entry: {:?}", e);
+            return e // give up
+            // TODO: perhaps redisplay the menu or something like that
+        },
+    }
 }
 
 

@@ -1,7 +1,5 @@
 //! This module handles the actual boot.
 
-use alloc::format;
-use alloc::string::ToString;
 use alloc::vec::Vec;
 
 use core::convert::{identity, TryInto};
@@ -10,7 +8,7 @@ use uefi::prelude::*;
 use uefi::proto::media::file::Directory;
 use uefi::table::boot::{AllocateType, MemoryType};
 
-use log::{debug, info};
+use log::{debug, info, error};
 
 use multiboot1::Addresses;
 
@@ -28,10 +26,16 @@ use crate::config::Entry;
 /// 7. exit BootServices
 /// 8. when on x64_64: switch to x86
 /// 9. jump!
-pub fn boot_entry(entry: &Entry, volume: &mut Directory, image: Handle, systab: SystemTable<Boot>) -> Result<(), ()> {
-    let kernel_vec = crate::read_file(&entry.image, volume)
-    .expect("failed to load image");
-    let metadata = multiboot1::parse(kernel_vec.as_slice()).expect("invalid Multiboot header");
+///
+/// If an error occurs in a stage where we can still recover, return it.
+pub fn boot_entry(
+    entry: &Entry, volume: &mut Directory, image: Handle, systab: SystemTable<Boot>
+) -> Result<(), Status> {
+    let kernel_vec = crate::read_file(&entry.image, volume)?;
+    let metadata = multiboot1::parse(kernel_vec.as_slice()).or_else(|e| {
+        error!("invalid Multiboot header: {:?}", e);
+        Err(Status::LOAD_ERROR)
+    })?;
     debug!("loaded kernel: {:?}", metadata);
     let addresses = match &metadata.addresses {
         Addresses::Multiboot(addr) => addr,
@@ -71,10 +75,10 @@ pub fn boot_entry(entry: &Entry, volume: &mut Directory, image: Handle, systab: 
     core::mem::drop(kernel_vec);
     // TODO: Don't we lose metadata here? Or did we copy that before?
     
+    // Load all modules, fail completely if one fails to load.
     let modules_vec: Vec<Vec<u8>> = entry.modules.iter().flat_map(identity).map(|module|
         crate::read_file(&module.image, volume)
-        .expect(&format!("failed to load module '{}", module.image).to_string())
-    ).collect();
+    ).collect::<Result<Vec<_>, _>>()?;
     info!("loaded {} modules", modules_vec.len());
     
     

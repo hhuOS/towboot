@@ -7,7 +7,7 @@ use alloc::fmt;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
-use log::{trace, warn};
+use log::{trace, error};
 
 use uefi::prelude::*;
 use uefi::proto::media::file::Directory;
@@ -25,10 +25,7 @@ const CONFIG_FILE: &str = "\\bootloader.toml";
 /// Otherwise, read and parse a configuration file.
 pub fn get_config(volume: &mut Directory, load_options: Option<&str>) -> Result<Config, Status> {
     let config_source: ConfigSource = match load_options {
-        Some(lo) => parse_load_options(lo).unwrap_or_else(|e| {
-            warn!("failed to parse load options: {:?}", e);
-            ConfigSource::File(CONFIG_FILE.to_string())
-        }),
+        Some(lo) => parse_load_options(lo)?,
         // fall back to the hardcoded config file
         None => ConfigSource::File(CONFIG_FILE.to_string()),
     };
@@ -75,7 +72,7 @@ fn parse_load_options(load_options: &str) -> Result<ConfigSource, Status> {
                 }
             },
             Err(e) => {
-                warn!("failed parsing load options: {:?}", e);
+                error!("failed parsing load options: {:?}", e);
                 return Err(Status::INVALID_PARAMETER)
             },
         }
