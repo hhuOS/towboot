@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(abi_efiapi)]
 #![feature(global_asm)]
+#![feature(str_split_once)] // used in config.rs
 
 //! a bootloader for Multiboot kernels on UEFI systems
 
@@ -41,6 +42,20 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     .expect_success("Failed to open loaded image protocol");
     let loaded_image = unsafe { &mut *loaded_image.get() };
     
+    // get the load options
+    let mut load_options_buf: [u8; 2048] = [0; 2048];
+    let load_options = match loaded_image.load_options(&mut load_options_buf) {
+        Ok(s) => {
+            debug!("got load options: {:}", s);
+            Some(s)
+        },
+        Err(e) => {
+            warn!("failed to get load options: {:?}", e);
+            warn!("assuming there were none");
+            None
+        },
+    };
+    
     // open the filesystem
     let fs = systab.boot_services()
     .handle_protocol::<SimpleFileSystem>(loaded_image.device())
@@ -48,7 +63,7 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     let fs = unsafe { &mut *fs.get() };
     let mut volume = fs.open_volume().expect_success("Failed to open root directory");
     
-    let config = config::get_config(&mut volume).expect("failed to read config");
+    let config = config::get_config(&mut volume, load_options).expect("failed to read config");
     if let Some(level) = &config.log_level {
         match log::LevelFilter::from_str(&level) {
             Ok(l) => log::set_max_level(l),

@@ -42,6 +42,7 @@ version = "0.1.0"
 dependencies = [
  "hashbrown 0.9.1",
  "log",
+ "miniarg",
  "multiboot1",
  "rlibc",
  "serde",
@@ -55,6 +56,12 @@ name = "cfg-if"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
+
+[[package]]
+name = "cfg-if"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "elfloader"
@@ -91,14 +98,35 @@ version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fabed175da42fed1fa0746b0ea71f412aa9d35e76e95e59b192c64b9dc2bf8b"
 dependencies = [
- "cfg-if",
+ "cfg-if 0.1.10",
+]
+
+[[package]]
+name = "miniarg"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23f6be926d4d01e9e11a31f167473ec6d619b41e00f10946692d390b7bc6233c"
+dependencies = [
+ "cfg-if 1.0.0",
+ "miniarg_derive",
+]
+
+[[package]]
+name = "miniarg_derive"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6de0aa1e1e8babb3c28f24ab5c1e8804050461e5585e54bfb07ff07c4a816187"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
 name = "multiboot1"
 version = "0.1.0"
 dependencies = [
- "cfg-if",
+ "cfg-if 0.1.10",
  "elfloader",
 ]
 
@@ -204,7 +232,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49f92132d2116899d9730c97ab74af01519fc0ad7c15f628565127f0f203a2c9"
 dependencies = [
- "cfg-if",
+ "cfg-if 0.1.10",
  "log",
  "uefi",
  "x86_64",

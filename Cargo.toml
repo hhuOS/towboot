@@ -25,3 +25,4 @@ serde = { version = "1.0", default-features = false, features = ["alloc", "deriv
 hashbrown = { version = "0.9", features = ["serde"] }
 
 multiboot1 = { path = "../multiboot1", features = ["elf"] }
+miniarg = { version = "0.1", default-features = false, features = ["alloc", "derive"] }
