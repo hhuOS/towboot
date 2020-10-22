@@ -80,14 +80,17 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     let entry_to_boot = menu::choose(&config, &systab);
     debug!("okay, trying to load {:?}", entry_to_boot);
     
-    match boot::boot_entry(&entry_to_boot, &mut volume, image, systab) {
-        Ok(_) => unreachable!(), // We've booted the kernel, so we aren't here.
+    match boot::prepare_entry(&entry_to_boot, &mut volume, &systab) {
+        Ok(e) => {
+            e.boot(image, systab);
+            unreachable!();
+        },
         Err(e) => {
-            error!("failed to boot the entry: {:?}", e);
+            error!("failed to prepare the entry: {:?}", e);
             return e // give up
             // TODO: perhaps redisplay the menu or something like that
         },
-    }
+    };
 }
 
 
