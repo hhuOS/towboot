@@ -10,7 +10,7 @@ use uefi::table::boot::{AllocateType, MemoryType};
 
 use log::{debug, info, error};
 
-use multiboot1::{Addresses, Metadata};
+use multiboot1::{Addresses, Metadata, MultibootAddresses};
 
 use crate::config::Entry;
 
@@ -35,11 +35,27 @@ pub(crate) fn prepare_entry<'a>(
         Status::LOAD_ERROR
     })?;
     debug!("loaded kernel: {:?}", metadata);
-    let addresses = match &metadata.addresses {
-        Addresses::Multiboot(addr) => addr,
-        Addresses::Elf(elf) => todo!("handle ELF addresses")
-    };
+    let (kernel_ptr, kernel_pages) =  match &metadata.addresses {
+        Addresses::Multiboot(addr) => load_kernel_multiboot(kernel_vec, addr, &systab),
+        Addresses::Elf => load_kernel_elf(kernel_vec, &entry.image, &systab),
+    }?;
     
+    // Load all modules, fail completely if one fails to load.
+    let modules_vec: Vec<Vec<u8>> = entry.modules.iter().flat_map(identity).map(|module|
+        crate::read_file(&module.image, volume)
+    ).collect::<Result<Vec<_>, _>>()?;
+    info!("loaded {} modules", modules_vec.len());
+    
+    
+    // TODO: Steps 5 and 6
+    Ok(PreparedEntry { entry, kernel_ptr, kernel_pages, metadata, modules_vec })
+}
+
+
+/// Load a kernel which has its addresses specified inside the Multiboot header.
+fn load_kernel_multiboot(
+    kernel_vec: Vec<u8>, addresses: &MultibootAddresses, systab: &SystemTable<Boot>
+) -> Result<(u64, usize), Status> {
     // try to allocate the memory where to load the kernel and move the kernel there
     // TODO: maybe optimize this so that we at first read just the beginning of the kernel
     // and then read the whole kernel into the right place directly
@@ -74,16 +90,15 @@ pub(crate) fn prepare_entry<'a>(
     .for_each(|(dst,src)| *dst = *src);
     // drop the old vector
     core::mem::drop(kernel_vec);
-    
-    // Load all modules, fail completely if one fails to load.
-    let modules_vec: Vec<Vec<u8>> = entry.modules.iter().flat_map(identity).map(|module|
-        crate::read_file(&module.image, volume)
-    ).collect::<Result<Vec<_>, _>>()?;
-    info!("loaded {} modules", modules_vec.len());
-    
-    
-    // TODO: Steps 5 and 6
-    Ok(PreparedEntry { entry, kernel_ptr, kernel_pages, metadata, modules_vec })
+    Ok((kernel_ptr, kernel_pages))
+}
+
+/// Load a kernel which uses ELF semantics.
+fn load_kernel_elf(
+    kernel_vec: Vec<u8>, name: &str, systab: &SystemTable<Boot>
+) -> Result<(u64, usize), Status> {
+    todo!("load ELFs");
+    Err(Status::UNSUPPORTED)
 }
 
 pub(crate) struct PreparedEntry<'a> {
@@ -92,6 +107,7 @@ pub(crate) struct PreparedEntry<'a> {
     // we have to explicitly take care of disposing this if a boot fails
     kernel_ptr: u64,
     kernel_pages: usize,
+    
     metadata: Metadata,
     modules_vec: Vec<Vec<u8>>,
     // TODO: framebuffer and Multiboot information
@@ -141,7 +157,7 @@ impl PreparedEntry<'_> {
         
         let addresses = match &self.metadata.addresses {
             Addresses::Multiboot(addr) => addr,
-            Addresses::Elf(elf) => todo!("handle ELF addresses")
+            Addresses::Elf => todo!("handle ELF addresses")
         };
         // TODO: Not sure whether this works. We don't get any errors.
         let entry_ptr = unsafe {core::mem::transmute::<_, fn()>(addresses.entry_address as usize)};
