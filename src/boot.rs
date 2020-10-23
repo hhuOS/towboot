@@ -68,15 +68,9 @@ fn load_kernel_multiboot(
         if addresses.bss_end_address == 0 {addresses.load_end_address - addresses.load_address}
         else {addresses.bss_end_address - addresses.load_address}
     }.try_into().unwrap();
-    let kernel_pages = (kernel_length / 4096) + 1; // TODO: this may allocate a page too much
-    let kernel_ptr = systab.boot_services().allocate_pages(
-        AllocateType::Address(addresses.load_address.try_into().unwrap()),
-        MemoryType::LOADER_DATA,
-        kernel_pages.try_into().unwrap() // page size
-    ).map_err(|e| {
-        error!("failed to allocate memory to place the kernel: {:?}", e);
-        Status::LOAD_ERROR
-    })?.unwrap();
+    let (kernel_ptr, kernel_pages) = allocate_at(
+        addresses.load_address.try_into().unwrap(), kernel_length, &systab
+    )?;
     let kernel_buf = unsafe {
         core::slice::from_raw_parts_mut(kernel_ptr as *mut u8, kernel_length)
     };
@@ -99,6 +93,25 @@ fn load_kernel_elf(
 ) -> Result<(u64, usize), Status> {
     todo!("load ELFs");
     Err(Status::UNSUPPORTED)
+}
+
+/// Allocate memory at a specific position.
+///
+/// Note: This will round up to the whole pages.
+/// Also: This memory is not tracked by Rust.
+fn allocate_at(
+    address: usize, size: usize, systab: &SystemTable<Boot>
+) -> Result<(u64, usize), Status>{
+    let count_pages = (size / 4096) + 1; // TODO: this may allocate a page too much
+    let ptr = systab.boot_services().allocate_pages(
+        AllocateType::Address(address),
+        MemoryType::LOADER_DATA,
+        count_pages
+    ).map_err(|e| {
+        error!("failed to allocate memory to place the kernel: {:?}", e);
+        Status::LOAD_ERROR
+    })?.unwrap();
+    Ok((ptr, count_pages))
 }
 
 pub(crate) struct PreparedEntry<'a> {
