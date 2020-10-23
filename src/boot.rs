@@ -6,7 +6,6 @@ use core::convert::{identity, TryInto};
 
 use uefi::prelude::*;
 use uefi::proto::media::file::Directory;
-use uefi::table::boot::{AllocateType, MemoryType};
 
 use log::{trace, debug, info, error};
 
@@ -15,6 +14,7 @@ use multiboot1::{Addresses, Metadata, MultibootAddresses};
 use elfloader::{ElfBinary, ElfLoader, Flags, LoadableHeaders, P64, Rela, VAddr};
 
 use crate::config::Entry;
+use crate::mem::Allocation;
 
 /// Prepare an entry for boot.
 ///
@@ -70,7 +70,7 @@ fn load_kernel_multiboot(
         if addresses.bss_end_address == 0 {addresses.load_end_address - addresses.load_address}
         else {addresses.bss_end_address - addresses.load_address}
     }.try_into().unwrap();
-    let mut allocation = allocate_at(
+    let mut allocation = Allocation::new_at(
         addresses.load_address.try_into().unwrap(), kernel_length, &systab
     )?;
     let kernel_buf = allocation.as_mut_slice();
@@ -129,7 +129,7 @@ impl<'a> ElfLoader for OurElfLoader<'a> {
                 "allocating {} {} bytes at {:#x}",
                 header.mem_size(), header.flags(), header.physical_addr()
             );
-            let mut allocation = allocate_at(
+            let mut allocation = Allocation::new_at(
                 header.physical_addr().try_into().unwrap(),
                 header.mem_size().try_into().unwrap(),
                 &self.systab
@@ -147,7 +147,7 @@ impl<'a> ElfLoader for OurElfLoader<'a> {
 
     fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), &'static str> {
         // check whether we actually allocated this
-        if !self.allocations.iter().any(|a| a.ptr == base && a.pages * 4096 >= region.len()) {
+        if !self.allocations.iter().any(|a| a.contains(base, region.len())) {
             panic!("we didn't allocate {:#x}, but tried to write to it o.O", base);
         }
         debug!("load {} bytes into {:#x}", region.len(), base);
@@ -156,51 +156,6 @@ impl<'a> ElfLoader for OurElfLoader<'a> {
         };
         mem_slice.clone_from_slice(region);
         Ok(())
-    }
-}
-
-/// Allocate memory at a specific position.
-///
-/// Note: This will round up to the whole pages.
-/// Also: This memory is not tracked by Rust.
-fn allocate_at(
-    address: usize, size: usize, systab: &SystemTable<Boot>
-) -> Result<Allocation, Status>{
-    let count_pages = (size / 4096) + 1; // TODO: this may allocate a page too much
-    let ptr = systab.boot_services().allocate_pages(
-        AllocateType::Address(address),
-        MemoryType::LOADER_DATA,
-        count_pages
-    ).map_err(|e| {
-        error!("failed to allocate memory to place the kernel: {:?}", e);
-        Status::LOAD_ERROR
-    })?.unwrap();
-    Ok(Allocation { ptr, pages: count_pages })
-}
-
-/// Tracks our own allocations.
-struct Allocation {
-    ptr: u64,
-    pages: usize,
-}
-
-impl Drop for Allocation {
-    /// Free the associated memory.
-    fn drop(&mut self) {
-        // We can't free memory after we've exited boot services.
-        // But this only happens in `PreparedEntry::boot` and this function doesn't return.
-        let systab_ptr = uefi_services::system_table();
-        let systab = unsafe { systab_ptr.as_ref() };
-        systab.boot_services().free_pages(self.ptr, self.pages)
-        // let's just panic if we can't free
-        .expect("failed to free the allocated memory for the kernel").unwrap();
-    }
-}
-
-impl Allocation {
-    /// Return a slice that references the associated memory.
-    fn as_mut_slice(&mut self) -> &mut [u8] {
-        unsafe { core::slice::from_raw_parts_mut(self.ptr as *mut u8, self.pages * 4096) }
     }
 }
 
