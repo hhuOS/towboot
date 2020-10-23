@@ -8,9 +8,11 @@ use uefi::prelude::*;
 use uefi::proto::media::file::Directory;
 use uefi::table::boot::{AllocateType, MemoryType};
 
-use log::{debug, info, error};
+use log::{trace, debug, info, error};
 
 use multiboot1::{Addresses, Metadata, MultibootAddresses};
+
+use elfloader::{ElfBinary, ElfLoader, Flags, LoadableHeaders, P64, Rela, VAddr};
 
 use crate::config::Entry;
 
@@ -37,7 +39,7 @@ pub(crate) fn prepare_entry<'a>(
     debug!("loaded kernel: {:?}", metadata);
     let kernel_allocations = match &metadata.addresses {
         Addresses::Multiboot(addr) => load_kernel_multiboot(kernel_vec, addr, &systab),
-        Addresses::Elf => load_kernel_elf(kernel_vec, &entry.image, &systab),
+        Addresses::Elf(addr) => load_kernel_elf(kernel_vec, &entry.image, &systab),
     }?;
     
     // Load all modules, fail completely if one fails to load.
@@ -89,8 +91,72 @@ fn load_kernel_multiboot(
 fn load_kernel_elf(
     kernel_vec: Vec<u8>, name: &str, systab: &SystemTable<Boot>
 ) -> Result<Vec<Allocation>, Status> {
-    todo!("load ELFs");
-    Err(Status::UNSUPPORTED)
+    let binary = ElfBinary::new(name, kernel_vec.as_slice()).map_err(|msg| {
+        error!("failed to parse ELF structure of kernel: {}", msg);
+        Status::LOAD_ERROR
+    })?;
+    let mut loader = OurElfLoader::new(systab);
+    binary.load(&mut loader).map_err(|msg| {
+        error!("failed to load kernel: {}", msg);
+        Status::LOAD_ERROR
+    })?;
+    Ok(loader.allocations)
+}
+
+struct OurElfLoader<'a> {
+    // be careful, they have to be freed!
+    allocations: Vec<Allocation>,
+    systab: &'a SystemTable<Boot>
+}
+
+impl<'a> OurElfLoader<'a> {
+    fn new(systab: &'a SystemTable<Boot>) -> Self {
+        OurElfLoader {
+            allocations: Vec::new(),
+            systab
+        }
+    }
+}
+
+impl<'a> ElfLoader for OurElfLoader<'a> {
+    fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), &'static str> {
+        for header in load_headers {
+            if header.virtual_addr() != header.physical_addr() {
+                todo!("support loading ELFs where virtual_addr != physical_addr")
+            }
+            trace!("header: {:?}", header);
+            debug!(
+                "allocating {} {} bytes at {:#x}",
+                header.mem_size(), header.flags(), header.physical_addr()
+            );
+            let mut allocation = allocate_at(
+                header.physical_addr().try_into().unwrap(),
+                header.mem_size().try_into().unwrap(),
+                &self.systab
+            ).map_err(|e| "failed to allocate memory for the kernel")?;
+            let mut mem_slice = allocation.as_mut_slice();
+            mem_slice.fill(0);
+            self.allocations.push(allocation);
+        }
+        Ok(())
+    }
+
+    fn relocate(&mut self, entry: &Rela<P64>) -> Result<(), &'static str> {
+        unimplemented!("no support for ELF relocations");
+    }
+
+    fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), &'static str> {
+        // check whether we actually allocated this
+        if !self.allocations.iter().any(|a| a.ptr == base && a.pages * 4096 >= region.len()) {
+            panic!("we didn't allocate {:#x}, but tried to write to it o.O", base);
+        }
+        debug!("load {} bytes into {:#x}", region.len(), base);
+        let mut mem_slice = unsafe {
+            core::slice::from_raw_parts_mut(base as *mut u8, region.len())
+        };
+        mem_slice.clone_from_slice(region);
+        Ok(())
+    }
 }
 
 /// Allocate memory at a specific position.
@@ -183,12 +249,12 @@ impl PreparedEntry<'_> {
         
         // TODO: Step 2
         
-        let addresses = match &self.metadata.addresses {
-            Addresses::Multiboot(addr) => addr,
-            Addresses::Elf => todo!("handle ELF addresses")
+        let entry_address = match &self.metadata.addresses {
+            Addresses::Multiboot(addr) => addr.entry_address as usize,
+            Addresses::Elf(e) => *e as usize,
         };
         // TODO: Not sure whether this works. We don't get any errors.
-        let entry_ptr = unsafe {core::mem::transmute::<_, fn()>(addresses.entry_address as usize)};
+        let entry_ptr = unsafe {core::mem::transmute::<_, fn()>(entry_address)};
         entry_ptr();
         unreachable!();
     }
