@@ -1,6 +1,6 @@
 //! This module handles the actual boot.
 
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 use core::convert::{identity, TryInto};
 
@@ -35,7 +35,7 @@ pub(crate) fn prepare_entry<'a>(
         Status::LOAD_ERROR
     })?;
     debug!("loaded kernel: {:?}", metadata);
-    let (kernel_ptr, kernel_pages) =  match &metadata.addresses {
+    let kernel_allocations = match &metadata.addresses {
         Addresses::Multiboot(addr) => load_kernel_multiboot(kernel_vec, addr, &systab),
         Addresses::Elf => load_kernel_elf(kernel_vec, &entry.image, &systab),
     }?;
@@ -48,14 +48,14 @@ pub(crate) fn prepare_entry<'a>(
     
     
     // TODO: Steps 5 and 6
-    Ok(PreparedEntry { entry, kernel_ptr, kernel_pages, metadata, modules_vec })
+    Ok(PreparedEntry { entry, kernel_allocations, metadata, modules_vec })
 }
 
 
 /// Load a kernel which has its addresses specified inside the Multiboot header.
 fn load_kernel_multiboot(
     kernel_vec: Vec<u8>, addresses: &MultibootAddresses, systab: &SystemTable<Boot>
-) -> Result<(u64, usize), Status> {
+) -> Result<Vec<Allocation>, Status> {
     // try to allocate the memory where to load the kernel and move the kernel there
     // TODO: maybe optimize this so that we at first read just the beginning of the kernel
     // and then read the whole kernel into the right place directly
@@ -68,12 +68,10 @@ fn load_kernel_multiboot(
         if addresses.bss_end_address == 0 {addresses.load_end_address - addresses.load_address}
         else {addresses.bss_end_address - addresses.load_address}
     }.try_into().unwrap();
-    let (kernel_ptr, kernel_pages) = allocate_at(
+    let mut allocation = allocate_at(
         addresses.load_address.try_into().unwrap(), kernel_length, &systab
     )?;
-    let kernel_buf = unsafe {
-        core::slice::from_raw_parts_mut(kernel_ptr as *mut u8, kernel_length)
-    };
+    let kernel_buf = allocation.as_mut_slice();
     // copy from beginning of text to end of data segment and fill the rest with zeroes
     kernel_buf.iter_mut().zip(
         kernel_vec.iter()
@@ -84,13 +82,13 @@ fn load_kernel_multiboot(
     .for_each(|(dst,src)| *dst = *src);
     // drop the old vector
     core::mem::drop(kernel_vec);
-    Ok((kernel_ptr, kernel_pages))
+    Ok(vec![allocation])
 }
 
 /// Load a kernel which uses ELF semantics.
 fn load_kernel_elf(
     kernel_vec: Vec<u8>, name: &str, systab: &SystemTable<Boot>
-) -> Result<(u64, usize), Status> {
+) -> Result<Vec<Allocation>, Status> {
     todo!("load ELFs");
     Err(Status::UNSUPPORTED)
 }
@@ -101,7 +99,7 @@ fn load_kernel_elf(
 /// Also: This memory is not tracked by Rust.
 fn allocate_at(
     address: usize, size: usize, systab: &SystemTable<Boot>
-) -> Result<(u64, usize), Status>{
+) -> Result<Allocation, Status>{
     let count_pages = (size / 4096) + 1; // TODO: this may allocate a page too much
     let ptr = systab.boot_services().allocate_pages(
         AllocateType::Address(address),
@@ -111,16 +109,40 @@ fn allocate_at(
         error!("failed to allocate memory to place the kernel: {:?}", e);
         Status::LOAD_ERROR
     })?.unwrap();
-    Ok((ptr, count_pages))
+    Ok(Allocation { ptr, pages: count_pages })
+}
+
+/// Tracks our own allocations.
+struct Allocation {
+    ptr: u64,
+    pages: usize,
+}
+
+impl Drop for Allocation {
+    /// Free the associated memory.
+    fn drop(&mut self) {
+        // We can't free memory after we've exited boot services.
+        // But this only happens in `PreparedEntry::boot` and this function doesn't return.
+        let systab_ptr = uefi_services::system_table();
+        let systab = unsafe { systab_ptr.as_ref() };
+        systab.boot_services().free_pages(self.ptr, self.pages)
+        // let's just panic if we can't free
+        .expect("failed to free the allocated memory for the kernel").unwrap();
+    }
+}
+
+impl Allocation {
+    /// Return a slice that references the associated memory.
+    fn as_mut_slice(&mut self) -> &mut [u8] {
+        unsafe { core::slice::from_raw_parts_mut(self.ptr as *mut u8, self.pages * 4096) }
+    }
 }
 
 pub(crate) struct PreparedEntry<'a> {
     entry: &'a Entry,
     // this has been allocated via allocate_pages(), so it's not tracked by Rust
     // we have to explicitly take care of disposing this if a boot fails
-    kernel_ptr: u64,
-    kernel_pages: usize,
-    
+    kernel_allocations: Vec<Allocation>,
     metadata: Metadata,
     modules_vec: Vec<Vec<u8>>,
     // TODO: framebuffer and Multiboot information
@@ -131,13 +153,6 @@ impl Drop for PreparedEntry<'_> {
     ///
     /// Disposes the loaded kernel and modules and restores the framebuffer.
     fn drop(&mut self) {
-        // We can't free memory after we've exited boot services.
-        // But this only happens in `PreparedEntry::boot` and this function doesn't return.
-        let systab_ptr = uefi_services::system_table();
-        let systab = unsafe { systab_ptr.as_ref() };
-        systab.boot_services().free_pages(self.kernel_ptr, self.kernel_pages)
-        // let's just panic if we can't free
-        .expect("failed to free the allocated memory for the kernel").unwrap();
         // TODO: restore the framebuffer
     }
 }
