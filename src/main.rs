@@ -24,6 +24,7 @@ use uefi::proto::media::file::{Directory, File, FileAttribute, FileInfo, FileMod
 use log::{debug, info, warn, error};
 
 mod boot;
+mod elf;
 // contains several workarounds for bugs in the Rust UEFI targets
 mod hacks;
 mod config;
