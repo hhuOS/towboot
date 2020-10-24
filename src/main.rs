@@ -24,13 +24,10 @@ use uefi::proto::media::file::{Directory, File, FileAttribute, FileInfo, FileMod
 use log::{debug, info, warn, error};
 
 mod boot;
-mod elf;
 // contains several workarounds for bugs in the Rust UEFI targets
 mod hacks;
 mod config;
-mod mem;
 mod menu;
-mod video;
 
 #[entry]
 fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {

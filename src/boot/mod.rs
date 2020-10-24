@@ -1,4 +1,6 @@
-//! This module handles the actual boot.
+//! This module handles the actual boot and related stuff.
+//!
+//! This means: lower-level memory management, handling ELF files and video initialization.
 
 use alloc::{vec, vec::Vec};
 
@@ -14,9 +16,14 @@ use multiboot1::{Addresses, Metadata, MultibootAddresses};
 use elfloader::ElfBinary;
 
 use crate::config::Entry;
-use crate::elf::OurElfLoader;
-use crate::mem::Allocation;
-use crate::video::setup_video;
+
+mod elf;
+mod mem;
+mod video;
+
+use elf::OurElfLoader;
+use mem::Allocation;
+use video::setup_video;
 
 /// Prepare an entry for boot.
 ///

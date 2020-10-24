@@ -9,16 +9,16 @@ use log::{trace, debug};
 
 use elfloader::{ElfLoader, Flags, LoadableHeaders, P64, Rela, VAddr};
 
-use crate::mem::Allocation;
+use super::mem::Allocation;
 
-pub(crate) struct OurElfLoader<'a> {
+pub(super) struct OurElfLoader<'a> {
     // be careful, they have to be freed!
-    pub(crate) allocations: Vec<Allocation>,
+    pub(super) allocations: Vec<Allocation>,
     systab: &'a SystemTable<Boot>
 }
 
 impl<'a> OurElfLoader<'a> {
-    pub(crate) fn new(systab: &'a SystemTable<Boot>) -> Self {
+    pub(super) fn new(systab: &'a SystemTable<Boot>) -> Self {
         OurElfLoader {
             allocations: Vec::new(),
             systab

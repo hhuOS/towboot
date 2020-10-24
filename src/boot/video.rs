@@ -13,7 +13,7 @@ use multiboot1::{Metadata, VideoMode};
 ///
 /// If there are multiple GPUs available, simply choose the first one.
 /// If there is no available mode that matches, choose one.
-pub(crate) fn setup_video<'a>(
+pub(super) fn setup_video<'a>(
     metadata: &Metadata, systab: &'a SystemTable<Boot>
 ) -> Result<&'a GraphicsOutput<'a>, Status> {
     info!("setting up the video");

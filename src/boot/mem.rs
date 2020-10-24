@@ -10,10 +10,10 @@ use uefi::table::boot::{AllocateType, MemoryType};
 
 use log::error;
 
-pub(crate) const PAGE_SIZE: usize = 4096;
+pub(super) const PAGE_SIZE: usize = 4096;
 
 /// Tracks our own allocations.
-pub(crate) struct Allocation {
+pub(super) struct Allocation {
     ptr: u64,
     pages: usize,
 }
