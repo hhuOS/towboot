@@ -29,6 +29,7 @@ mod hacks;
 mod config;
 mod mem;
 mod menu;
+mod video;
 
 #[entry]
 fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
