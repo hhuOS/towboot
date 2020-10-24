@@ -11,7 +11,7 @@ use uefi::proto::media::file::Directory;
 
 use log::{debug, info, error};
 
-use multiboot::{Header, MultibootAddresses};
+use multiboot::{Header, Multiboot, MultibootAddresses, MultibootInfo, SIGNATURE_EAX};
 
 use elfloader::ElfBinary;
 
@@ -59,8 +59,9 @@ pub(crate) fn prepare_entry<'a>(
     
     let graphics_output = setup_video(&header, &systab)?;
     
-    // TODO: Step 6
-    Ok(PreparedEntry { entry, kernel_allocations, header, addresses, modules_vec })
+    let multiboot_information = prepare_multiboot_information();
+    
+    Ok(PreparedEntry { entry, kernel_allocations, header, addresses, multiboot_information, modules_vec })
 }
 
 enum Addresses {
@@ -121,6 +122,14 @@ fn load_kernel_elf(
     Ok((loader.allocations, Addresses::Elf(binary.entry_point() as usize)))
 }
 
+/// Prepare information for the kernel.
+fn prepare_multiboot_information() -> MultibootInfo {
+    let info = MultibootInfo::default();
+    let mb = Multiboot::from_ref(&info);
+    // TODO: actually fill this
+    info
+}
+
 pub(crate) struct PreparedEntry<'a> {
     entry: &'a Entry,
     // this has been allocated via allocate_pages(), so it's not tracked by Rust
@@ -128,6 +137,7 @@ pub(crate) struct PreparedEntry<'a> {
     kernel_allocations: Vec<Allocation>,
     header: Header,
     addresses: Addresses,
+    multiboot_information: MultibootInfo,
     modules_vec: Vec<Vec<u8>>,
     // TODO: framebuffer and Multiboot information
 }
@@ -171,9 +181,16 @@ impl PreparedEntry<'_> {
             Addresses::Multiboot(addr) => addr.entry_address as usize,
             Addresses::Elf(e) => *e,
         };
-        // TODO: Not sure whether this works. We don't get any errors.
-        let entry_ptr = unsafe {core::mem::transmute::<_, fn()>(entry_address)};
-        entry_ptr();
+        
+        unsafe {
+            asm!(
+                // cr0 and eflags should be correct, already
+                "jmp {}",
+                in(reg) entry_address,
+                in("eax") SIGNATURE_EAX,
+                in("ebx") &self.multiboot_information,
+            );
+        }
         unreachable!();
     }
 }
