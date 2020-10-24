@@ -44,7 +44,7 @@ dependencies = [
  "hashbrown 0.9.1",
  "log",
  "miniarg",
- "multiboot1",
+ "multiboot",
  "rlibc",
  "serde",
  "toml",
@@ -124,12 +124,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "multiboot1"
-version = "0.1.0"
+name = "multiboot"
+version = "0.5.0"
 dependencies = [
- "cfg-if 0.1.10",
- "elfloader",
+ "paste",
 ]
+
+[[package]]
+name = "paste"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba7ae1a2180ed02ddfdb5ab70c70d596a26dd642e097bb6fe78b1bde8588ed97"
 
 [[package]]
 name = "proc-macro2"

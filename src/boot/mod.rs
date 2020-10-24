@@ -11,7 +11,7 @@ use uefi::proto::media::file::Directory;
 
 use log::{debug, info, error};
 
-use multiboot1::{Addresses, Metadata, MultibootAddresses};
+use multiboot::{Header, MultibootAddresses};
 
 use elfloader::ElfBinary;
 
@@ -41,14 +41,14 @@ pub(crate) fn prepare_entry<'a>(
     entry: &'a Entry, volume: &mut Directory, systab: &SystemTable<Boot>
 ) -> Result<PreparedEntry<'a>, Status> {
     let kernel_vec = crate::read_file(&entry.image, volume)?;
-    let metadata = multiboot1::parse(kernel_vec.as_slice()).map_err(|e| {
-        error!("invalid Multiboot header: {:?}", e);
+    let header = Header::from_slice(kernel_vec.as_slice()).ok_or_else(|| {
+        error!("invalid Multiboot header");
         Status::LOAD_ERROR
     })?;
-    debug!("loaded kernel: {:?}", metadata);
-    let kernel_allocations = match &metadata.addresses {
-        Addresses::Multiboot(addr) => load_kernel_multiboot(kernel_vec, addr, &systab),
-        Addresses::Elf(addr) => load_kernel_elf(kernel_vec, &entry.image, &systab),
+    debug!("loaded kernel: {:?}", header);
+    let (kernel_allocations, addresses) = match header.get_addresses() {
+        Some(addr) => load_kernel_multiboot(kernel_vec, addr, header.header_start, &systab),
+        None => load_kernel_elf(kernel_vec, &entry.image, &systab),
     }?;
     
     // Load all modules, fail completely if one fails to load.
@@ -57,17 +57,24 @@ pub(crate) fn prepare_entry<'a>(
     ).collect::<Result<Vec<_>, _>>()?;
     info!("loaded {} modules", modules_vec.len());
     
-    let graphics_output = setup_video(&metadata, &systab)?;
+    let graphics_output = setup_video(&header, &systab)?;
     
     // TODO: Step 6
-    Ok(PreparedEntry { entry, kernel_allocations, metadata, modules_vec })
+    Ok(PreparedEntry { entry, kernel_allocations, header, addresses, modules_vec })
+}
+
+enum Addresses {
+    Multiboot(MultibootAddresses),
+    /// the entry address
+    Elf(usize),
 }
 
 
 /// Load a kernel which has its addresses specified inside the Multiboot header.
 fn load_kernel_multiboot(
-    kernel_vec: Vec<u8>, addresses: &MultibootAddresses, systab: &SystemTable<Boot>
-) -> Result<Vec<Allocation>, Status> {
+    kernel_vec: Vec<u8>, addresses: MultibootAddresses,
+    header_start: u32, systab: &SystemTable<Boot>
+) -> Result<(Vec<Allocation>, Addresses), Status> {
     // try to allocate the memory where to load the kernel and move the kernel there
     // TODO: maybe optimize this so that we at first read just the beginning of the kernel
     // and then read the whole kernel into the right place directly
@@ -75,6 +82,7 @@ fn load_kernel_multiboot(
     // (we're copying just a few megabytes through memory),
     // but in some cases we could block the destination with the source and this would be bad.
     info!("moving the kernel to its desired location...");
+    let load_offset = addresses.compute_load_offset(header_start);
     // allocate
     let kernel_length: usize = {
         if addresses.bss_end_address == 0 {addresses.load_end_address - addresses.load_address}
@@ -87,20 +95,20 @@ fn load_kernel_multiboot(
     // copy from beginning of text to end of data segment and fill the rest with zeroes
     kernel_buf.iter_mut().zip(
         kernel_vec.iter()
-        .skip(addresses.load_offset.try_into().unwrap())
+        .skip(load_offset.try_into().unwrap())
         .take((addresses.load_end_address - addresses.load_address).try_into().unwrap())
         .chain(core::iter::repeat(&0))
     )
     .for_each(|(dst,src)| *dst = *src);
     // drop the old vector
     core::mem::drop(kernel_vec);
-    Ok(vec![allocation])
+    Ok((vec![allocation], Addresses::Multiboot(addresses)))
 }
 
 /// Load a kernel which uses ELF semantics.
 fn load_kernel_elf(
     kernel_vec: Vec<u8>, name: &str, systab: &SystemTable<Boot>
-) -> Result<Vec<Allocation>, Status> {
+) -> Result<(Vec<Allocation>, Addresses), Status> {
     let binary = ElfBinary::new(name, kernel_vec.as_slice()).map_err(|msg| {
         error!("failed to parse ELF structure of kernel: {}", msg);
         Status::LOAD_ERROR
@@ -110,7 +118,7 @@ fn load_kernel_elf(
         error!("failed to load kernel: {}", msg);
         Status::LOAD_ERROR
     })?;
-    Ok(loader.allocations)
+    Ok((loader.allocations, Addresses::Elf(binary.entry_point() as usize)))
 }
 
 pub(crate) struct PreparedEntry<'a> {
@@ -118,7 +126,8 @@ pub(crate) struct PreparedEntry<'a> {
     // this has been allocated via allocate_pages(), so it's not tracked by Rust
     // we have to explicitly take care of disposing this if a boot fails
     kernel_allocations: Vec<Allocation>,
-    metadata: Metadata,
+    header: Header,
+    addresses: Addresses,
     modules_vec: Vec<Vec<u8>>,
     // TODO: framebuffer and Multiboot information
 }
@@ -158,9 +167,9 @@ impl PreparedEntry<'_> {
         
         // TODO: Step 2
         
-        let entry_address = match &self.metadata.addresses {
+        let entry_address = match &self.addresses {
             Addresses::Multiboot(addr) => addr.entry_address as usize,
-            Addresses::Elf(e) => *e as usize,
+            Addresses::Elf(e) => *e,
         };
         // TODO: Not sure whether this works. We don't get any errors.
         let entry_ptr = unsafe {core::mem::transmute::<_, fn()>(entry_address)};
