@@ -46,7 +46,9 @@ fn read_file(volume: &mut Directory, file_name: &str) -> Result<Config, Status> 
 /// Available options:
 /// * `-config <config.toml>`: Load the specified configuration file instead of the default one.
 /// * `-kernel "<kernel.elf> [<args>]"`: Don't load a configuration file, instead boot the specified
-///                                    kernel.
+///                                      kernel.
+/// * `-logLevel [trace,debug,info,warning,error]`: Set the log level.
+///                                                 (This only applies if `-kernel` is specified.)
 /// * `-module "<module.bin> [<args>]"`: Load a module with the given args.
 ///                                      Can be specified multiple times.
 ///
@@ -60,6 +62,7 @@ fn parse_load_options(load_options: &str) -> Result<ConfigSource, Status> {
     let options = LoadOptionKey::parse(&load_options);
     let mut config_file = None;
     let mut kernel = None;
+    let mut log_level = None;
     let mut modules = Vec::<&str>::new();
     for option in options {
         match option {
@@ -68,6 +71,7 @@ fn parse_load_options(load_options: &str) -> Result<ConfigSource, Status> {
                 match key {
                     LoadOptionKey::Config => config_file = Some(value),
                     LoadOptionKey::Kernel => kernel = Some(value),
+                    LoadOptionKey::LogLevel => log_level = Some(value),
                     LoadOptionKey::Module => modules.push(value),
                 }
             },
@@ -96,7 +100,7 @@ fn parse_load_options(load_options: &str) -> Result<ConfigSource, Status> {
         Ok(ConfigSource::Given(Config {
             default: "cli".to_string(),
             timeout: Some(0),
-            log_level: None,
+            log_level: log_level.map(|l| l.to_string()),
             entries
         }))
     } else if config_file.is_some() {
@@ -115,6 +119,7 @@ enum ConfigSource {
 enum LoadOptionKey {
     Config,
     Kernel,
+    LogLevel,
     Module,
 }
 
