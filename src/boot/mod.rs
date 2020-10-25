@@ -7,6 +7,7 @@ use alloc::{vec, vec::Vec};
 use core::convert::{identity, TryInto};
 
 use uefi::prelude::*;
+use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::media::file::Directory;
 
 use log::{debug, info, error};
@@ -23,7 +24,6 @@ mod video;
 
 use elf::OurElfLoader;
 use mem::Allocation;
-use video::setup_video;
 
 /// Prepare an entry for boot.
 ///
@@ -57,9 +57,9 @@ pub(crate) fn prepare_entry<'a>(
     ).collect::<Result<Vec<_>, _>>()?;
     info!("loaded {} modules", modules_vec.len());
     
-    let graphics_output = setup_video(&header, &systab)?;
+    let mut graphics_output = video::setup_video(&header, &systab)?;
     
-    let multiboot_information = prepare_multiboot_information();
+    let multiboot_information = prepare_multiboot_information(graphics_output);
     
     Ok(PreparedEntry { entry, kernel_allocations, header, addresses, multiboot_information, modules_vec })
 }
@@ -123,10 +123,13 @@ fn load_kernel_elf(
 }
 
 /// Prepare information for the kernel.
-fn prepare_multiboot_information() -> MultibootInfo {
-    let info = MultibootInfo::default();
-    let mb = Multiboot::from_ref(&info);
-    // TODO: actually fill this
+fn prepare_multiboot_information(graphics_output: &mut GraphicsOutput) -> MultibootInfo {
+    let mut info = MultibootInfo::default();
+    let mut multiboot = Multiboot::from_ref(&mut info);
+    
+    video::prepare_information(&mut multiboot, graphics_output);
+    
+    // TODO: the rest
     info
 }
 

@@ -1,13 +1,14 @@
 //! Management of the video mode.
 
+use core::convert::TryInto;
 use alloc::vec::Vec;
 
 use uefi::prelude::*;
-use uefi::proto::console::gop::{GraphicsOutput, Mode, PixelFormat};
+use uefi::proto::console::gop::{GraphicsOutput, Mode, PixelBitmask, PixelFormat};
 
 use log::{debug, warn, info, error};
 
-use multiboot::{Header, VideoModeType};
+use multiboot::{ColorInfoType, ColorInfoRgb, FramebufferTable, Header, Multiboot, VideoModeType};
 
 /// Try to get the video in a mode the kernel wants.
 ///
@@ -15,7 +16,7 @@ use multiboot::{Header, VideoModeType};
 /// If there is no available mode that matches, choose one.
 pub(super) fn setup_video<'a>(
     header: &Header, systab: &'a SystemTable<Boot>
-) -> Result<&'a GraphicsOutput<'a>, Status> {
+) -> Result<&'a mut GraphicsOutput<'a>, Status> {
     info!("setting up the video");
     let wanted_resolution = match header.get_preferred_video_mode() {
         Some(mode) => match mode.mode_type() {
@@ -88,4 +89,112 @@ pub(super) fn setup_video<'a>(
     })?.log();
     info!("set {:?} as the video mode", mode.info().resolution());
     Ok(output)
+}
+
+/// Pass the framebuffer information to the kernel.
+pub(super) fn prepare_information(
+    multiboot: &mut Multiboot, graphics_output: &mut GraphicsOutput
+) {
+    let address = graphics_output.frame_buffer().as_mut_ptr();
+    let mode = graphics_output.current_mode_info();
+    debug!("gop mode: {:?}", mode);
+    let (width, height) = mode.resolution();
+    let mut bpp = 32;
+    let color_info = ColorInfoType::Rgb(
+        match mode.pixel_format() {
+            PixelFormat::RGB => ColorInfoRgb {
+                red_field_position: 0,
+                red_mask_size: 8,
+                green_field_position: 8,
+                green_mask_size: 8,
+                blue_field_position: 16,
+                blue_mask_size: 8,
+            },
+            PixelFormat::BGR => ColorInfoRgb {
+                red_field_position: 16,
+                red_mask_size: 8,
+                green_field_position: 8,
+                green_mask_size: 8,
+                blue_field_position: 0,
+                blue_mask_size: 8,
+            },
+            PixelFormat::Bitmask => {
+                let bitmask = mode.pixel_bitmask().unwrap();
+                bpp = bitmask_to_bpp(bitmask);
+                bitmask_to_color_info(bitmask)
+            },
+            PixelFormat::BltOnly => panic!("GPU doesn't support pixel access"),
+        }
+    );
+    let pitch = mode.stride() * (bpp / 8) as usize;
+    let framebuffer_table = FramebufferTable::new(
+        address as u64,
+        pitch.try_into().unwrap(),
+        width.try_into().unwrap(),
+        height.try_into().unwrap(),
+        bpp,
+        color_info
+    );
+    debug!("passing {:?}", framebuffer_table);
+    multiboot.set_framebuffer_table(Some(framebuffer_table));
+}
+
+/// Converts UEFI's `PixelBitmask` to Multiboot's `ColorInfoRGB`.
+fn bitmask_to_color_info(pixel_bitmask: PixelBitmask) -> ColorInfoRgb {
+    let (red_field_position, red_mask_size) = parse_color_bitmap(pixel_bitmask.red);
+    let (green_field_position, green_mask_size) = parse_color_bitmap(pixel_bitmask.green);
+    let (blue_field_position, blue_mask_size) = parse_color_bitmap(pixel_bitmask.blue);
+    ColorInfoRgb {
+        red_field_position, red_mask_size,
+        green_field_position, green_mask_size,
+        blue_field_position, blue_mask_size,
+    }
+}
+
+macro_rules! check_bit {
+    ($var:expr, $bit:expr) => {
+        ($var & (1 << $bit) == (1 << $bit))
+    };
+}
+
+/// Converts UEFI's `PixelBitmask` to Multiboot's `bpp` (bits per pixel).
+fn bitmask_to_bpp(pixel_bitmask: PixelBitmask) -> u8 {
+    let combined_bitmask = pixel_bitmask.red | pixel_bitmask.green | pixel_bitmask.blue;
+    assert_eq!(pixel_bitmask.red & pixel_bitmask.green, 0);
+    assert_eq!(pixel_bitmask.red & pixel_bitmask.blue, 0);
+    assert_eq!(pixel_bitmask.green & pixel_bitmask.blue, 0);
+    let mut bpp = 0;
+    for i in 0..31 {
+        if check_bit!(combined_bitmask, i) {
+            bpp += 1;
+        }
+    }
+    bpp
+}
+
+/// Converts a bitmask into a tuple of field_position, mask_size.
+fn parse_color_bitmap(bitmask: u32) -> (u8, u8) {
+    // find the first set bit
+    let mut field_position = 0;
+    for i in 0..31 {
+        if check_bit!(bitmask, i) {
+            field_position = i;
+            break;
+        }
+    }
+    // count how many bits are set
+    let mut mask_size = 0;
+    for i in field_position..31 {
+        if !check_bit!(bitmask, i) {
+            break;
+        }
+        mask_size += 1;
+    }
+    // check whether there are remaining bits set
+    for i in field_position+mask_size..31 {
+        if check_bit!(bitmask, i) {
+            panic!("color bitmask is not continuous");
+        }
+    }
+    (field_position, mask_size)
 }
