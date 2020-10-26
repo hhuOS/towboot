@@ -12,7 +12,7 @@ use uefi::proto::media::file::Directory;
 
 use log::{debug, info, error};
 
-use multiboot::{Header, Multiboot, MultibootAddresses, MultibootInfo, SIGNATURE_EAX};
+use multiboot::{Header, Module, Multiboot, MultibootAddresses, MultibootInfo, SIGNATURE_EAX};
 
 use elfloader::ElfBinary;
 
@@ -59,7 +59,7 @@ pub(crate) fn prepare_entry<'a>(
     
     let mut graphics_output = video::setup_video(&header, &systab)?;
     
-    let multiboot_information = prepare_multiboot_information(&entry, graphics_output);
+    let multiboot_information = prepare_multiboot_information(&entry, &modules_vec, graphics_output);
     
     Ok(PreparedEntry { entry, kernel_allocations, header, addresses, multiboot_information, modules_vec })
 }
@@ -123,7 +123,9 @@ fn load_kernel_elf(
 }
 
 /// Prepare information for the kernel.
-fn prepare_multiboot_information(entry: &Entry, graphics_output: &mut GraphicsOutput) -> MultibootInfo {
+fn prepare_multiboot_information(
+    entry: &Entry, modules: &Vec<Vec<u8>>, graphics_output: &mut GraphicsOutput
+) -> MultibootInfo {
     let mut info = MultibootInfo::default();
     let mut multiboot = Multiboot::from_ref(&mut info, mem::allocate);
     
@@ -131,6 +133,18 @@ fn prepare_multiboot_information(entry: &Entry, graphics_output: &mut GraphicsOu
         None => None,
         Some(s) => Some(&s),
     });
+    
+    let mb_modules: Vec<Module> = modules.iter().zip(entry.modules.iter().flatten()).map(|(module, module_entry)| {
+        Module::new(
+            module.as_ptr() as u64,
+            unsafe { module.as_ptr().offset(module.len().try_into().unwrap()) as u64 },
+            match &module_entry.argv {
+                None => None,
+                Some(s) => Some(&s),
+            }
+        )
+    }).collect();
+    multiboot.set_modules(&mb_modules);
     
     video::prepare_information(&mut multiboot, graphics_output);
     
