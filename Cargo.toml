@@ -26,4 +26,4 @@ hashbrown = { version = "0.9", features = ["serde"] }
 
 multiboot = { path = "../rust-multiboot" }
 elfloader = { path = "../rust-elfloader" }
-miniarg = { version = "0.1", default-features = false, features = ["alloc", "derive"] }
+miniarg = { version = "0.2", default-features = false, features = ["alloc", "derive"] }

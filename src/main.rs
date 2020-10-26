@@ -65,8 +65,9 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     let fs = unsafe { &mut *fs.get() };
     let mut volume = fs.open_volume().expect_success("Failed to open root directory");
     
-    let config = match config::get_config(&mut volume, load_options) {
-        Ok(c) => c,
+    let config = match config::get_config(&mut volume, &systab, load_options) {
+        Ok(Some(c)) => c,
+        Ok(None) => return Status::SUCCESS,
         Err(e) => {
             error!("failed to get config: {:?}", e);
             return Status::INVALID_PARAMETER

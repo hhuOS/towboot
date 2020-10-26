@@ -3,6 +3,8 @@
 //! The configuration can come from a file or from the command line.
 //! The command line options take precedence if they are specified.
 
+use core::fmt::Write;
+
 use alloc::fmt;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -23,16 +25,23 @@ const CONFIG_FILE: &str = "\\bootloader.toml";
 /// Get the config.
 /// If we were called with command line options, try them first.
 /// Otherwise, read and parse a configuration file.
-pub fn get_config(volume: &mut Directory, load_options: Option<&str>) -> Result<Config, Status> {
+///
+/// Returns None if just a help text has been displayed.
+pub fn get_config(
+    volume: &mut Directory, systab: &SystemTable<Boot>, load_options: Option<&str>
+) -> Result<Option<Config>, Status> {
     let config_source: ConfigSource = match load_options {
-        Some(lo) => parse_load_options(lo)?,
+        Some(lo) => match parse_load_options(lo, systab)? {
+            Some(cs) => cs,
+            None => return Ok(None),
+        },
         // fall back to the hardcoded config file
         None => ConfigSource::File(CONFIG_FILE.to_string()),
     };
-    match config_source {
-        ConfigSource::File(s) => read_file(volume, &s),
-        ConfigSource::Given(c) => Ok(c),
-    }
+    Ok(Some(match config_source {
+        ConfigSource::File(s) => read_file(volume, &s)?,
+        ConfigSource::Given(c) => c,
+    }))
 }
 
 /// Try to read and parse the configuration from the given file.
@@ -43,14 +52,7 @@ fn read_file(volume: &mut Directory, file_name: &str) -> Result<Config, Status> 
 
 /// Parse the command line options.
 ///
-/// Available options:
-/// * `-config <config.toml>`: Load the specified configuration file instead of the default one.
-/// * `-kernel "<kernel.elf> [<args>]"`: Don't load a configuration file, instead boot the specified
-///                                      kernel.
-/// * `-logLevel [trace,debug,info,warning,error]`: Set the log level.
-///                                                 (This only applies if `-kernel` is specified.)
-/// * `-module "<module.bin> [<args>]"`: Load a module with the given args.
-///                                      Can be specified multiple times.
+/// See [`LoadOptionKey`] for available options.
 ///
 /// This function errors, if the command line options are not valid.
 /// That is:
@@ -58,7 +60,11 @@ fn read_file(volume: &mut Directory, file_name: &str) -> Result<Config, Status> 
 /// * keys without values
 /// * values without keys
 /// * invalid keys
-fn parse_load_options(load_options: &str) -> Result<ConfigSource, Status> {
+///
+/// [`LoadOptionKey`]: enum.LoadOptionKey.html
+fn parse_load_options(
+    load_options: &str, systab: &SystemTable<Boot>
+) -> Result<Option<ConfigSource>, Status> {
     let options = LoadOptionKey::parse(&load_options);
     let mut config_file = None;
     let mut kernel = None;
@@ -73,6 +79,13 @@ fn parse_load_options(load_options: &str) -> Result<ConfigSource, Status> {
                     LoadOptionKey::Kernel => kernel = Some(value),
                     LoadOptionKey::LogLevel => log_level = Some(value),
                     LoadOptionKey::Module => modules.push(value),
+                    LoadOptionKey::Help => {
+                        // this doesn't work yet if just `-help` is passed
+                        writeln!(
+                            systab.stdout(), "Usage:\n{}", LoadOptionKey::help_text()
+                        ).unwrap();
+                        return Ok(None)
+                    },
                 }
             },
             Err(e) => {
@@ -97,16 +110,16 @@ fn parse_load_options(load_options: &str) -> Result<ConfigSource, Status> {
             name: None,
             modules: Some(mods),
         });
-        Ok(ConfigSource::Given(Config {
+        Ok(Some(ConfigSource::Given(Config {
             default: "cli".to_string(),
             timeout: Some(0),
             log_level: log_level.map(|l| l.to_string()),
             entries
-        }))
+        })))
     } else if config_file.is_some() {
-        Ok(ConfigSource::File(config_file.unwrap().to_string()))
+        Ok(Some(ConfigSource::File(config_file.unwrap().to_string())))
     } else {
-        Ok(ConfigSource::File(CONFIG_FILE.to_string()))
+        Ok(Some(ConfigSource::File(CONFIG_FILE.to_string())))
     }
 }
 
@@ -115,12 +128,19 @@ enum ConfigSource {
     Given(Config),
 }
 
+/// Available options.
 #[derive(Debug, Key)]
 enum LoadOptionKey {
+    /// Load the specified configuration file instead of the default one.
     Config,
+    /// Don't load a configuration file, instead boot the specified kernel.
     Kernel,
+    /// Set the log level. (This only applies if `-kernel` is specified.)
     LogLevel,
+    /// Load a module with the given args. Can be specified multiple times.
     Module,
+    /// Displays all available options and how to use them.
+    Help,
 }
 
 #[derive(Deserialize, Debug)]

@@ -104,9 +104,9 @@ dependencies = [
 
 [[package]]
 name = "miniarg"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23f6be926d4d01e9e11a31f167473ec6d619b41e00f10946692d390b7bc6233c"
+checksum = "4b277236a97c2952c1c2c3763168c2dab68be7796758f5e7017ede6f71a69e3a"
 dependencies = [
  "cfg-if 1.0.0",
  "miniarg_derive",
@@ -114,9 +114,9 @@ dependencies = [
 
 [[package]]
 name = "miniarg_derive"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6de0aa1e1e8babb3c28f24ab5c1e8804050461e5585e54bfb07ff07c4a816187"
+checksum = "048174a8d11746d7c750d48b5285f82ea5c5c06dad6d3553dd1686c03b9f567c"
 dependencies = [
  "proc-macro2",
  "quote",
