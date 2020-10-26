@@ -5,6 +5,8 @@
 //! This creates the problem that the allocated memory is not tracked by the borrow checker.
 //! We solve this by encapsulating it into a struct that implements `Drop`.
 
+use alloc::alloc::{alloc, Layout};
+
 use uefi::prelude::*;
 use uefi::table::boot::{AllocateType, MemoryType};
 
@@ -60,4 +62,17 @@ impl Allocation {
     pub(crate) fn contains(&self, begin: u64, length: usize) -> bool {
         self.ptr <= begin && self.ptr as usize + self.pages * PAGE_SIZE >= begin as usize + length
     }
+}
+
+/// Allocate n bytes of memory and return the address.
+pub(super) unsafe fn allocate(count: usize) -> *mut u8 {
+    let layout = Layout::array::<u8>(count).expect("tried to allocate more than usize");
+    let ptr = alloc(layout);
+    if ptr as usize >= u32::MAX as usize {
+        panic!("couldn't allocate memory below 4GB");
+    }
+    if ptr.is_null() {
+        panic!("failed to allocate memory");
+    }
+    ptr
 }

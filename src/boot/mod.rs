@@ -59,7 +59,7 @@ pub(crate) fn prepare_entry<'a>(
     
     let mut graphics_output = video::setup_video(&header, &systab)?;
     
-    let multiboot_information = prepare_multiboot_information(graphics_output);
+    let multiboot_information = prepare_multiboot_information(&entry, graphics_output);
     
     Ok(PreparedEntry { entry, kernel_allocations, header, addresses, multiboot_information, modules_vec })
 }
@@ -123,9 +123,14 @@ fn load_kernel_elf(
 }
 
 /// Prepare information for the kernel.
-fn prepare_multiboot_information(graphics_output: &mut GraphicsOutput) -> MultibootInfo {
+fn prepare_multiboot_information(entry: &Entry, graphics_output: &mut GraphicsOutput) -> MultibootInfo {
     let mut info = MultibootInfo::default();
-    let mut multiboot = Multiboot::from_ref(&mut info);
+    let mut multiboot = Multiboot::from_ref(&mut info, mem::allocate);
+    
+    multiboot.set_command_line(match &entry.argv {
+        None => None,
+        Some(s) => Some(&s),
+    });
     
     video::prepare_information(&mut multiboot, graphics_output);
     
