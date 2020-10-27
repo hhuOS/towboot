@@ -152,6 +152,10 @@ cmain (unsigned long magic, unsigned long addr)
                 (unsigned) mmap->type);
     }
 
+  /* Is the bootloader name passed? */
+  if (CHECK_FLAG (mbi->flags, 9))
+    printf ("boot_loader_name = %s\n", (char *) mbi->boot_loader_name);
+
   /* Draw diagonal blue line. */
   if (CHECK_FLAG (mbi->flags, 12))
     {
