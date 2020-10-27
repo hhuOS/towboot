@@ -84,7 +84,7 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     debug!("okay, trying to load {:?}", entry_to_boot);
     
     match boot::prepare_entry(&entry_to_boot, &mut volume, &systab) {
-        Ok(e) => {
+        Ok(mut e) => {
             e.boot(image, systab);
             unreachable!();
         },

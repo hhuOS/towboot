@@ -12,7 +12,9 @@ use uefi::proto::media::file::Directory;
 
 use log::{debug, info, error};
 
-use multiboot::{Header, Module, Multiboot, MultibootAddresses, MultibootInfo, SIGNATURE_EAX};
+use multiboot::{
+    Header, MemoryEntry, Module, Multiboot, MultibootAddresses, MultibootInfo, SIGNATURE_EAX
+};
 
 use elfloader::ElfBinary;
 
@@ -146,6 +148,11 @@ fn prepare_multiboot_information(
     }).collect();
     multiboot.set_modules(&mb_modules);
     
+    // Passing memory information happens after exiting BootServices,
+    // so we don't accidentally allocate or deallocate, making the data obsolete.
+    // TODO: Do we really need to do this? Our allocations don't matter to the kernel.
+    // TODO: But do they affect the firmware's allocations?
+    
     video::prepare_information(&mut multiboot, graphics_output);
     
     // TODO: the rest
@@ -178,11 +185,12 @@ impl PreparedEntry<'_> {
     ///
     /// What this means:
     /// 1. exit BootServices
-    /// 2. when on x64_64: switch to x86
-    /// 3. jump!
+    /// 2. pass the memory map to the kernel
+    /// 3. when on x64_64: switch to x86
+    /// 4. jump!
     ///
     /// This function won't return.
-    pub(crate) fn boot(&self, image: Handle, systab: SystemTable<Boot>) {
+    pub(crate) fn boot(&mut self, image: Handle, systab: SystemTable<Boot>) {
         match &self.entry.name {
             Some(n) => info!("booting '{}'...", n),
             None => info!("booting..."),
@@ -192,12 +200,23 @@ impl PreparedEntry<'_> {
         // also, keep a bit of room
         info!("exiting boot services...");
         let mut mmap_vec = Vec::<u8>::new();
-        mmap_vec.resize(systab.boot_services().memory_map_size() + 100, 0);
+        let mut mb_mmap_vec = Vec::<MemoryEntry>::new();
+        // Leave a bit of room at the end, we only have one chance.
+        let estimated_size = systab.boot_services().memory_map_size() + 100;
+        mmap_vec.resize(estimated_size, 0);
+        mb_mmap_vec.resize(estimated_size, MemoryEntry::default());
         let (systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())
         .expect("failed to exit boot services").unwrap();
         // now, write! won't work anymore. Also, we can't allocate any memory.
         
-        // TODO: Step 2
+        // Passing the memory map has to happen here,
+        // since we can't allocate or deallocate anymore.
+        let mut multiboot = Multiboot::from_ref(
+            &mut self.multiboot_information, |_| core::ptr::null_mut()
+        );
+        mem::prepare_information(&mut multiboot, mmap_iter, mb_mmap_vec.leak());
+        
+        // TODO: Step 3
         
         let entry_address = match &self.addresses {
             Addresses::Multiboot(addr) => addr.entry_address as usize,

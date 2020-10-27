@@ -4,13 +4,17 @@
 //! Rust's `alloc` can't do this, so we need to use the UEFI API directly.
 //! This creates the problem that the allocated memory is not tracked by the borrow checker.
 //! We solve this by encapsulating it into a struct that implements `Drop`.
+//!
+//! Also, gathering memory map information for the kernel happens here.
 
 use alloc::alloc::{alloc, Layout};
 
 use uefi::prelude::*;
-use uefi::table::boot::{AllocateType, MemoryType};
+use uefi::table::boot::{AllocateType, MemoryDescriptor, MemoryType};
 
 use log::error;
+
+// no multiboot import here as some of the types have the same name as the UEFI ones
 
 pub(super) const PAGE_SIZE: usize = 4096;
 
@@ -75,4 +79,39 @@ pub(super) unsafe fn allocate(count: usize) -> *mut u8 {
         panic!("failed to allocate memory");
     }
     ptr
+}
+
+/// Pass the memory map to the kernel.
+///
+/// This needs to have a buffer to write to because we can't allocate memory anymore.
+/// (The buffer may be too large.)
+pub(super) fn prepare_information<'a, I>(multiboot: &mut multiboot::Multiboot, mmap_iter: I, mb_mmap_buf: &'static mut[multiboot::MemoryEntry])
+where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
+    // Descriptors are the ones from UEFI, Entries are the ones from Multiboot.
+    let count = mmap_iter.len();
+    for (descriptor, entry) in mmap_iter.zip(mb_mmap_buf.iter_mut()) {
+        *entry = multiboot::MemoryEntry::new(
+            descriptor.phys_start, descriptor.page_count * PAGE_SIZE as u64, match descriptor.ty {
+                // after we've started the kernel, no-one needs our code or data
+                MemoryType::LOADER_CODE | MemoryType::LOADER_DATA
+                | MemoryType::BOOT_SERVICES_CODE | MemoryType::BOOT_SERVICES_DATA
+                => multiboot::MemoryType::Available,
+                // the kernel may want to use UEFI Runtime Services
+                MemoryType::RUNTIME_SERVICES_CODE | MemoryType::RUNTIME_SERVICES_DATA
+                => multiboot::MemoryType::Reserved,
+                // it's free memory!
+                MemoryType::CONVENTIONAL => multiboot::MemoryType::Available,
+                MemoryType::UNUSABLE => multiboot::MemoryType::Defect,
+                MemoryType::ACPI_RECLAIM => multiboot::MemoryType::ACPI,
+                MemoryType::ACPI_NON_VOLATILE => multiboot::MemoryType::NVS,
+                // TODO: Are these correct?
+                MemoryType::MMIO | MemoryType::MMIO_PORT_SPACE | MemoryType::PAL_CODE
+                => multiboot::MemoryType::Reserved,
+                MemoryType::PERSISTENT_MEMORY => multiboot::MemoryType::Available,
+                _ => multiboot::MemoryType::Reserved, // better be safe than sorry
+            }
+        )
+    }
+    // TODO: maybe join adjacent entries of the same type
+    multiboot.set_memory_regions(Some(&mut mb_mmap_buf[0..count]));
 }
