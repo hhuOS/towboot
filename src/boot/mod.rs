@@ -18,14 +18,13 @@ use multiboot::{
 
 use elfloader::ElfBinary;
 
-use crate::config::Entry;
+use super::config::Entry;
+use super::mem::Allocation;
 
 mod elf;
-mod mem;
 mod video;
 
 use elf::OurElfLoader;
-use mem::Allocation;
 
 /// Prepare an entry for boot.
 ///
@@ -129,7 +128,7 @@ fn prepare_multiboot_information(
     entry: &Entry, modules: &Vec<Vec<u8>>, graphics_output: &mut GraphicsOutput
 ) -> MultibootInfo {
     let mut info = MultibootInfo::default();
-    let mut multiboot = Multiboot::from_ref(&mut info, mem::allocate);
+    let mut multiboot = Multiboot::from_ref(&mut info, super::mem::allocate);
     
     multiboot.set_command_line(match &entry.argv {
         None => None,
@@ -214,7 +213,7 @@ impl PreparedEntry<'_> {
         let mut multiboot = Multiboot::from_ref(
             &mut self.multiboot_information, |_| core::ptr::null_mut()
         );
-        mem::prepare_information(&mut multiboot, mmap_iter, mb_mmap_vec.leak());
+        super::mem::prepare_information(&mut multiboot, mmap_iter, mb_mmap_vec.leak());
         
         // TODO: Step 3
         

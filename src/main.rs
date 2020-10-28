@@ -28,6 +28,7 @@ mod boot;
 // contains several workarounds for bugs in the Rust UEFI targets
 mod hacks;
 mod config;
+mod mem;
 mod menu;
 
 #[entry]

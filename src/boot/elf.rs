@@ -9,7 +9,7 @@ use log::{trace, debug};
 
 use elfloader::{ElfLoader, Flags, LoadableHeaders, P64, Rela, VAddr};
 
-use super::mem::Allocation;
+use super::super::mem::Allocation;
 
 pub(super) struct OurElfLoader<'a> {
     // be careful, they have to be freed!
