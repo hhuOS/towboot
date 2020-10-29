@@ -22,6 +22,7 @@ pub(super) const PAGE_SIZE: usize = 4096;
 /// Tracks our own allocations.
 pub(super) struct Allocation {
     ptr: u64,
+    pub len: usize,
     pages: usize,
 }
 
@@ -51,7 +52,7 @@ impl Allocation {
             error!("failed to allocate memory to place the kernel: {:?}", e);
             Status::LOAD_ERROR
         })?.unwrap();
-        Ok(Allocation { ptr, pages: count_pages })
+        Ok(Allocation { ptr, len: size, pages: count_pages })
     }
     
     /// Allocate memory page-aligned below 4GB.
@@ -68,7 +69,7 @@ impl Allocation {
             error!("failed to allocate memory to place the modules: {:?}", e);
             Status::LOAD_ERROR
         })?.unwrap();
-        Ok(Allocation { ptr, pages: count_pages })
+        Ok(Allocation { ptr, len:size, pages: count_pages })
     }
     
     /// Return a slice that references the associated memory.
@@ -79,6 +80,11 @@ impl Allocation {
     /// Checks whether a part of memory is allocated.
     pub(crate) fn contains(&self, begin: u64, length: usize) -> bool {
         self.ptr <= begin && self.ptr as usize + self.pages * PAGE_SIZE >= begin as usize + length
+    }
+    
+    /// Get the pointer inside.
+    pub(crate) fn as_ptr(&self) -> *const u8 {
+        self.ptr as *const u8
     }
 }
 

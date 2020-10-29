@@ -54,7 +54,8 @@ pub(crate) fn prepare_entry<'a>(
     }?;
     
     // Load all modules, fail completely if one fails to load.
-    let modules_vec: Vec<Vec<u8>> = entry.modules.iter().flat_map(identity).map(|module|
+    // just always use whole pages, that's easier for us
+    let modules_vec: Vec<Allocation> = entry.modules.iter().flat_map(identity).map(|module|
         File::open(&module.image, volume).map(|f| f.into())
     ).collect::<Result<Vec<_>, _>>()?;
     info!("loaded {} modules", modules_vec.len());
@@ -123,7 +124,7 @@ fn load_kernel_elf(kernel_vec: Vec<u8>, name: &str) -> Result<(Vec<Allocation>, 
 
 /// Prepare information for the kernel.
 fn prepare_multiboot_information(
-    entry: &Entry, modules: &Vec<Vec<u8>>, graphics_output: &mut GraphicsOutput
+    entry: &Entry, modules: &Vec<Allocation>, graphics_output: &mut GraphicsOutput
 ) -> MultibootInfo {
     let mut info = MultibootInfo::default();
     let mut multiboot = Multiboot::from_ref(&mut info, super::mem::allocate);
@@ -136,7 +137,7 @@ fn prepare_multiboot_information(
     let mb_modules: Vec<Module> = modules.iter().zip(entry.modules.iter().flatten()).map(|(module, module_entry)| {
         Module::new(
             module.as_ptr() as u64,
-            unsafe { module.as_ptr().offset(module.len().try_into().unwrap()) as u64 },
+            unsafe { module.as_ptr().offset(module.len.try_into().unwrap()) as u64 },
             match &module_entry.argv {
                 None => None,
                 Some(s) => Some(&s),
@@ -164,7 +165,7 @@ pub(crate) struct PreparedEntry<'a> {
     header: Header,
     addresses: Addresses,
     multiboot_information: MultibootInfo,
-    modules_vec: Vec<Vec<u8>>,
+    modules_vec: Vec<Allocation>,
     // TODO: framebuffer and Multiboot information
 }
 
