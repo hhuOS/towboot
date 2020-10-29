@@ -3,30 +3,24 @@
 use core::convert::TryInto;
 use alloc::vec::Vec;
 
-use uefi::prelude::*;
-
 use log::{trace, debug};
 
 use elfloader::{ElfLoader, Flags, LoadableHeaders, P64, Rela, VAddr};
 
 use super::super::mem::Allocation;
 
-pub(super) struct OurElfLoader<'a> {
+pub(super) struct OurElfLoader {
     // be careful, they have to be freed!
     pub(super) allocations: Vec<Allocation>,
-    systab: &'a SystemTable<Boot>
 }
 
-impl<'a> OurElfLoader<'a> {
-    pub(super) fn new(systab: &'a SystemTable<Boot>) -> Self {
-        OurElfLoader {
-            allocations: Vec::new(),
-            systab
-        }
+impl OurElfLoader {
+    pub(super) fn new() -> Self {
+        OurElfLoader { allocations: Vec::new() }
     }
 }
 
-impl<'a> ElfLoader for OurElfLoader<'a> {
+impl ElfLoader for OurElfLoader {
     fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), &'static str> {
         for header in load_headers {
             if header.virtual_addr() != header.physical_addr() {
@@ -40,7 +34,6 @@ impl<'a> ElfLoader for OurElfLoader<'a> {
             let mut allocation = Allocation::new_at(
                 header.physical_addr().try_into().unwrap(),
                 header.mem_size().try_into().unwrap(),
-                &self.systab
             ).map_err(|e| "failed to allocate memory for the kernel")?;
             let mut mem_slice = allocation.as_mut_slice();
             mem_slice.fill(0);

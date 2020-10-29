@@ -49,8 +49,8 @@ pub(crate) fn prepare_entry<'a>(
     })?;
     debug!("loaded kernel: {:?}", header);
     let (kernel_allocations, addresses) = match header.get_addresses() {
-        Some(addr) => load_kernel_multiboot(kernel_vec, addr, header.header_start, &systab),
-        None => load_kernel_elf(kernel_vec, &entry.image, &systab),
+        Some(addr) => load_kernel_multiboot(kernel_vec, addr, header.header_start),
+        None => load_kernel_elf(kernel_vec, &entry.image),
     }?;
     
     // Load all modules, fail completely if one fails to load.
@@ -75,8 +75,7 @@ enum Addresses {
 
 /// Load a kernel which has its addresses specified inside the Multiboot header.
 fn load_kernel_multiboot(
-    kernel_vec: Vec<u8>, addresses: MultibootAddresses,
-    header_start: u32, systab: &SystemTable<Boot>
+    kernel_vec: Vec<u8>, addresses: MultibootAddresses, header_start: u32
 ) -> Result<(Vec<Allocation>, Addresses), Status> {
     // try to allocate the memory where to load the kernel and move the kernel there
     // TODO: maybe optimize this so that we at first read just the beginning of the kernel
@@ -92,7 +91,7 @@ fn load_kernel_multiboot(
         else {addresses.bss_end_address - addresses.load_address}
     }.try_into().unwrap();
     let mut allocation = Allocation::new_at(
-        addresses.load_address.try_into().unwrap(), kernel_length, &systab
+        addresses.load_address.try_into().unwrap(), kernel_length
     )?;
     let kernel_buf = allocation.as_mut_slice();
     // copy from beginning of text to end of data segment and fill the rest with zeroes
@@ -109,14 +108,12 @@ fn load_kernel_multiboot(
 }
 
 /// Load a kernel which uses ELF semantics.
-fn load_kernel_elf(
-    kernel_vec: Vec<u8>, name: &str, systab: &SystemTable<Boot>
-) -> Result<(Vec<Allocation>, Addresses), Status> {
+fn load_kernel_elf(kernel_vec: Vec<u8>, name: &str) -> Result<(Vec<Allocation>, Addresses), Status> {
     let binary = ElfBinary::new(name, kernel_vec.as_slice()).map_err(|msg| {
         error!("failed to parse ELF structure of kernel: {}", msg);
         Status::LOAD_ERROR
     })?;
-    let mut loader = OurElfLoader::new(systab);
+    let mut loader = OurElfLoader::new();
     binary.load(&mut loader).map_err(|msg| {
         error!("failed to load kernel: {}", msg);
         Status::LOAD_ERROR

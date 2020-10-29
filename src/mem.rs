@@ -11,6 +11,7 @@ use alloc::alloc::{alloc, Layout};
 
 use uefi::prelude::*;
 use uefi::table::boot::{AllocateType, MemoryDescriptor, MemoryType};
+use uefi_services::system_table;
 
 use log::error;
 
@@ -29,9 +30,7 @@ impl Drop for Allocation {
     fn drop(&mut self) {
         // We can't free memory after we've exited boot services.
         // But this only happens in `PreparedEntry::boot` and this function doesn't return.
-        let systab_ptr = uefi_services::system_table();
-        let systab = unsafe { systab_ptr.as_ref() };
-        systab.boot_services().free_pages(self.ptr, self.pages)
+        unsafe { system_table().as_ref() }.boot_services().free_pages(self.ptr, self.pages)
         // let's just panic if we can't free
         .expect("failed to free the allocated memory for the kernel").unwrap();
     }
@@ -42,11 +41,9 @@ impl Allocation {
     ///
     /// Note: This will round up to the whole pages.
     /// Also: This memory is not tracked by Rust.
-    pub(crate) fn new_at(
-        address: usize, size: usize, systab: &SystemTable<Boot>
-    ) -> Result<Self, Status>{
+    pub(crate) fn new_at(address: usize, size: usize) -> Result<Self, Status>{
         let count_pages = (size / PAGE_SIZE) + 1; // TODO: this may allocate a page too much
-        let ptr = systab.boot_services().allocate_pages(
+        let ptr = unsafe { system_table().as_ref() }.boot_services().allocate_pages(
             AllocateType::Address(address),
             MemoryType::LOADER_DATA,
             count_pages
