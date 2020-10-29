@@ -7,7 +7,11 @@
 //!
 //! Also, gathering memory map information for the kernel happens here.
 
+use core::convert::TryInto;
+
 use alloc::alloc::{alloc, Layout};
+
+use log::warn;
 
 use uefi::prelude::*;
 use uefi::table::boot::{AllocateType, MemoryDescriptor, MemoryType};
@@ -132,6 +136,19 @@ where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
             }
         )
     }
+    
+    // "Lower" and "upper" memory as understood by a BIOS in kilobytes.
+    // This means:
+    // Lower memory is the part of the memory from beginning to the first memory hole,
+    // adressable by just 20 bits (because the 8086's address bus had just 20 pins).
+    // Upper memory is the part of the memory from 1 MB to the next memory hole
+    // (usually a few megabytes).
+    // We assume (and assert) that the table we got from the firmware is ordered.
+    let lower = 640; // If we had less than 640KB, we wouldn't fit into memory.
+    let upper = mb_mmap_buf.iter().find(|e| e.base_address() == 1024 * 1024)
+    .unwrap().length() / 1024;
+    multiboot.set_memory_bounds(Some((lower.try_into().unwrap(), upper.try_into().unwrap())));
+    
     // TODO: maybe join adjacent entries of the same type
     multiboot.set_memory_regions(Some(&mut mb_mmap_buf[0..count]));
 }
