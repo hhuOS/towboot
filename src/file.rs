@@ -13,6 +13,8 @@ use uefi::proto::media::file::{
     Directory, File as UefiFile, FileAttribute, FileInfo, FileMode, FileType, RegularFile
 };
 
+use super::mem::Allocation;
+
 /// An opened file.
 pub(crate) struct File<'a> {
     name: &'a str,
@@ -62,6 +64,8 @@ impl<'a> File<'a> {
     }
 }
 
+// TODO: Maybe change them to TryInto and return an Err instead of panicking.
+
 impl<'a> Into<Vec<u8>> for File<'a> {
     /// Read a whole file into memory and return the resulting byte vector.
     fn into(mut self) -> Vec<u8> {
@@ -73,5 +77,19 @@ impl<'a> Into<Vec<u8>> for File<'a> {
         .expect_success(&format!("Failed to read from file '{}'", self.name).to_string());
         assert_eq!(read_size, self.size);
         content_vec
+    }
+}
+
+impl<'a> Into<Allocation> for File<'a> {
+    /// Read a whole file into memory and return the resulting allocation.
+    ///
+    /// (The difference to `Into<Vec<u8>>` is that the allocated memory
+    /// is page-aligned and under 4GB.)
+    fn into(mut self) -> Allocation {
+        let mut allocation = Allocation::new_under_4gb(self.size).unwrap();
+        let read_size = self.file.read(allocation.as_mut_slice())
+        .expect_success(&format!("Failed to read from file '{}'", self.name).to_string());
+        assert_eq!(read_size, self.size);
+        allocation
     }
 }

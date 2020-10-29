@@ -54,6 +54,23 @@ impl Allocation {
         Ok(Allocation { ptr, pages: count_pages })
     }
     
+    /// Allocate memory page-aligned below 4GB.
+    ///
+    /// Note: This will round up to the whole pages.
+    /// Also: This memory is not tracked by Rust.
+    pub(crate) fn new_under_4gb(size: usize) -> Result<Self, Status> {
+        let count_pages = (size / PAGE_SIZE) + 1; // TODO: this may allocate a page too much
+        let ptr = unsafe { system_table().as_ref() }.boot_services().allocate_pages(
+            AllocateType::MaxAddress(u32::MAX as usize),
+            MemoryType::LOADER_DATA,
+            count_pages
+        ).map_err(|e| {
+            error!("failed to allocate memory to place the modules: {:?}", e);
+            Status::LOAD_ERROR
+        })?.unwrap();
+        Ok(Allocation { ptr, pages: count_pages })
+    }
+    
     /// Return a slice that references the associated memory.
     pub(crate) fn as_mut_slice(&mut self) -> &mut [u8] {
         unsafe { core::slice::from_raw_parts_mut(self.ptr as *mut u8, self.pages * PAGE_SIZE) }
