@@ -11,23 +11,19 @@
 extern crate rlibc;
 extern crate alloc;
 
-use core::convert::TryInto;
 use core::str::FromStr;
-use alloc::format;
-use alloc::string::ToString;
-use alloc::vec::Vec;
 
 use uefi::prelude::*;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::media::fs::SimpleFileSystem;
-use uefi::proto::media::file::{Directory, File, FileAttribute, FileInfo, FileMode, FileType};
 
-use log::{debug, info, warn, error};
+use log::{debug, warn, error};
 
 mod boot;
 // contains several workarounds for bugs in the Rust UEFI targets
 mod hacks;
 mod config;
+mod file;
 mod mem;
 mod menu;
 
@@ -95,52 +91,4 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
             // TODO: perhaps redisplay the menu or something like that
         },
     };
-}
-
-
-/// Read a whole file into memory and return the resulting byte vector.
-///
-/// The path is relative to the volume we're loaded from.
-///
-/// Possible errors:
-/// * `Status::NOT_FOUND`: the file does not exist
-/// * `Status::UNSUPPORTED`: the given path does exist, but it's a directory
-fn read_file(name: &str, volume: &mut Directory) -> Result<Vec<u8>, Status> {
-    info!("loading file '{}'...", name);
-    let file_handle = match volume.open(name, FileMode::Read, FileAttribute::READ_ONLY) {
-        Ok(file_handle) => file_handle.unwrap(),
-        Err(e) => return {
-            error!("Failed to find file '{}': {:?}", name, e);
-            Err(Status::NOT_FOUND)
-        }
-    };
-    let mut file = match file_handle.into_type()
-    .expect_success(&format!("Failed to open file '{}'", name).to_string()) {
-        FileType::Regular(file) => file,
-        FileType::Dir(_) => return {
-            error!("File '{}' is a directory", name);
-            Err(Status::UNSUPPORTED)
-        }
-    };
-    let mut info_vec = Vec::<u8>::new();
-    
-    // we try to get the metadata with a zero-sized buffer
-    // this should throw BUFFER_TOO_SMALL and give us the needed size
-    let info_result = file.get_info::<FileInfo>(info_vec.as_mut_slice());
-    assert_eq!(info_result.status(), Status::BUFFER_TOO_SMALL);
-    let info_size: usize = info_result.expect_err("metadata is 0 bytes").data()
-    .expect("failed to get size of file metadata");
-    info_vec.resize(info_size, 0);
-    
-    let size: usize = file.get_info::<FileInfo>(info_vec.as_mut_slice())
-    .expect(&format!("Failed to get metadata of file '{}'", name).to_string())
-    .unwrap().file_size().try_into().unwrap();
-    // Vec::with_size would allocate enough space, but won't fill it with zeros.
-    // file.read seems to need this.
-    let mut content_vec = Vec::<u8>::new();
-    content_vec.resize(size, 0);
-    let read_size = file.read(content_vec.as_mut_slice())
-    .expect_success(&format!("Failed to read from file '{}'", name).to_string());
-    assert_eq!(read_size, size);
-    Ok(content_vec)
 }

@@ -19,6 +19,7 @@ use multiboot::{
 use elfloader::ElfBinary;
 
 use super::config::Entry;
+use super::file::File;
 use super::mem::Allocation;
 
 mod elf;
@@ -41,7 +42,7 @@ use elf::OurElfLoader;
 pub(crate) fn prepare_entry<'a>(
     entry: &'a Entry, volume: &mut Directory, systab: &SystemTable<Boot>
 ) -> Result<PreparedEntry<'a>, Status> {
-    let kernel_vec = crate::read_file(&entry.image, volume)?;
+    let kernel_vec: Vec<u8> = File::open(&entry.image, volume)?.into();
     let header = Header::from_slice(kernel_vec.as_slice()).ok_or_else(|| {
         error!("invalid Multiboot header");
         Status::LOAD_ERROR
@@ -54,7 +55,7 @@ pub(crate) fn prepare_entry<'a>(
     
     // Load all modules, fail completely if one fails to load.
     let modules_vec: Vec<Vec<u8>> = entry.modules.iter().flat_map(identity).map(|module|
-        crate::read_file(&module.image, volume)
+        File::open(&module.image, volume).map(|f| f.into())
     ).collect::<Result<Vec<_>, _>>()?;
     info!("loaded {} modules", modules_vec.len());
     

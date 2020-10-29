@@ -20,6 +20,8 @@ use miniarg::{ArgumentIterator, Key};
 
 use serde::Deserialize;
 
+use super::file::File;
+
 const CONFIG_FILE: &str = "\\bootloader.toml";
 
 /// Get the config.
@@ -45,8 +47,8 @@ pub fn get_config(
 }
 
 /// Try to read and parse the configuration from the given file.
-fn read_file(volume: &mut Directory, file_name: &str) -> Result<Config, Status> {
-    let text = crate::read_file(file_name, volume)?;
+fn read_file<'a>(volume: &mut Directory, file_name: &'a str) -> Result<Config, Status> {
+    let text: Vec<u8> = File::open(file_name, volume)?.into();
     Ok(toml::from_slice(text.as_slice()).expect("failed to parse config file"))
 }
 
