@@ -13,7 +13,8 @@ use uefi::proto::media::file::Directory;
 use log::{debug, info, error};
 
 use multiboot::{
-    Header, MemoryEntry, Module, Multiboot, MultibootAddresses, MultibootInfo, SIGNATURE_EAX
+    Header, MemoryEntry, Module, Multiboot, MultibootAddresses, MultibootInfo, SIGNATURE_EAX,
+    SymbolType
 };
 
 use elfloader::ElfBinary;
@@ -48,7 +49,7 @@ pub(crate) fn prepare_entry<'a>(
         Status::LOAD_ERROR
     })?;
     debug!("loaded kernel: {:?}", header);
-    let (kernel_allocations, addresses) = match header.get_addresses() {
+    let (kernel_allocations, addresses, symbols) = match header.get_addresses() {
         Some(addr) => load_kernel_multiboot(kernel_vec, addr, header.header_start),
         None => load_kernel_elf(kernel_vec, &entry.image),
     }?;
@@ -62,7 +63,9 @@ pub(crate) fn prepare_entry<'a>(
     
     let mut graphics_output = video::setup_video(&header, &systab)?;
     
-    let multiboot_information = prepare_multiboot_information(&entry, &modules_vec, graphics_output);
+    let multiboot_information = prepare_multiboot_information(
+        &entry, &modules_vec, symbols, graphics_output
+    );
     
     Ok(PreparedEntry { entry, kernel_allocations, header, addresses, multiboot_information, modules_vec })
 }
@@ -77,7 +80,14 @@ enum Addresses {
 /// Load a kernel which has its addresses specified inside the Multiboot header.
 fn load_kernel_multiboot(
     kernel_vec: Vec<u8>, addresses: MultibootAddresses, header_start: u32
-) -> Result<(Vec<Allocation>, Addresses), Status> {
+) -> Result<(Vec<Allocation>, Addresses, Option<SymbolType>), Status> {
+    // Try to the get symbols from parsing this as an ELF, if it fails, we have no symbols.
+    // TODO: Instead add support for AOut symbols?
+    let symbols = match ElfBinary::new("", kernel_vec.as_slice()) {
+        Ok(binary) => Some(SymbolType::Elf(elf::symbols(&binary))),
+        Err(_) => None,
+    };
+    
     // try to allocate the memory where to load the kernel and move the kernel there
     // TODO: maybe optimize this so that we at first read just the beginning of the kernel
     // and then read the whole kernel into the right place directly
@@ -105,11 +115,14 @@ fn load_kernel_multiboot(
     .for_each(|(dst,src)| *dst = *src);
     // drop the old vector
     core::mem::drop(kernel_vec);
-    Ok((vec![allocation], Addresses::Multiboot(addresses)))
+    
+    Ok((vec![allocation], Addresses::Multiboot(addresses), symbols))
 }
 
 /// Load a kernel which uses ELF semantics.
-fn load_kernel_elf(kernel_vec: Vec<u8>, name: &str) -> Result<(Vec<Allocation>, Addresses), Status> {
+fn load_kernel_elf(
+    kernel_vec: Vec<u8>, name: &str
+) -> Result<(Vec<Allocation>, Addresses, Option<SymbolType>), Status> {
     let binary = ElfBinary::new(name, kernel_vec.as_slice()).map_err(|msg| {
         error!("failed to parse ELF structure of kernel: {}", msg);
         Status::LOAD_ERROR
@@ -119,12 +132,14 @@ fn load_kernel_elf(kernel_vec: Vec<u8>, name: &str) -> Result<(Vec<Allocation>, 
         error!("failed to load kernel: {}", msg);
         Status::LOAD_ERROR
     })?;
-    Ok((loader.allocations, Addresses::Elf(binary.entry_point() as usize)))
+    let symbols = Some(SymbolType::Elf(elf::symbols(&binary)));
+    Ok((loader.allocations, Addresses::Elf(binary.entry_point() as usize), symbols))
 }
 
 /// Prepare information for the kernel.
 fn prepare_multiboot_information(
-    entry: &Entry, modules: &Vec<Allocation>, graphics_output: &mut GraphicsOutput
+    entry: &Entry, modules: &Vec<Allocation>, symbols: Option<SymbolType>,
+    graphics_output: &mut GraphicsOutput
 ) -> MultibootInfo {
     let mut info = MultibootInfo::default();
     let mut multiboot = Multiboot::from_ref(&mut info, super::mem::allocate);
@@ -150,6 +165,8 @@ fn prepare_multiboot_information(
     // so we don't accidentally allocate or deallocate, making the data obsolete.
     // TODO: Do we really need to do this? Our allocations don't matter to the kernel.
     // TODO: But do they affect the firmware's allocations?
+    
+    multiboot.set_symbols(symbols);
     
     video::prepare_information(&mut multiboot, graphics_output);
     
