@@ -127,13 +127,14 @@ fn load_kernel_elf(
         error!("failed to parse ELF structure of kernel: {}", msg);
         Status::LOAD_ERROR
     })?;
-    let mut loader = OurElfLoader::new();
+    let mut loader = OurElfLoader::new(binary.entry_point());
     binary.load(&mut loader).map_err(|msg| {
         error!("failed to load kernel: {}", msg);
         Status::LOAD_ERROR
     })?;
     let symbols = Some(SymbolType::Elf(elf::symbols(&binary)));
-    Ok((loader.allocations, Addresses::Elf(binary.entry_point() as usize), symbols))
+    let entry_point = loader.entry_point();
+    Ok((loader.into(), Addresses::Elf(entry_point), symbols))
 }
 
 /// Prepare information for the kernel.

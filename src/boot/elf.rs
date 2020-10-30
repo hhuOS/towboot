@@ -4,7 +4,9 @@ use core::convert::TryInto;
 use alloc::borrow::ToOwned;
 use alloc::vec::Vec;
 
-use log::{trace, debug};
+use log::{trace, debug, warn};
+
+use hashbrown::HashMap;
 
 use elfloader::{ElfBinary, ElfLoader, Flags, LoadableHeaders, P64, Rela, VAddr};
 
@@ -13,26 +15,53 @@ use multiboot::ElfSymbols;
 use super::super::mem::Allocation;
 
 pub(super) struct OurElfLoader {
-    // be careful, they have to be freed!
-    pub(super) allocations: Vec<Allocation>,
+    // maps virtual to physical addresses
+    allocations: HashMap<u64, Allocation>,
+    virtual_entry_point: u64,
+    physical_entry_point: Option<usize>,
 }
 
 impl OurElfLoader {
-    pub(super) fn new() -> Self {
-        OurElfLoader { allocations: Vec::new() }
+    /// Create a new instance.
+    ///
+    /// The parameter is the virtual address of the entry point.
+    pub(super) fn new(entry_point: u64) -> Self {
+        OurElfLoader {
+            allocations: HashMap::new(),
+            virtual_entry_point: entry_point,
+            physical_entry_point: None,
+        }
+    }
+    
+    /// Gets the entry point.
+    ///
+    /// We should have found it in `allocate`,
+    /// else fall back to the virtual one and hope for the best.
+    pub(super) fn entry_point(&self) -> usize {
+        match self.physical_entry_point {
+            Some(a) => a,
+            None => {
+                warn!("didn't find the entry point while loading sections, assuming virtual = physical");
+                self.virtual_entry_point.try_into().unwrap()
+            },
+        }
+    }
+}
+
+impl Into<Vec<Allocation>> for OurElfLoader {
+    // Gets our allocated memory.
+    fn into(mut self) -> Vec<Allocation> {
+        self.allocations.into_iter().map(|(k, v)| v).collect()
     }
 }
 
 impl ElfLoader for OurElfLoader {
     fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), &'static str> {
         for header in load_headers {
-            if header.virtual_addr() != header.physical_addr() {
-                todo!("support loading ELFs where virtual_addr != physical_addr")
-            }
             trace!("header: {:?}", header);
             debug!(
-                "allocating {} {} bytes at {:#x}",
-                header.mem_size(), header.flags(), header.physical_addr()
+                "allocating {} {} bytes at {:#x} for {:#x}",
+                header.mem_size(), header.flags(), header.physical_addr(), header.virtual_addr()
             );
             let mut allocation = Allocation::new_at(
                 header.physical_addr().try_into().unwrap(),
@@ -40,7 +69,18 @@ impl ElfLoader for OurElfLoader {
             ).map_err(|e| "failed to allocate memory for the kernel")?;
             let mut mem_slice = allocation.as_mut_slice();
             mem_slice.fill(0);
-            self.allocations.push(allocation);
+            self.allocations.insert(header.virtual_addr(), allocation);
+            if header.virtual_addr() <= self.virtual_entry_point
+            && header.virtual_addr() + header.mem_size() >= self.virtual_entry_point {
+                self.physical_entry_point = Some(
+                    (header.physical_addr() + self.virtual_entry_point - header.virtual_addr())
+                    .try_into().unwrap()
+                );
+                debug!(
+                    "(this segment will contain the entry point {:#x} at {:#x})",
+                    self.virtual_entry_point, self.physical_entry_point.unwrap(),
+                );
+            }
         }
         Ok(())
     }
@@ -51,15 +91,20 @@ impl ElfLoader for OurElfLoader {
 
     fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), &'static str> {
         // check whether we actually allocated this
-        if !self.allocations.iter().any(|a| a.contains(base, region.len())) {
-            panic!("we didn't allocate {:#x}, but tried to write to it o.O", base);
+        match self.allocations.get_mut(&base) {
+            None => panic!("we didn't allocate {:#x}, but tried to write to it o.O", base),
+            Some(alloc) => {
+                if alloc.len < region.len() {
+                    panic!("{:#x} doesn't fit into the memory allocated for it", base);
+                }
+                let ptr = alloc.as_ptr();
+                debug!(
+                    "load {} bytes into {:#x} (at {:#x})", region.len(), base, ptr as usize
+                );
+                alloc.as_mut_slice()[0..region.len()].clone_from_slice(region);
+                Ok(())
+            },
         }
-        debug!("load {} bytes into {:#x}", region.len(), base);
-        let mut mem_slice = unsafe {
-            core::slice::from_raw_parts_mut(base as *mut u8, region.len())
-        };
-        mem_slice.clone_from_slice(region);
-        Ok(())
     }
 }
 
