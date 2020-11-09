@@ -24,6 +24,6 @@ serde = { version = "1.0", default-features = false, features = ["alloc", "deriv
 
 hashbrown = { version = "0.9", features = ["serde"] }
 
-multiboot = { path = "../rust-multiboot" }
-elfloader = { path = "../rust-elfloader" }
+multiboot = { git = "https://github.com/YtvwlD/rust-multiboot.git", branch="bootloader" }
+elfloader = { git = "https://github.com/YtvwlD/rust-elfloader.git", branch="elf32" }
 miniarg = { version = "0.2", default-features = false, features = ["alloc", "derive"] }

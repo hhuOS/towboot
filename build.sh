@@ -52,8 +52,6 @@ mmd -i part.img efi/boot
 mcopy -i part.img target/$ARCH-unknown-uefi/$BUILD/bootloader.efi ::efi/boot/boot$EFIARCH.efi
 mcopy -i part.img bootloader.toml ::
 mcopy -i part.img ../../kernels/multiboot1.elf ::
-mcopy -i part.img ~/dev/hhuOS/loader/boot/hhuOS.bin ::
-mcopy -i part.img ~/dev/hhuOS/loader/boot/hhuOS.initrd ::
 
 mkgpt/mkgpt -o image.img --part part.img --type system
 rm part.img
@@ -88,4 +86,5 @@ fi
 
 echo "launching qemu…"
 qemu-system-$QEMUARCH -machine pc,accel=kvm,kernel-irqchip=off -bios $OVMF_PATH \
+-serial stdio \
 -drive driver=raw,node-name=disk,file.driver=file,file.filename=image.img -m 256

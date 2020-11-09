@@ -67,6 +67,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "elfloader"
 version = "0.11.0"
+source = "git+https://github.com/YtvwlD/rust-elfloader.git?branch=elf32#69fab445f4483e2d6e93bff7cb8349f6fb9fb72a"
 dependencies = [
  "bitflags",
  "log",
@@ -126,6 +127,7 @@ dependencies = [
 [[package]]
 name = "multiboot"
 version = "0.5.0"
+source = "git+https://github.com/YtvwlD/rust-multiboot.git?branch=bootloader#d0e88a928c1ccecb524322a44b2a9cc9b79ed19b"
 dependencies = [
  "paste",
 ]
