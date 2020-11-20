@@ -8,7 +8,8 @@ use uefi::proto::console::gop::{GraphicsOutput, Mode, PixelBitmask, PixelFormat}
 
 use log::{debug, warn, info, error};
 
-use multiboot::{ColorInfoType, ColorInfoRgb, FramebufferTable, Header, Multiboot, VideoModeType};
+use multiboot::header::{Header, VideoModeType};
+use multiboot::information::{ColorInfoType, ColorInfoRgb, FramebufferTable, Multiboot};
 
 /// Try to get the video in a mode the kernel wants.
 ///

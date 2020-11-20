@@ -10,7 +10,7 @@ use hashbrown::HashMap;
 
 use elfloader::{ElfBinary, ElfLoader, Flags, LoadableHeaders, P64, Rela, VAddr};
 
-use multiboot::ElfSymbols;
+use multiboot::information::ElfSymbols;
 
 use super::super::mem::Allocation;
 
@@ -121,5 +121,5 @@ pub(super) fn symbols(binary: &ElfBinary) -> ElfSymbols {
     .map(|b| b.to_owned()).collect();
     let ptr = section_vec.leak().as_ptr();
     let shndx = header_part.sh_str_index().try_into().unwrap();
-    ElfSymbols::from_ptr(num, size, ptr, shndx)
+    ElfSymbols::from_addr(num, size, ptr as multiboot::information::PAddr, shndx)
 }

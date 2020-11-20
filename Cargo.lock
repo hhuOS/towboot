@@ -126,8 +126,9 @@ dependencies = [
 
 [[package]]
 name = "multiboot"
-version = "0.5.0"
-source = "git+https://github.com/YtvwlD/rust-multiboot.git?branch=bootloader#d0e88a928c1ccecb524322a44b2a9cc9b79ed19b"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f442c65adef7bc9676eb8212598d14b7ba799b8bb2a312ed32f410e85e2f5ad"
 dependencies = [
  "paste",
 ]

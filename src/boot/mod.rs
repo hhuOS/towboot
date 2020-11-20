@@ -12,16 +12,16 @@ use uefi::proto::media::file::Directory;
 
 use log::{debug, info, error};
 
-use multiboot::{
-    Header, MemoryEntry, Module, Multiboot, MultibootAddresses, MultibootInfo, SIGNATURE_EAX,
-    SymbolType
+use multiboot::header::{Header, MultibootAddresses};
+use multiboot::information::{
+    MemoryEntry, Module, Multiboot, MultibootInfo, SIGNATURE_EAX, SymbolType
 };
 
 use elfloader::ElfBinary;
 
 use super::config::Entry;
 use super::file::File;
-use super::mem::Allocation;
+use super::mem::{Allocation, MultibootAllocator};
 
 mod elf;
 mod video;
@@ -63,11 +63,14 @@ pub(crate) fn prepare_entry<'a>(
     
     let mut graphics_output = video::setup_video(&header, &systab)?;
     
-    let multiboot_information = prepare_multiboot_information(
+    let (multiboot_information, multiboot_allocator) = prepare_multiboot_information(
         &entry, &modules_vec, symbols, graphics_output
     );
     
-    Ok(PreparedEntry { entry, kernel_allocations, header, addresses, multiboot_information, modules_vec })
+    Ok(PreparedEntry {
+        entry, kernel_allocations, header, addresses, multiboot_information,
+        multiboot_allocator, modules_vec,
+    })
 }
 
 enum Addresses {
@@ -141,9 +144,10 @@ fn load_kernel_elf(
 fn prepare_multiboot_information(
     entry: &Entry, modules: &Vec<Allocation>, symbols: Option<SymbolType>,
     graphics_output: &mut GraphicsOutput
-) -> MultibootInfo {
+) -> (MultibootInfo, MultibootAllocator) {
     let mut info = MultibootInfo::default();
-    let mut multiboot = Multiboot::from_ref(&mut info, super::mem::allocate);
+    let mut allocator = MultibootAllocator::new();
+    let mut multiboot = Multiboot::from_ref(&mut info, &mut allocator);
     
     multiboot.set_command_line(match &entry.argv {
         None => None,
@@ -160,7 +164,7 @@ fn prepare_multiboot_information(
             }
         )
     }).collect();
-    multiboot.set_modules(&mb_modules);
+    multiboot.set_modules(Some(&mb_modules));
     
     // Passing memory information happens after exiting BootServices,
     // so we don't accidentally allocate or deallocate, making the data obsolete.
@@ -172,7 +176,7 @@ fn prepare_multiboot_information(
     video::prepare_information(&mut multiboot, graphics_output);
     
     // TODO: the rest
-    info
+    (info, allocator)
 }
 
 pub(crate) struct PreparedEntry<'a> {
@@ -183,6 +187,7 @@ pub(crate) struct PreparedEntry<'a> {
     header: Header,
     addresses: Addresses,
     multiboot_information: MultibootInfo,
+    multiboot_allocator: MultibootAllocator,
     modules_vec: Vec<Allocation>,
     // TODO: framebuffer and Multiboot information
 }
@@ -228,7 +233,7 @@ impl PreparedEntry<'_> {
         // Passing the memory map has to happen here,
         // since we can't allocate or deallocate anymore.
         let mut multiboot = Multiboot::from_ref(
-            &mut self.multiboot_information, |_| core::ptr::null_mut()
+            &mut self.multiboot_information, &mut self.multiboot_allocator
         );
         super::mem::prepare_information(&mut multiboot, mmap_iter, mb_mmap_vec.leak());
         
