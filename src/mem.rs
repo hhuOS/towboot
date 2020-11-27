@@ -10,12 +10,13 @@
 use core::convert::TryInto;
 
 use alloc::alloc::{alloc, dealloc, Layout};
+use alloc::vec::Vec;
 
 use uefi::prelude::*;
 use uefi::table::boot::{AllocateType, MemoryDescriptor, MemoryType};
 use uefi_services::system_table;
 
-use log::error;
+use log::{debug, error};
 
 use hashbrown::HashMap;
 
@@ -54,6 +55,7 @@ impl Allocation {
             count_pages
         ).map_err(|e| {
             error!("failed to allocate memory to place the kernel: {:?}", e);
+            dump_memory_map();
             Status::LOAD_ERROR
         })?.unwrap();
         Ok(Allocation { ptr, len: size, pages: count_pages })
@@ -71,6 +73,7 @@ impl Allocation {
             count_pages
         ).map_err(|e| {
             error!("failed to allocate memory to place the modules: {:?}", e);
+            dump_memory_map();
             Status::LOAD_ERROR
         })?.unwrap();
         Ok(Allocation { ptr, len:size, pages: count_pages })
@@ -91,6 +94,19 @@ impl Allocation {
         self.ptr as *const u8
     }
 }
+
+/// Show the current memory map.
+fn dump_memory_map() {
+    debug!("memory map:");
+    let mut buf = Vec::new();
+    buf.resize(unsafe { system_table().as_ref() }.boot_services().memory_map_size(), 0);
+    let (key, iterator) = unsafe { system_table().as_ref() }.boot_services()
+    .memory_map(buf.as_mut_slice()).log_warning().expect("failed to get memory map");
+    for descriptor in iterator {
+        debug!("{:?}", descriptor);
+    }
+}
+
 
 /// Proxy Rust's allocator to the multiboot crate.
 pub(super) struct MultibootAllocator {
