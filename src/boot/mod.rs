@@ -246,11 +246,30 @@ impl PreparedEntry<'_> {
         
         unsafe {
             asm!(
-                // cr0 and eflags should be correct, already
-                "jmp {}",
-                in(reg) entry_address,
+                // 3.2 Machine state says:
+                
+                // > ‘EFLAGS’: Bit 17 (VM) must be cleared. Bit 9 (IF) must be cleared.
+                // > Other bits are all undefined. 
+                // disable interrupts (should have been enabled)
+                "cli",
+                // virtual 8086 mode can't be set, as we're 32 or 64 bit code
+                // (and changing that flag is rather difficult)
+                
+                // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
+                // > Other bits are all undefined.
+                "mov edx, cr0",
+                // disable paging (it should have been enabled)
+                "and edx, ~(1<<31)",
+                // enable protected mode (it should have already been enabled)
+                "or edx, 1",
+                "mov cr0, edx",
+                
+                // finally jump to the kernel
+                "jmp ecx",
+                
                 in("eax") SIGNATURE_EAX,
                 in("ebx") &self.multiboot_information,
+                in("ecx") entry_address,
             );
         }
         unreachable!();
