@@ -109,16 +109,32 @@ impl Allocation {
     
     /// Move to the desired location.
     ///
-    /// This is incredibly unsafe: We don't allocate the memory there, we just write.
-    pub(crate) unsafe fn move_to_where_it_should_be(&mut self) {
-        // TODO: we *really* might want to check the memory map,
-        // so we at least don't write to memory-mapped IO or ACPI tables or stuff like that
+    /// This is unsafe: In the worst case we could overwrite ourselves, our variables,
+    /// the Multiboot info struct or anything referenced therein.
+    pub(crate) unsafe fn move_to_where_it_should_be(
+        &mut self, memory_map: &[multiboot::information::MemoryEntry]
+    ) {
         match self.should_be_at {
             None => return,
             Some(a) => {
-                let dest: usize = a.try_into().unwrap();
-                let src: usize = self.ptr.try_into().unwrap();
-                core::ptr::copy(src as *mut u8, dest as *mut u8, self.len);
+                let mut filter = memory_map.iter().filter(|e|
+                    e.base_address() <= a
+                    && e.base_address() + e.length() >= a + self.len as u64
+                );
+                match filter.next() {
+                    Some(entry) => {
+                        match entry.memory_type() {
+                            multiboot::information::MemoryType::Available => {
+                                let dest: usize = a.try_into().unwrap();
+                                let src: usize = self.ptr.try_into().unwrap();
+                                core::ptr::copy(src as *mut u8, dest as *mut u8, self.len);
+                            },
+                            ty => panic!("would overwrite {:?}", entry),
+                        }
+                    },
+                    None => panic!("no memory map entry contains the place we want to write to"),
+                };
+                assert!(filter.next().is_none()); // there shouldn't be another matching entry
                 self.ptr = a;
                 self.should_be_at = None;
             }
@@ -205,7 +221,8 @@ impl multiboot::information::MemoryManagement for MultibootAllocator {
 pub(super) fn prepare_information<'a, I>(
     multiboot: &mut multiboot::information::Multiboot, mmap_iter: I,
     mb_mmap_buf: &'static mut[multiboot::information::MemoryEntry]
-) where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
+) -> &'static [multiboot::information::MemoryEntry]
+where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
     // Descriptors are the ones from UEFI, Entries are the ones from Multiboot.
     let mut count = 0;
     let mut entry_iter = mb_mmap_buf.iter_mut();
@@ -272,4 +289,5 @@ pub(super) fn prepare_information<'a, I>(
     multiboot.set_memory_regions(Some((
         mb_mmap_buf.as_ptr() as multiboot::information::PAddr, count
     )));
+    &mb_mmap_buf[0..count]
 }

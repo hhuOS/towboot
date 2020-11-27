@@ -236,13 +236,15 @@ impl PreparedEntry<'_> {
         let mut multiboot = Multiboot::from_ref(
             &mut self.multiboot_information, &mut self.multiboot_allocator
         );
-        super::mem::prepare_information(&mut multiboot, mmap_iter, mb_mmap_vec.leak());
+        let mb_mmap = super::mem::prepare_information(
+            &mut multiboot, mmap_iter, mb_mmap_vec.leak()
+        );
         
         // It could be possible that we failed to allocate memory for the kernel in the correct
         // place before. Just copy it now to where is belongs.
         // This is *really* unsafe, please see the documentation comment for details.
         for mut allocation in &mut self.kernel_allocations {
-            unsafe { allocation.move_to_where_it_should_be() };
+            unsafe { allocation.move_to_where_it_should_be(&mb_mmap) };
         }
         
         // TODO: Step 4
