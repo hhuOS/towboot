@@ -207,8 +207,9 @@ impl PreparedEntry<'_> {
     /// What this means:
     /// 1. exit BootServices
     /// 2. pass the memory map to the kernel
-    /// 3. when on x64_64: switch to x86
-    /// 4. jump!
+    /// 3. copy the kernel to its desired location (if needed)
+    /// 4. when on x64_64: switch to x86
+    /// 5. jump!
     ///
     /// This function won't return.
     pub(crate) fn boot(&mut self, image: Handle, systab: SystemTable<Boot>) {
@@ -237,7 +238,14 @@ impl PreparedEntry<'_> {
         );
         super::mem::prepare_information(&mut multiboot, mmap_iter, mb_mmap_vec.leak());
         
-        // TODO: Step 3
+        // It could be possible that we failed to allocate memory for the kernel in the correct
+        // place before. Just copy it now to where is belongs.
+        // This is *really* unsafe, please see the documentation comment for details.
+        for mut allocation in &mut self.kernel_allocations {
+            unsafe { allocation.move_to_where_it_should_be() };
+        }
+        
+        // TODO: Step 4
         
         let entry_address = match &self.addresses {
             Addresses::Multiboot(addr) => addr.entry_address as usize,

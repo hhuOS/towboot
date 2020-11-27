@@ -16,7 +16,7 @@ use uefi::prelude::*;
 use uefi::table::boot::{AllocateType, MemoryDescriptor, MemoryType};
 use uefi_services::system_table;
 
-use log::{debug, error};
+use log::{debug, warn, error};
 
 use hashbrown::HashMap;
 
@@ -29,6 +29,9 @@ pub(super) struct Allocation {
     ptr: u64,
     pub len: usize,
     pages: usize,
+    /// the address of memory where it should have been allocated
+    /// (only when it differs from ptr)
+    should_be_at: Option<u64>,
 }
 
 impl Drop for Allocation {
@@ -49,16 +52,26 @@ impl Allocation {
     /// Also: This memory is not tracked by Rust.
     pub(crate) fn new_at(address: usize, size: usize) -> Result<Self, Status>{
         let count_pages = (size / PAGE_SIZE) + 1; // TODO: this may allocate a page too much
-        let ptr = unsafe { system_table().as_ref() }.boot_services().allocate_pages(
+        match unsafe { system_table().as_ref() }.boot_services().allocate_pages(
             AllocateType::Address(address),
             MemoryType::LOADER_DATA,
             count_pages
-        ).map_err(|e| {
-            error!("failed to allocate memory to place the kernel: {:?}", e);
-            dump_memory_map();
-            Status::LOAD_ERROR
-        })?.unwrap();
-        Ok(Allocation { ptr, len: size, pages: count_pages })
+        ).log_warning() {
+            Ok(ptr) => Ok(Allocation { ptr, len: size, pages: count_pages, should_be_at: None }),
+            Err(e) => {
+                warn!("failed to allocate {} bytes of memory at {:x}: {:?}", size, address, e);
+                dump_memory_map();
+                warn!("going to allocate it somewhere else and try to move it later");
+                warn!("this might fail without notice");
+                match Self::new_under_4gb(size).map(|mut allocation| {
+                    allocation.should_be_at = Some(address.try_into().unwrap());
+                    allocation
+                }) {
+                    Ok(a) => return Ok(a),
+                    Err(e) => Err(e),
+                }
+            }
+        }
     }
     
     /// Allocate memory page-aligned below 4GB.
@@ -72,11 +85,11 @@ impl Allocation {
             MemoryType::LOADER_DATA,
             count_pages
         ).map_err(|e| {
-            error!("failed to allocate memory to place the modules: {:?}", e);
+            error!("failed to allocate {} bytes of memory: {:?}", size, e);
             dump_memory_map();
             Status::LOAD_ERROR
         })?.unwrap();
-        Ok(Allocation { ptr, len:size, pages: count_pages })
+        Ok(Allocation { ptr, len:size, pages: count_pages, should_be_at: None })
     }
     
     /// Return a slice that references the associated memory.
@@ -92,6 +105,24 @@ impl Allocation {
     /// Get the pointer inside.
     pub(crate) fn as_ptr(&self) -> *const u8 {
         self.ptr as *const u8
+    }
+    
+    /// Move to the desired location.
+    ///
+    /// This is incredibly unsafe: We don't allocate the memory there, we just write.
+    pub(crate) unsafe fn move_to_where_it_should_be(&mut self) {
+        // TODO: we *really* might want to check the memory map,
+        // so we at least don't write to memory-mapped IO or ACPI tables or stuff like that
+        match self.should_be_at {
+            None => return,
+            Some(a) => {
+                let dest: usize = a.try_into().unwrap();
+                let src: usize = self.ptr.try_into().unwrap();
+                core::ptr::copy(src as *mut u8, dest as *mut u8, self.len);
+                self.ptr = a;
+                self.should_be_at = None;
+            }
+        }
     }
 }
 
