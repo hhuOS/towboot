@@ -207,9 +207,11 @@ pub(super) fn prepare_information<'a, I>(
     mb_mmap_buf: &'static mut[multiboot::information::MemoryEntry]
 ) where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
     // Descriptors are the ones from UEFI, Entries are the ones from Multiboot.
-    let count = mmap_iter.len();
-    for (descriptor, entry) in mmap_iter.zip(mb_mmap_buf.iter_mut()) {
-        *entry = multiboot::information::MemoryEntry::new(
+    let mut count = 0;
+    let mut entry_iter = mb_mmap_buf.iter_mut();
+    let mut current_entry = entry_iter.next().unwrap();
+    for descriptor in mmap_iter {
+        let next_entry = multiboot::information::MemoryEntry::new(
             descriptor.phys_start, descriptor.page_count * PAGE_SIZE as u64, match descriptor.ty {
                 // after we've started the kernel, no-one needs our code or data
                 MemoryType::LOADER_CODE | MemoryType::LOADER_DATA
@@ -229,7 +231,30 @@ pub(super) fn prepare_information<'a, I>(
                 MemoryType::PERSISTENT_MEMORY => multiboot::information::MemoryType::Available,
                 _ => multiboot::information::MemoryType::Reserved, // better be safe than sorry
             }
-        )
+        );
+        if count == 0 {
+            *current_entry = next_entry;
+            count += 1;
+        } else {
+            // join adjacent entries of the same type
+            if (
+                next_entry.memory_type() == current_entry.memory_type()
+            ) && (
+                next_entry.base_address() == (
+                    current_entry.base_address() + current_entry.length()
+                )
+            ) {
+                *current_entry = multiboot::information::MemoryEntry::new(
+                    current_entry.base_address(),
+                    current_entry.length() + next_entry.length(),
+                    current_entry.memory_type(),
+                );
+            } else {
+                current_entry = entry_iter.next().unwrap();
+                *current_entry = next_entry;
+                count += 1;
+            }
+        }
     }
     
     // "Lower" and "upper" memory as understood by a BIOS in kilobytes.
@@ -244,7 +269,6 @@ pub(super) fn prepare_information<'a, I>(
     .unwrap().length() / 1024;
     multiboot.set_memory_bounds(Some((lower.try_into().unwrap(), upper.try_into().unwrap())));
     
-    // TODO: maybe join adjacent entries of the same type
     multiboot.set_memory_regions(Some((
         mb_mmap_buf.as_ptr() as multiboot::information::PAddr, count
     )));
