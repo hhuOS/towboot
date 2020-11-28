@@ -48,7 +48,7 @@ pub(crate) fn prepare_entry<'a>(
         error!("invalid Multiboot header");
         Status::LOAD_ERROR
     })?;
-    debug!("loaded kernel: {:?}", header);
+    debug!("loaded kernel {:?} to {:?}", header, kernel_vec.as_ptr());
     let (kernel_allocations, addresses, symbols) = match header.get_addresses() {
         Some(addr) => load_kernel_multiboot(kernel_vec, addr, header.header_start),
         None => load_kernel_elf(kernel_vec, &entry.image),
@@ -60,6 +60,9 @@ pub(crate) fn prepare_entry<'a>(
         File::open(&module.image, volume).map(|f| f.into())
     ).collect::<Result<Vec<_>, _>>()?;
     info!("loaded {} modules", modules_vec.len());
+    for (index, module) in modules_vec.iter().enumerate() {
+        debug!("loaded module {} to {:?}", index, module.as_ptr());
+    }
     
     let mut graphics_output = video::setup_video(&header, &systab)?;
     
