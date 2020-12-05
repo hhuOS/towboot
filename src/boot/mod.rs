@@ -75,7 +75,7 @@ pub(crate) fn prepare_entry<'a>(
     );
     
     Ok(PreparedEntry {
-        entry, kernel_allocations, header, addresses, multiboot_information,
+        entry, kernel_allocations, addresses, multiboot_information,
         multiboot_allocator, symbols_vec, modules_vec,
     })
 }
@@ -189,7 +189,6 @@ fn prepare_multiboot_information(
 pub(crate) struct PreparedEntry<'a> {
     entry: &'a Entry,
     kernel_allocations: Vec<Allocation>,
-    header: Header,
     addresses: Addresses,
     multiboot_information: MultibootInfo,
     multiboot_allocator: MultibootAllocator,
