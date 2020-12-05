@@ -10,7 +10,7 @@ use hashbrown::HashMap;
 
 use elfloader::{ElfBinary, ElfLoader, Flags, LoadableHeaders, P64, Rela, VAddr};
 
-use multiboot::information::ElfSymbols;
+use multiboot::information::{ElfSymbols, SymbolType};
 
 use super::super::mem::Allocation;
 
@@ -109,17 +109,25 @@ impl ElfLoader for OurElfLoader {
 }
 
 /// Bring the binary's symbols in a format for Multiboot.
-pub(super) fn symbols(binary: &ElfBinary) -> ElfSymbols {
+///
+/// Returns a tuple of informations struct and vector containing the symbols.
+pub(super) fn symbols(binary: &ElfBinary) -> (SymbolType, Vec<u8>) {
     // We need the section header part of the ELF header
     let header_part = binary.file.header.pt2;
     // Let's just hope they fit into u32s.
     let num: u32 = header_part.sh_count().into();
     let size: u32 = header_part.sh_entry_size().try_into().unwrap();
-    // copy the symbols, FIXME: this leaks memory
+    // copy the section heades
     let section_vec: Vec<u8> = binary.file.input.iter()
     .skip(header_part.sh_offset().try_into().unwrap()).take((size * num).try_into().unwrap())
     .map(|b| b.to_owned()).collect();
-    let ptr = section_vec.leak().as_ptr();
+    // TODO: actually copy the symbols
+    let ptr = section_vec.as_ptr();
     let shndx = header_part.sh_str_index().try_into().unwrap();
-    ElfSymbols::from_addr(num, size, ptr as multiboot::information::PAddr, shndx)
+    (
+        SymbolType::Elf(ElfSymbols::from_addr(
+            num, size, ptr as multiboot::information::PAddr, shndx
+        )),
+        section_vec
+    )
 }

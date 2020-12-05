@@ -53,6 +53,10 @@ pub(crate) fn prepare_entry<'a>(
         Some(addr) => load_kernel_multiboot(kernel_vec, addr, header.header_start),
         None => load_kernel_elf(kernel_vec, &entry.image),
     }?;
+    let (symbols_struct, symbols_vec) = match symbols {
+        Some((s, v)) => (Some(s), Some(v)),
+        None => (None, None),
+    };
     
     // Load all modules, fail completely if one fails to load.
     // just always use whole pages, that's easier for us
@@ -67,12 +71,12 @@ pub(crate) fn prepare_entry<'a>(
     let mut graphics_output = video::setup_video(&header, &systab)?;
     
     let (multiboot_information, multiboot_allocator) = prepare_multiboot_information(
-        &entry, &modules_vec, symbols, graphics_output
+        &entry, &modules_vec, symbols_struct, graphics_output
     );
     
     Ok(PreparedEntry {
         entry, kernel_allocations, header, addresses, multiboot_information,
-        multiboot_allocator, modules_vec,
+        multiboot_allocator, symbols_vec, modules_vec,
     })
 }
 
@@ -86,11 +90,11 @@ enum Addresses {
 /// Load a kernel which has its addresses specified inside the Multiboot header.
 fn load_kernel_multiboot(
     kernel_vec: Vec<u8>, addresses: MultibootAddresses, header_start: u32
-) -> Result<(Vec<Allocation>, Addresses, Option<SymbolType>), Status> {
+) -> Result<(Vec<Allocation>, Addresses, Option<(SymbolType, Vec<u8>)>), Status> {
     // Try to the get symbols from parsing this as an ELF, if it fails, we have no symbols.
     // TODO: Instead add support for AOut symbols?
     let symbols = match ElfBinary::new("", kernel_vec.as_slice()) {
-        Ok(binary) => Some(SymbolType::Elf(elf::symbols(&binary))),
+        Ok(binary) => Some(elf::symbols(&binary)),
         Err(_) => None,
     };
     
@@ -128,7 +132,7 @@ fn load_kernel_multiboot(
 /// Load a kernel which uses ELF semantics.
 fn load_kernel_elf(
     kernel_vec: Vec<u8>, name: &str
-) -> Result<(Vec<Allocation>, Addresses, Option<SymbolType>), Status> {
+) -> Result<(Vec<Allocation>, Addresses, Option<(SymbolType, Vec<u8>)>), Status> {
     let binary = ElfBinary::new(name, kernel_vec.as_slice()).map_err(|msg| {
         error!("failed to parse ELF structure of kernel: {}", msg);
         Status::LOAD_ERROR
@@ -138,7 +142,7 @@ fn load_kernel_elf(
         error!("failed to load kernel: {}", msg);
         Status::LOAD_ERROR
     })?;
-    let symbols = Some(SymbolType::Elf(elf::symbols(&binary)));
+    let symbols = Some(elf::symbols(&binary));
     let entry_point = loader.entry_point();
     Ok((loader.into(), Addresses::Elf(entry_point), symbols))
 }
@@ -184,24 +188,13 @@ fn prepare_multiboot_information(
 
 pub(crate) struct PreparedEntry<'a> {
     entry: &'a Entry,
-    // this has been allocated via allocate_pages(), so it's not tracked by Rust
-    // we have to explicitly take care of disposing this if a boot fails
     kernel_allocations: Vec<Allocation>,
     header: Header,
     addresses: Addresses,
     multiboot_information: MultibootInfo,
     multiboot_allocator: MultibootAllocator,
+    symbols_vec: Option<Vec<u8>>,
     modules_vec: Vec<Allocation>,
-    // TODO: framebuffer and Multiboot information
-}
-
-impl Drop for PreparedEntry<'_> {
-    /// Abort the boot.
-    ///
-    /// Disposes the loaded kernel and modules and restores the framebuffer.
-    fn drop(&mut self) {
-        // TODO: restore the framebuffer
-    }
 }
 
 impl PreparedEntry<'_> {
@@ -215,7 +208,7 @@ impl PreparedEntry<'_> {
     /// 5. jump!
     ///
     /// This function won't return.
-    pub(crate) fn boot(&mut self, image: Handle, systab: SystemTable<Boot>) {
+    pub(crate) fn boot(mut self, image: Handle, systab: SystemTable<Boot>) {
         match &self.entry.name {
             Some(n) => info!("booting '{}'...", n),
             None => info!("booting..."),
@@ -243,12 +236,20 @@ impl PreparedEntry<'_> {
             &mut multiboot, mmap_iter, mb_mmap_vec.leak()
         );
         
-        // It could be possible that we failed to allocate memory for the kernel in the correct
-        // place before. Just copy it now to where is belongs.
-        // This is *really* unsafe, please see the documentation comment for details.
         for mut allocation in &mut self.kernel_allocations {
+            // It could be possible that we failed to allocate memory for the kernel in the correct
+            // place before. Just copy it now to where is belongs.
+            // This is *really* unsafe, please see the documentation comment for details.
             unsafe { allocation.move_to_where_it_should_be(&mb_mmap) };
+            // We are going to jump into it, so make sure it stays around indefinitely.
+            core::mem::forget(allocation);
         }
+        // The kernel is going to need the modules, so make sure they stay.
+        for allocation in &self.modules_vec {
+            core::mem::forget(allocation);
+        }
+        // The kernel is going to need the section headers and symbols.
+        core::mem::forget(self.symbols_vec);
         
         // TODO: Step 4
         
