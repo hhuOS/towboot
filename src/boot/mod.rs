@@ -1,6 +1,6 @@
 //! This module handles the actual boot and related stuff.
 //!
-//! This means: lower-level memory management, handling ELF files and video initialization.
+//! This means: loading kernel and modules, handling ELF files, video initialization and jumping
 
 use alloc::{vec, vec::Vec};
 
@@ -46,12 +46,9 @@ fn load_kernel_multiboot(
         Err(_) => None,
     };
     
-    // try to allocate the memory where to load the kernel and move the kernel there
-    // TODO: maybe optimize this so that we at first read just the beginning of the kernel
-    // and then read the whole kernel into the right place directly
-    // The current implementation is fast enough
-    // (we're copying just a few megabytes through memory),
-    // but in some cases we could block the destination with the source and this would be bad.
+    // Try to allocate the memory where to load the kernel and move the kernel there.
+    // In the worst case we might have blocked the destination by loading the file there,
+    // but `move_to_where_it_should_be` should fix this later.
     info!("moving the kernel to its desired location...");
     let load_offset = addresses.compute_load_offset(header_start);
     // allocate
@@ -104,11 +101,13 @@ fn prepare_multiboot_information(
     let mut allocator = MultibootAllocator::new();
     let mut multiboot = Multiboot::from_ref(&mut info, &mut allocator);
     
+    // We don't have much information about the partition we loaded the kernel from.
+    // There's the UEFI Handle, but the kernel probably won't understand that.
+    
     multiboot.set_command_line(match &entry.argv {
         None => None,
         Some(s) => Some(&s),
     });
-    
     let mb_modules: Vec<Module> = modules.iter().zip(entry.modules.iter().flatten()).map(|(module, module_entry)| {
         Module::new(
             module.as_ptr() as u64,
@@ -120,13 +119,23 @@ fn prepare_multiboot_information(
         )
     }).collect();
     multiboot.set_modules(Some(&mb_modules));
+    multiboot.set_symbols(symbols);
     
     // Passing memory information happens after exiting BootServices,
     // so we don't accidentally allocate or deallocate, making the data obsolete.
     // TODO: Do we really need to do this? Our allocations don't matter to the kernel.
     // TODO: But do they affect the firmware's allocations?
     
-    multiboot.set_symbols(symbols);
+    // We can't ask the BIOS for information about the drives.
+    // (We could ask the firmware and convert it to the legacy BIOS format, however.)
+    
+    // There is no BIOS config table.
+    
+    // If we had a name we could pass it here.
+    
+    // There is no APM config table.
+    
+    // There is no VBE information.
     
     video::prepare_information(&mut multiboot, graphics_output);
     
@@ -197,7 +206,7 @@ impl<'a> PreparedEntry<'a> {
         })
     }
     
-    /// Actuelly boot an entry.
+    /// Actually boot an entry.
     ///
     /// What this means:
     /// 1. exit BootServices
@@ -260,6 +269,13 @@ impl<'a> PreparedEntry<'a> {
         unsafe {
             asm!(
                 // 3.2 Machine state says:
+                
+                // > ‘CS’: Must be a 32-bit read/execute code segment with an offset of ‘0’
+                // > and a limit of ‘0xFFFFFFFF’. The exact value is undefined.
+                // TODO: Maybe set this?
+                // > 'DS’, 'ES’, ‘FS’, ‘GS’, ‘SS’: Must be a 32-bit read/write data segment with an
+                // > offset of ‘0’ and a limit of ‘0xFFFFFFFF’. The exact values are all undefined.
+                // TODO: Maybe set this?
                 
                 // > ‘EFLAGS’: Bit 17 (VM) must be cleared. Bit 9 (IF) must be cleared.
                 // > Other bits are all undefined. 
