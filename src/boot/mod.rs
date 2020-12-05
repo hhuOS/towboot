@@ -28,58 +28,6 @@ mod video;
 
 use elf::OurElfLoader;
 
-/// Prepare an entry for boot.
-///
-/// What this means:
-/// 1. load the kernel into memory
-/// 2. try to parse the Multiboot information
-/// 3. move the kernel to where it wants to be
-/// 4. load the modules
-/// 5. make the framebuffer ready
-/// 6. create the Multiboot information for the kernel
-///
-/// Return a `PreparedEntry` which can be used to actually boot.
-/// This is non-destructive and will always return.
-pub(crate) fn prepare_entry<'a>(
-    entry: &'a Entry, volume: &mut Directory, systab: &SystemTable<Boot>
-) -> Result<PreparedEntry<'a>, Status> {
-    let kernel_vec: Vec<u8> = File::open(&entry.image, volume)?.into();
-    let header = Header::from_slice(kernel_vec.as_slice()).ok_or_else(|| {
-        error!("invalid Multiboot header");
-        Status::LOAD_ERROR
-    })?;
-    debug!("loaded kernel {:?} to {:?}", header, kernel_vec.as_ptr());
-    let (kernel_allocations, addresses, symbols) = match header.get_addresses() {
-        Some(addr) => load_kernel_multiboot(kernel_vec, addr, header.header_start),
-        None => load_kernel_elf(kernel_vec, &entry.image),
-    }?;
-    let (symbols_struct, symbols_vec) = match symbols {
-        Some((s, v)) => (Some(s), Some(v)),
-        None => (None, None),
-    };
-    
-    // Load all modules, fail completely if one fails to load.
-    // just always use whole pages, that's easier for us
-    let modules_vec: Vec<Allocation> = entry.modules.iter().flat_map(identity).map(|module|
-        File::open(&module.image, volume).map(|f| f.into())
-    ).collect::<Result<Vec<_>, _>>()?;
-    info!("loaded {} modules", modules_vec.len());
-    for (index, module) in modules_vec.iter().enumerate() {
-        debug!("loaded module {} to {:?}", index, module.as_ptr());
-    }
-    
-    let mut graphics_output = video::setup_video(&header, &systab)?;
-    
-    let (multiboot_information, multiboot_allocator) = prepare_multiboot_information(
-        &entry, &modules_vec, symbols_struct, graphics_output
-    );
-    
-    Ok(PreparedEntry {
-        entry, kernel_allocations, addresses, multiboot_information,
-        multiboot_allocator, symbols_vec, modules_vec,
-    })
-}
-
 enum Addresses {
     Multiboot(MultibootAddresses),
     /// the entry address
@@ -196,7 +144,59 @@ pub(crate) struct PreparedEntry<'a> {
     modules_vec: Vec<Allocation>,
 }
 
-impl PreparedEntry<'_> {
+impl<'a> PreparedEntry<'a> {
+    /// Prepare an entry for boot.
+    ///
+    /// What this means:
+    /// 1. load the kernel into memory
+    /// 2. try to parse the Multiboot information
+    /// 3. move the kernel to where it wants to be
+    /// 4. load the modules
+    /// 5. make the framebuffer ready
+    /// 6. create the Multiboot information for the kernel
+    ///
+    /// Return a `PreparedEntry` which can be used to actually boot.
+    /// This is non-destructive and will always return.
+    pub(crate) fn new(
+        entry: &'a Entry, volume: &mut Directory, systab: &SystemTable<Boot>
+    ) -> Result<PreparedEntry<'a>, Status> {
+        let kernel_vec: Vec<u8> = File::open(&entry.image, volume)?.into();
+        let header = Header::from_slice(kernel_vec.as_slice()).ok_or_else(|| {
+            error!("invalid Multiboot header");
+            Status::LOAD_ERROR
+        })?;
+        debug!("loaded kernel {:?} to {:?}", header, kernel_vec.as_ptr());
+        let (kernel_allocations, addresses, symbols) = match header.get_addresses() {
+            Some(addr) => load_kernel_multiboot(kernel_vec, addr, header.header_start),
+            None => load_kernel_elf(kernel_vec, &entry.image),
+        }?;
+        let (symbols_struct, symbols_vec) = match symbols {
+            Some((s, v)) => (Some(s), Some(v)),
+            None => (None, None),
+        };
+        
+        // Load all modules, fail completely if one fails to load.
+        // just always use whole pages, that's easier for us
+        let modules_vec: Vec<Allocation> = entry.modules.iter().flat_map(identity).map(|module|
+            File::open(&module.image, volume).map(|f| f.into())
+        ).collect::<Result<Vec<_>, _>>()?;
+        info!("loaded {} modules", modules_vec.len());
+        for (index, module) in modules_vec.iter().enumerate() {
+            debug!("loaded module {} to {:?}", index, module.as_ptr());
+        }
+        
+        let mut graphics_output = video::setup_video(&header, &systab)?;
+        
+        let (multiboot_information, multiboot_allocator) = prepare_multiboot_information(
+            &entry, &modules_vec, symbols_struct, graphics_output
+        );
+        
+        Ok(PreparedEntry {
+            entry, kernel_allocations, addresses, multiboot_information,
+            multiboot_allocator, symbols_vec, modules_vec,
+        })
+    }
+    
     /// Actuelly boot an entry.
     ///
     /// What this means:
