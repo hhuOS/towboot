@@ -41,15 +41,21 @@ impl Drop for Allocation {
         // But this only happens in `PreparedEntry::boot` and this function doesn't return.
         unsafe { system_table().as_ref() }.boot_services().free_pages(self.ptr, self.pages)
         // let's just panic if we can't free
-        .expect("failed to free the allocated memory for the kernel").unwrap();
+        .expect("failed to free the allocated memory").unwrap();
     }
 }
 
 impl Allocation {
     /// Allocate memory at a specific position.
     ///
-    /// Note: This will round up to the whole pages.
-    /// Also: This memory is not tracked by Rust.
+    /// Note: This will round up to whole pages.
+    ///
+    /// If the memory can't be allocated at the specified address,
+    /// it will print a warning and allocate it somewhere else instead.
+    /// You can move the allocated memory later to the correct address by calling
+    /// [`move_to_where_it_should_be`], but please keep its safety implications in mind.
+    ///
+    /// [`move_to_where_it_should_be`]: struct.Allocation.html#method.move_to_where_it_should_be
     pub(crate) fn new_at(address: usize, size: usize) -> Result<Self, Status>{
         let count_pages = (size / PAGE_SIZE) + 1; // TODO: this may allocate a page too much
         match unsafe { system_table().as_ref() }.boot_services().allocate_pages(
@@ -76,8 +82,7 @@ impl Allocation {
     
     /// Allocate memory page-aligned below 4GB.
     ///
-    /// Note: This will round up to the whole pages.
-    /// Also: This memory is not tracked by Rust.
+    /// Note: This will round up to whole pages.
     pub(crate) fn new_under_4gb(size: usize) -> Result<Self, Status> {
         let count_pages = (size / PAGE_SIZE) + 1; // TODO: this may allocate a page too much
         let ptr = unsafe { system_table().as_ref() }.boot_services().allocate_pages(
@@ -280,7 +285,6 @@ where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
     // adressable by just 20 bits (because the 8086's address bus had just 20 pins).
     // Upper memory is the part of the memory from 1 MB to the next memory hole
     // (usually a few megabytes).
-    // We assume (and assert) that the table we got from the firmware is ordered.
     let lower = 640; // If we had less than 640KB, we wouldn't fit into memory.
     let upper = mb_mmap_buf.iter().find(|e| e.base_address() == 1024 * 1024)
     .unwrap().length() / 1024;
