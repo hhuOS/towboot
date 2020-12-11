@@ -26,4 +26,5 @@ hashbrown = { version = "0.9", features = ["serde"] }
 
 multiboot = "0.6.0"
 goblin = { version = "0.3", default-features = false, features = ["elf32", "elf64", "endian_fd"] }
+scroll = { version = "0.10", default-features = false }
 miniarg = { version = "0.2", default-features = false, features = ["alloc", "derive"] }

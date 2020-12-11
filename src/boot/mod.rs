@@ -42,7 +42,7 @@ fn load_kernel_multiboot(
     // Try to the get symbols from parsing this as an ELF, if it fails, we have no symbols.
     // TODO: Instead add support for AOut symbols?
     let symbols = match Elf::parse(kernel_vec.as_slice()) {
-        Ok(binary) => Some(elf::symbols(&binary, kernel_vec.as_slice())),
+        Ok(mut binary) => Some(elf::symbols(&mut binary, kernel_vec.as_slice())),
         Err(_) => None,
     };
     
@@ -78,7 +78,7 @@ fn load_kernel_multiboot(
 fn load_kernel_elf(
     kernel_vec: Vec<u8>, name: &str
 ) -> Result<(Vec<Allocation>, Addresses, Option<(SymbolType, Vec<u8>)>), Status> {
-    let binary = Elf::parse(kernel_vec.as_slice()).map_err(|msg| {
+    let mut binary = Elf::parse(kernel_vec.as_slice()).map_err(|msg| {
         error!("failed to parse ELF structure of kernel: {}", msg);
         Status::LOAD_ERROR
     })?;
@@ -87,7 +87,7 @@ fn load_kernel_elf(
         error!("failed to load kernel: {}", msg);
         Status::LOAD_ERROR
     })?;
-    let symbols = Some(elf::symbols(&binary, kernel_vec.as_slice()));
+    let symbols = Some(elf::symbols(&mut binary, kernel_vec.as_slice()));
     let entry_point = loader.entry_point();
     Ok((loader.into(), Addresses::Elf(entry_point), symbols))
 }

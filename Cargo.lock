@@ -46,6 +46,7 @@ dependencies = [
  "miniarg",
  "multiboot",
  "rlibc",
+ "scroll",
  "serde",
  "toml",
  "uefi",

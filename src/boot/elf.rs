@@ -9,6 +9,8 @@ use log::{trace, debug, warn};
 use hashbrown::HashMap;
 
 use goblin::elf;
+use goblin::container;
+use scroll::ctx::IntoCtx;
 
 use multiboot::information::{ElfSymbols, SymbolType};
 
@@ -114,21 +116,49 @@ impl Into<Vec<Allocation>> for OurElfLoader {
 /// Bring the binary's symbols in a format for Multiboot.
 ///
 /// Returns a tuple of informations struct and vector containing the symbols.
-pub(super) fn symbols(binary: &elf::Elf, data: &[u8]) -> (SymbolType, Vec<u8>) {
+pub(super) fn symbols(binary: &mut elf::Elf, data: &[u8]) -> (SymbolType, Vec<u8>) {
     // Let's just hope they fit into u32s.
     let num: u32 = binary.header.e_shnum.into();
     let size: u32 = binary.header.e_shentsize.try_into().unwrap();
-    // copy the section heades
-    let section_vec: Vec<u8> = data.iter()
-    .skip(binary.header.e_shoff.try_into().unwrap()).take((size * num).try_into().unwrap())
-    .map(|b| b.to_owned()).collect();
-    // TODO: actually copy the symbols
-    let ptr = section_vec.as_ptr();
+    
+    // allocate memory to place the section headers and sections
+    let mut memory = Vec::new();
+    // reserve memory so that we don't have to re-allocate
+    memory.reserve((
+        (size * num) as u64
+        + binary.section_headers.iter().filter(|s| s.sh_addr == 0).map(|s| s.sh_size).sum::<u64>()
+    ).try_into().unwrap());
+    let ptr = memory.as_ptr();
+    
+    // copy the symbols
+    // only copy sections that are not already loaded
+    for mut section in binary.section_headers.iter_mut().filter(|s| s.sh_addr == 0) {
+        let index = memory.len();
+        memory.extend_from_slice(&data[section.file_range()]);
+        section.sh_addr = (index + ptr as usize).try_into().unwrap();
+        trace!("Loaded section {:?} to {:#x}", section, section.sh_addr);
+    }
+    
+    // copy the section headers
+    let shdr_begin = memory.len();
+    // make sure that resizing won't reallocate
+    assert!(memory.capacity() >= shdr_begin + (size * num) as usize);
+    memory.resize(shdr_begin + (size * num) as usize, 0);
+    // we can't copy from data as it still just contains null pointers
+    let ctx = container::Ctx::new(
+        if binary.is_64 { container::Container::Big } else { container::Container::Little },
+        if binary.little_endian { container::Endian::Little } else { container::Endian::Big },
+    );
+    let mut begin_idx = shdr_begin;
+    for section in &binary.section_headers {
+        section.clone().into_ctx(&mut memory[begin_idx..begin_idx+size as usize], ctx);
+        begin_idx += size as usize;
+    }
     let shndx = binary.header.e_shstrndx.try_into().unwrap();
     (
         SymbolType::Elf(ElfSymbols::from_addr(
-            num, size, ptr as multiboot::information::PAddr, shndx
+            num, size, (ptr as usize + shdr_begin) as multiboot::information::PAddr, shndx
         )),
-        section_vec
+        memory
     )
 }
