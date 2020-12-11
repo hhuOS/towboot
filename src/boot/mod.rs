@@ -212,7 +212,7 @@ impl<'a> PreparedEntry<'a> {
     /// 1. exit BootServices
     /// 2. pass the memory map to the kernel
     /// 3. copy the kernel to its desired location (if needed)
-    /// 4. when on x64_64: switch to x86
+    /// 4. bring the machine in the correct state
     /// 5. jump!
     ///
     /// This function won't return.
@@ -259,8 +259,6 @@ impl<'a> PreparedEntry<'a> {
         // The kernel is going to need the section headers and symbols.
         core::mem::forget(self.symbols_vec);
         
-        // TODO: Step 4
-        
         let entry_address = match &self.addresses {
             Addresses::Multiboot(addr) => addr.entry_address as usize,
             Addresses::Elf(e) => *e,
@@ -268,6 +266,12 @@ impl<'a> PreparedEntry<'a> {
         
         unsafe {
             asm!(
+                // The jump to the kernel has to happen in protected mode.
+                // If we're built for i686, we already are in protected mode,
+                // so this has no effect.
+                // If we're built for x86_64, this brings us to compatibility mode.
+                ".code32",
+                
                 // 3.2 Machine state says:
                 
                 // > ‘CS’: Must be a 32-bit read/execute code segment with an offset of ‘0’
@@ -286,21 +290,38 @@ impl<'a> PreparedEntry<'a> {
                 
                 // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
                 // > Other bits are all undefined.
-                "mov edx, cr0",
+                "mov ecx, cr0",
                 // disable paging (it should have been enabled)
-                "and edx, ~(1<<31)",
+                "and ecx, ~(1<<31)",
                 // enable protected mode (it should have already been enabled)
-                "or edx, 1",
-                "mov cr0, edx",
+                "or ecx, 1",
+                "mov cr0, ecx",
                 
+                // The spec doesn't say anything about cr4, but let's do it anyway.
+                "mov ecx, cr4",
+                // disable PAE
+                "and ecx, ~(1<<5)",
+                "mov cr4, ecx",
+                
+                // TODO: Only do this on x86_64?
+                // x86_64: switch from compatiblity mode to protected mode
+                // get the EFER
+                "mov ecx, 0xC0000080",
+                "rdmsr",
+                // disable long mode
+                "and eax, ~(1<<8)",
+                "wrmsr",
+                
+                // write the signature to EAX
+                "mov eax, {}",
                 // finally jump to the kernel
-                "jmp ecx",
+                "jmp esi",
                 
-                in("eax") SIGNATURE_EAX,
+                const SIGNATURE_EAX,
                 in("ebx") &self.multiboot_information,
-                in("ecx") entry_address,
+                in("esi") entry_address,
+                options(noreturn),
             );
         }
-        unreachable!();
     }
 }
