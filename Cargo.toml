@@ -25,5 +25,5 @@ serde = { version = "1.0", default-features = false, features = ["alloc", "deriv
 hashbrown = { version = "0.9", features = ["serde"] }
 
 multiboot = "0.6.0"
-elfloader = { git = "https://github.com/YtvwlD/rust-elfloader.git", branch="elf32" }
+goblin = { version = "0.3", default-features = false, features = ["elf32", "elf64", "endian_fd"] }
 miniarg = { version = "0.2", default-features = false, features = ["alloc", "derive"] }

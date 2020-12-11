@@ -8,7 +8,7 @@ use log::{trace, debug, warn};
 
 use hashbrown::HashMap;
 
-use elfloader::{ElfBinary, ElfLoader, Flags, LoadableHeaders, P64, Rela, VAddr};
+use goblin::elf;
 
 use multiboot::information::{ElfSymbols, SymbolType};
 
@@ -33,6 +33,17 @@ impl OurElfLoader {
         }
     }
     
+    /// Load an ELF.
+    pub(super) fn load_elf(&mut self, binary: &elf::Elf, data: &[u8]) -> Result<(), &'static str> {
+        for program_header in &binary.program_headers {
+            if program_header.p_type == elf::program_header::PT_LOAD {
+                self.allocate(&program_header)?;
+                self.load(program_header.p_vaddr, &data[program_header.file_range()])?;
+            }
+        }
+        Ok(())
+    }
+    
     /// Gets the entry point.
     ///
     /// We should have found it in `allocate`,
@@ -46,34 +57,24 @@ impl OurElfLoader {
             },
         }
     }
-}
-
-impl Into<Vec<Allocation>> for OurElfLoader {
-    // Gets our allocated memory.
-    fn into(mut self) -> Vec<Allocation> {
-        self.allocations.into_iter().map(|(k, v)| v).collect()
-    }
-}
-
-impl ElfLoader for OurElfLoader {
-    fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), &'static str> {
-        for header in load_headers {
+    
+    fn allocate(&mut self, header: &elf::program_header::ProgramHeader) -> Result<(), &'static str> {
             trace!("header: {:?}", header);
             debug!(
                 "allocating {} {} bytes at {:#x} for {:#x}",
-                header.mem_size(), header.flags(), header.physical_addr(), header.virtual_addr()
+                header.p_memsz, header.p_flags, header.p_paddr, header.p_vaddr
             );
             let mut allocation = Allocation::new_at(
-                header.physical_addr().try_into().unwrap(),
-                header.mem_size().try_into().unwrap(),
+                header.p_paddr.try_into().unwrap(),
+                header.p_memsz.try_into().unwrap(),
             ).map_err(|e| "failed to allocate memory for the kernel")?;
             let mut mem_slice = allocation.as_mut_slice();
             mem_slice.fill(0);
-            self.allocations.insert(header.virtual_addr(), allocation);
-            if header.virtual_addr() <= self.virtual_entry_point
-            && header.virtual_addr() + header.mem_size() >= self.virtual_entry_point {
+            self.allocations.insert(header.p_vaddr, allocation);
+            if header.p_vaddr <= self.virtual_entry_point
+            && header.p_vaddr + header.p_memsz >= self.virtual_entry_point {
                 self.physical_entry_point = Some(
-                    (header.physical_addr() + self.virtual_entry_point - header.virtual_addr())
+                    (header.p_paddr + self.virtual_entry_point - header.p_vaddr)
                     .try_into().unwrap()
                 );
                 debug!(
@@ -81,15 +82,10 @@ impl ElfLoader for OurElfLoader {
                     self.virtual_entry_point, self.physical_entry_point.unwrap(),
                 );
             }
-        }
         Ok(())
     }
-
-    fn relocate(&mut self, entry: &Rela<P64>) -> Result<(), &'static str> {
-        unimplemented!("no support for ELF relocations");
-    }
-
-    fn load(&mut self, flags: Flags, base: VAddr, region: &[u8]) -> Result<(), &'static str> {
+    
+    fn load(&mut self, base: u64, region: &[u8]) -> Result<(), &'static str> {
         // check whether we actually allocated this
         match self.allocations.get_mut(&base) {
             None => panic!("we didn't allocate {:#x}, but tried to write to it o.O", base),
@@ -108,22 +104,27 @@ impl ElfLoader for OurElfLoader {
     }
 }
 
+impl Into<Vec<Allocation>> for OurElfLoader {
+    // Gets our allocated memory.
+    fn into(mut self) -> Vec<Allocation> {
+        self.allocations.into_iter().map(|(k, v)| v).collect()
+    }
+}
+
 /// Bring the binary's symbols in a format for Multiboot.
 ///
 /// Returns a tuple of informations struct and vector containing the symbols.
-pub(super) fn symbols(binary: &ElfBinary) -> (SymbolType, Vec<u8>) {
-    // We need the section header part of the ELF header
-    let header_part = binary.file.header.pt2;
+pub(super) fn symbols(binary: &elf::Elf, data: &[u8]) -> (SymbolType, Vec<u8>) {
     // Let's just hope they fit into u32s.
-    let num: u32 = header_part.sh_count().into();
-    let size: u32 = header_part.sh_entry_size().try_into().unwrap();
+    let num: u32 = binary.header.e_shnum.into();
+    let size: u32 = binary.header.e_shentsize.try_into().unwrap();
     // copy the section heades
-    let section_vec: Vec<u8> = binary.file.input.iter()
-    .skip(header_part.sh_offset().try_into().unwrap()).take((size * num).try_into().unwrap())
+    let section_vec: Vec<u8> = data.iter()
+    .skip(binary.header.e_shoff.try_into().unwrap()).take((size * num).try_into().unwrap())
     .map(|b| b.to_owned()).collect();
     // TODO: actually copy the symbols
     let ptr = section_vec.as_ptr();
-    let shndx = header_part.sh_str_index().try_into().unwrap();
+    let shndx = binary.header.e_shstrndx.try_into().unwrap();
     (
         SymbolType::Elf(ElfSymbols::from_addr(
             num, size, ptr as multiboot::information::PAddr, shndx

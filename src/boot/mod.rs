@@ -17,7 +17,7 @@ use multiboot::information::{
     MemoryEntry, Module, Multiboot, MultibootInfo, SIGNATURE_EAX, SymbolType
 };
 
-use elfloader::ElfBinary;
+use goblin::elf::Elf;
 
 use super::config::Entry;
 use super::file::File;
@@ -41,8 +41,8 @@ fn load_kernel_multiboot(
 ) -> Result<(Vec<Allocation>, Addresses, Option<(SymbolType, Vec<u8>)>), Status> {
     // Try to the get symbols from parsing this as an ELF, if it fails, we have no symbols.
     // TODO: Instead add support for AOut symbols?
-    let symbols = match ElfBinary::new("", kernel_vec.as_slice()) {
-        Ok(binary) => Some(elf::symbols(&binary)),
+    let symbols = match Elf::parse(kernel_vec.as_slice()) {
+        Ok(binary) => Some(elf::symbols(&binary, kernel_vec.as_slice())),
         Err(_) => None,
     };
     
@@ -78,16 +78,16 @@ fn load_kernel_multiboot(
 fn load_kernel_elf(
     kernel_vec: Vec<u8>, name: &str
 ) -> Result<(Vec<Allocation>, Addresses, Option<(SymbolType, Vec<u8>)>), Status> {
-    let binary = ElfBinary::new(name, kernel_vec.as_slice()).map_err(|msg| {
+    let binary = Elf::parse(kernel_vec.as_slice()).map_err(|msg| {
         error!("failed to parse ELF structure of kernel: {}", msg);
         Status::LOAD_ERROR
     })?;
-    let mut loader = OurElfLoader::new(binary.entry_point());
-    binary.load(&mut loader).map_err(|msg| {
+    let mut loader = OurElfLoader::new(binary.entry);
+    loader.load_elf(&binary, kernel_vec.as_slice()).map_err(|msg| {
         error!("failed to load kernel: {}", msg);
         Status::LOAD_ERROR
     })?;
-    let symbols = Some(elf::symbols(&binary));
+    let symbols = Some(elf::symbols(&binary, kernel_vec.as_slice()));
     let entry_point = loader.entry_point();
     Ok((loader.into(), Addresses::Elf(entry_point), symbols))
 }
