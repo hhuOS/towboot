@@ -71,7 +71,7 @@ fn load_kernel_multiboot(
 
 /// Load a kernel which uses ELF semantics.
 fn load_kernel_elf(
-    kernel_vec: Vec<u8>, name: &str
+    kernel_vec: Vec<u8>
 ) -> Result<(Vec<Allocation>, Addresses, Option<(SymbolType, Vec<u8>)>), Status> {
     let mut binary = Elf::parse(kernel_vec.as_slice()).map_err(|msg| {
         error!("failed to parse ELF structure of kernel: {}", msg);
@@ -172,7 +172,7 @@ impl<'a> PreparedEntry<'a> {
         debug!("loaded kernel {:?} to {:?}", header, kernel_vec.as_ptr());
         let (kernel_allocations, addresses, symbols) = match header.get_addresses() {
             Some(addr) => load_kernel_multiboot(kernel_vec, addr, header.header_start),
-            None => load_kernel_elf(kernel_vec, &entry.image),
+            None => load_kernel_elf(kernel_vec),
         }?;
         let (symbols_struct, symbols_vec) = match symbols {
             Some((s, v)) => (Some(s), Some(v)),
