@@ -14,11 +14,11 @@ use multiboot::information::{ColorInfoType, ColorInfoRgb, FramebufferTable, Mult
 /// Try to get the video in a mode the kernel wants.
 ///
 /// If there are multiple GPUs available, simply choose the first one.
-/// If there is no available mode that matches, choose one.
+/// If there is no available mode that matches, just use the one we're already in.
 pub(super) fn setup_video<'a>(
     header: &Header, systab: &'a SystemTable<Boot>
 ) -> Result<&'a mut GraphicsOutput<'a>, Status> {
-    info!("setting up the video");
+    info!("setting up the video...");
     let wanted_resolution = match header.get_preferred_video_mode() {
         Some(mode) => match mode.mode_type() {
             Some(VideoModeType::LinearGraphics) => {
@@ -63,7 +63,8 @@ pub(super) fn setup_video<'a>(
         modes.iter().map(|m| m.info()).map(|i| (i.resolution(), i.pixel_format()))
         .collect::<Vec<((usize, usize), PixelFormat)>>()
     );
-    let mode = match match wanted_resolution {
+    // try to see, if we find a matching mode
+    if let Some(mode) = match wanted_resolution {
         Some((w, h)) => {
             modes.iter().find(|m|
                 m.info().resolution() == (w as usize, h as usize)
@@ -73,22 +74,15 @@ pub(super) fn setup_video<'a>(
             })
         },
         None => None,
-    }{
-        Some(mode) => Ok(mode),
-        None => {
-            // just choose the last one, it might have the biggest resolution
-            modes.iter().last().ok_or_else(|| {
-                error!("no video modes available");
-                Status::DEVICE_ERROR
-            })
-        }
-    }?;
-    debug!("chose {:?} as the video mode", mode.info().resolution());
-    output.set_mode(&mode).map_err(|e| {
-        error!("failed to set video mode: {:?}", e);
-        Status::DEVICE_ERROR
-    })?.log();
-    info!("set {:?} as the video mode", mode.info().resolution());
+    // in that case: set it
+    } {
+        debug!("chose {:?} as the video mode", mode.info().resolution());
+        output.set_mode(&mode).map_err(|e| {
+            error!("failed to set video mode: {:?}", e);
+            Status::DEVICE_ERROR
+        })?.log();
+        info!("set {:?} as the video mode", mode.info().resolution());
+    }
     Ok(output)
 }
 
