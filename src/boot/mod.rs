@@ -39,12 +39,7 @@ enum Addresses {
 fn load_kernel_multiboot(
     kernel_vec: Vec<u8>, addresses: MultibootAddresses, header_start: u32
 ) -> Result<(Vec<Allocation>, Addresses, Option<(SymbolType, Vec<u8>)>), Status> {
-    // Try to the get symbols from parsing this as an ELF, if it fails, we have no symbols.
-    // TODO: Instead add support for AOut symbols?
-    let symbols = match Elf::parse(kernel_vec.as_slice()) {
-        Ok(mut binary) => Some(elf::symbols(&mut binary, kernel_vec.as_slice())),
-        Err(_) => None,
-    };
+    // TODO: Add support for AOut symbols? Do we really know this binary is AOut at this point?
     
     // Try to allocate the memory where to load the kernel and move the kernel there.
     // In the worst case we might have blocked the destination by loading the file there,
@@ -71,7 +66,7 @@ fn load_kernel_multiboot(
     // drop the old vector
     core::mem::drop(kernel_vec);
     
-    Ok((vec![allocation], Addresses::Multiboot(addresses), symbols))
+    Ok((vec![allocation], Addresses::Multiboot(addresses), None))
 }
 
 /// Load a kernel which uses ELF semantics.
