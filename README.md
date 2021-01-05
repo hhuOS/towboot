@@ -39,3 +39,13 @@ by setting the environment variables `BUILD`, `ARCH`, `KVM` or `GDB`.
 
 This README file is relatively short (as you can see).
 More documentation is available by running `cargo doc --open`.
+
+## Known bugs / workarounds
+
+The `hacks` modules contains workarounds for bugs or missing features in
+the compiler.
+
+The function `mem::Allocation::new_under_4gb` is modified to keep allocations
+below 200MB. This may break for many or big modules or kernels, but seems to
+be needed for other kernels. The value might need to be adjusted or turned into
+a runtime flag.

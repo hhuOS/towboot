@@ -83,7 +83,8 @@ impl Allocation {
     pub(crate) fn new_under_4gb(size: usize) -> Result<Self, Status> {
         let count_pages = (size / PAGE_SIZE) + 1; // TODO: this may allocate a page too much
         let ptr = unsafe { system_table().as_ref() }.boot_services().allocate_pages(
-            AllocateType::MaxAddress(u32::MAX as usize),
+            // TODO: change this back to 4GB
+            AllocateType::MaxAddress(200 * 1024 * 1024),
             MemoryType::LOADER_DATA,
             count_pages
         ).map_err(|e| {
