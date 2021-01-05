@@ -1,7 +1,6 @@
 //! Handling of ELF files
 
 use core::convert::TryInto;
-use alloc::borrow::ToOwned;
 use alloc::vec::Vec;
 
 use log::{trace, debug, warn};
