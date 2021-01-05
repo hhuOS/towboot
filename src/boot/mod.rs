@@ -265,13 +265,11 @@ impl<'a> PreparedEntry<'a> {
             // place before. Just copy it now to where is belongs.
             // This is *really* unsafe, please see the documentation comment for details.
             unsafe { allocation.move_to_where_it_should_be(&mb_mmap) };
-            // We are going to jump into it, so make sure it stays around indefinitely.
-            core::mem::forget(allocation);
         }
+        // The kernel will need its code and data, so make sure it stays around indefinitely.
+        core::mem::forget(self.loaded_kernel.allocations);
         // The kernel is going to need the modules, so make sure they stay.
-        for allocation in &self.modules_vec {
-            core::mem::forget(allocation);
-        }
+        core::mem::forget(self.modules_vec);
         // The kernel is going to need the section headers and symbols.
         core::mem::forget(self.loaded_kernel.symbols);
         
