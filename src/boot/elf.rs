@@ -105,11 +105,11 @@ impl OurElfLoader {
     }
 }
 
-impl Into<Vec<Allocation>> for OurElfLoader {
-    // Gets our allocated memory.
-    fn into(self) -> Vec<Allocation> {
+impl From<OurElfLoader> for Vec<Allocation> {
+    // Gets the allocated memory.
+    fn from(loader: OurElfLoader) -> Vec<Allocation> {
         // using .values() would just borrow the values from the hash map
-        self.allocations.into_iter().map(|(_k, v)| v).collect()
+        loader.allocations.into_iter().map(|(_k, v)| v).collect()
     }
 }
 
