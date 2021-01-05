@@ -3,7 +3,6 @@
 use core::convert::TryInto;
 
 use alloc::format;
-use alloc::string::ToString;
 use alloc::vec::Vec;
 
 use log::{info, error};
@@ -40,7 +39,7 @@ impl<'a> File<'a> {
             }
         };
         let mut file = match file_handle.into_type()
-        .expect_success(&format!("Failed to open file '{}'", name).to_string()) {
+        .expect_success(&format!("Failed to open file '{}'", name)) {
             FileType::Regular(file) => file,
             FileType::Dir(_) => return {
                 error!("File '{}' is a directory", name);
@@ -58,7 +57,7 @@ impl<'a> File<'a> {
         info_vec.resize(info_size, 0);
         
         let size: usize = file.get_info::<FileInfo>(info_vec.as_mut_slice())
-        .expect(&format!("Failed to get metadata of file '{}'", name).to_string())
+        .expect(&format!("Failed to get metadata of file '{}'", name))
         .unwrap().file_size().try_into().unwrap();
         Ok(Self { file, name, size })
     }
@@ -74,7 +73,7 @@ impl<'a> Into<Vec<u8>> for File<'a> {
         let mut content_vec = Vec::<u8>::new();
         content_vec.resize(self.size, 0);
         let read_size = self.file.read(content_vec.as_mut_slice())
-        .expect_success(&format!("Failed to read from file '{}'", self.name).to_string());
+        .expect_success(&format!("Failed to read from file '{}'", self.name));
         assert_eq!(read_size, self.size);
         content_vec
     }
@@ -88,7 +87,7 @@ impl<'a> Into<Allocation> for File<'a> {
     fn into(mut self) -> Allocation {
         let mut allocation = Allocation::new_under_4gb(self.size).unwrap();
         let read_size = self.file.read(allocation.as_mut_slice())
-        .expect_success(&format!("Failed to read from file '{}'", self.name).to_string());
+        .expect_success(&format!("Failed to read from file '{}'", self.name));
         assert_eq!(read_size, self.size);
         allocation
     }

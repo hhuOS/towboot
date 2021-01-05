@@ -47,7 +47,7 @@ pub fn get_config(
 }
 
 /// Try to read and parse the configuration from the given file.
-fn read_file<'a>(volume: &mut Directory, file_name: &'a str) -> Result<Config, Status> {
+fn read_file(volume: &mut Directory, file_name: &str) -> Result<Config, Status> {
     let text: Vec<u8> = File::open(file_name, volume)?.into();
     Ok(toml::from_slice(text.as_slice()).expect("failed to parse config file"))
 }
@@ -117,8 +117,8 @@ fn parse_load_options(
             log_level: log_level.map(|l| l.to_string()),
             entries
         })))
-    } else if config_file.is_some() {
-        Ok(Some(ConfigSource::File(config_file.unwrap().to_string())))
+    } else if let Some(c) = config_file {
+        Ok(Some(ConfigSource::File(c.to_string())))
     } else {
         Ok(Some(ConfigSource::File(CONFIG_FILE.to_string())))
     }

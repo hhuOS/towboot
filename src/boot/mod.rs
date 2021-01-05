@@ -4,7 +4,7 @@
 
 use alloc::{vec, vec::Vec};
 
-use core::convert::{identity, TryInto};
+use core::convert::TryInto;
 
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
@@ -118,7 +118,7 @@ impl LoadedKernel {
 
 /// Prepare information for the kernel.
 fn prepare_multiboot_information(
-    entry: &Entry, modules: &Vec<Allocation>, symbols: Option<SymbolType>,
+    entry: &Entry, modules: &[Allocation], symbols: Option<SymbolType>,
     graphics_output: &mut GraphicsOutput
 ) -> (MultibootInfo, MultibootAllocator) {
     let mut info = MultibootInfo::default();
@@ -201,7 +201,7 @@ impl<'a> PreparedEntry<'a> {
         
         // Load all modules, fail completely if one fails to load.
         // just always use whole pages, that's easier for us
-        let modules_vec: Vec<Allocation> = entry.modules.iter().flat_map(identity).map(|module|
+        let modules_vec: Vec<Allocation> = entry.modules.iter().flatten().map(|module|
             File::open(&module.image, volume).map(|f| f.into())
         ).collect::<Result<Vec<_>, _>>()?;
         info!("loaded {} modules", modules_vec.len());
@@ -212,7 +212,7 @@ impl<'a> PreparedEntry<'a> {
         let graphics_output = video::setup_video(&header, &systab)?;
         
         let (multiboot_information, multiboot_allocator) = prepare_multiboot_information(
-            &entry, &modules_vec, loaded_kernel.symbols_struct().map(|s| *s),
+            &entry, &modules_vec, loaded_kernel.symbols_struct().copied(),
             graphics_output,
         );
         

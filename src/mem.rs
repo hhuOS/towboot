@@ -69,13 +69,10 @@ impl Allocation {
                 dump_memory_map();
                 warn!("going to allocate it somewhere else and try to move it later");
                 warn!("this might fail without notice");
-                match Self::new_under_4gb(size).map(|mut allocation| {
+                Self::new_under_4gb(size).map(|mut allocation| {
                     allocation.should_be_at = Some(address.try_into().unwrap());
                     allocation
-                }) {
-                    Ok(a) => return Ok(a),
-                    Err(e) => Err(e),
-                }
+                })
             }
         }
     }
@@ -119,30 +116,27 @@ impl Allocation {
     pub(crate) unsafe fn move_to_where_it_should_be(
         &mut self, memory_map: &[multiboot::information::MemoryEntry]
     ) {
-        match self.should_be_at {
-            None => return,
-            Some(a) => {
-                let mut filter = memory_map.iter().filter(|e|
-                    e.base_address() <= a
-                    && e.base_address() + e.length() >= a + self.len as u64
-                );
-                match filter.next() {
-                    Some(entry) => {
-                        match entry.memory_type() {
-                            multiboot::information::MemoryType::Available => {
-                                let dest: usize = a.try_into().unwrap();
-                                let src: usize = self.ptr.try_into().unwrap();
-                                core::ptr::copy(src as *mut u8, dest as *mut u8, self.len);
-                            },
-                            _ => panic!("would overwrite {:?}", entry),
-                        }
-                    },
-                    None => panic!("no memory map entry contains the place we want to write to"),
-                };
-                assert!(filter.next().is_none()); // there shouldn't be another matching entry
-                self.ptr = a;
-                self.should_be_at = None;
-            }
+        if let Some(a) = self.should_be_at {
+            let mut filter = memory_map.iter().filter(|e|
+                e.base_address() <= a
+                && e.base_address() + e.length() >= a + self.len as u64
+            );
+            match filter.next() {
+                Some(entry) => {
+                    match entry.memory_type() {
+                        multiboot::information::MemoryType::Available => {
+                            let dest: usize = a.try_into().unwrap();
+                            let src: usize = self.ptr.try_into().unwrap();
+                            core::ptr::copy(src as *mut u8, dest as *mut u8, self.len);
+                        },
+                        _ => panic!("would overwrite {:?}", entry),
+                    }
+                },
+                None => panic!("no memory map entry contains the place we want to write to"),
+            };
+            assert!(filter.next().is_none()); // there shouldn't be another matching entry
+            self.ptr = a;
+            self.should_be_at = None;
         }
     }
 }
