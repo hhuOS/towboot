@@ -9,23 +9,31 @@ The version doesn't really matter,
 though rustc 1.51.0-nightly (61f5a0092 2021-01-04) definitely works.
 If you don't know how to install one,
 please take a look at [rustup.rs](https://rustup.rs/).
+(You can configure rustup to use a nightly toolchain just for the current folder
+by running `rustup override set nightly`.)
 
 To build a disk image, you'll also need mtools and mkgpt.
 The latter one is automatically being downloaded and compiled,
 you'll need git, automake, make and a C compiler for that.
 
 To boot the disk image in a virtual machine, QEMU is recommended.
+You'll need OVMF for that, too. You can either install it via your distribution's
+package manager or (for `i686`) let the build script download it.
 
 ## building
 
 `cargo build` creates a `bootloader.efi` file inside the `target` folder.
+By default, this is a debug build for `i686-unknown-uefi`.
+You can change this by appending `--release`
+or by setting `--target x86_64_unknown_uefi` (for example).
 
-But running `./build.sh` will do that and also create a disk image
+Running `./build.sh` will do that and also create a disk image
 and boot that with QEMU, so just may just want to run this.
 
 You can configure whether to create a `debug` or `release` build for
-either `i686` or `x86_64` by setting the environment variables
-`BUILD` and `ARCH`. (The defaults are `debug` and `i686`.)
+either `i686` or `x86_64`, whether to enable KVM or wait for a GDB to attach
+by setting the environment variables `BUILD`, `ARCH`, `KVM` or `GDB`.
+(The defaults are `debug`, `i686`, `no` and `no`.)
 
 ## documentation
 
