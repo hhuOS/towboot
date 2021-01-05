@@ -34,57 +34,86 @@ enum Addresses {
     Elf(usize),
 }
 
-
-/// Load a kernel which has its addresses specified inside the Multiboot header.
-fn load_kernel_multiboot(
-    kernel_vec: Vec<u8>, addresses: MultibootAddresses, header_start: u32
-) -> Result<(Vec<Allocation>, Addresses, Option<(SymbolType, Vec<u8>)>), Status> {
-    // TODO: Add support for AOut symbols? Do we really know this binary is AOut at this point?
-    
-    // Try to allocate the memory where to load the kernel and move the kernel there.
-    // In the worst case we might have blocked the destination by loading the file there,
-    // but `move_to_where_it_should_be` should fix this later.
-    info!("moving the kernel to its desired location...");
-    let load_offset = addresses.compute_load_offset(header_start);
-    // allocate
-    let kernel_length: usize = {
-        if addresses.bss_end_address == 0 {addresses.load_end_address - addresses.load_address}
-        else {addresses.bss_end_address - addresses.load_address}
-    }.try_into().unwrap();
-    let mut allocation = Allocation::new_at(
-        addresses.load_address.try_into().unwrap(), kernel_length
-    )?;
-    let kernel_buf = allocation.as_mut_slice();
-    // copy from beginning of text to end of data segment and fill the rest with zeroes
-    kernel_buf.iter_mut().zip(
-        kernel_vec.iter()
-        .skip(load_offset.try_into().unwrap())
-        .take((addresses.load_end_address - addresses.load_address).try_into().unwrap())
-        .chain(core::iter::repeat(&0))
-    )
-    .for_each(|(dst,src)| *dst = *src);
-    // drop the old vector
-    core::mem::drop(kernel_vec);
-    
-    Ok((vec![allocation], Addresses::Multiboot(addresses), None))
+/// A kernel loaded into memory
+struct LoadedKernel {
+    allocations: Vec<Allocation>,
+    addresses: Addresses,
+    symbols: Option<(SymbolType, Vec<u8>)>,
 }
 
-/// Load a kernel which uses ELF semantics.
-fn load_kernel_elf(
-    kernel_vec: Vec<u8>
-) -> Result<(Vec<Allocation>, Addresses, Option<(SymbolType, Vec<u8>)>), Status> {
-    let mut binary = Elf::parse(kernel_vec.as_slice()).map_err(|msg| {
-        error!("failed to parse ELF structure of kernel: {}", msg);
-        Status::LOAD_ERROR
-    })?;
-    let mut loader = OurElfLoader::new(binary.entry);
-    loader.load_elf(&binary, kernel_vec.as_slice()).map_err(|msg| {
-        error!("failed to load kernel: {}", msg);
-        Status::LOAD_ERROR
-    })?;
-    let symbols = Some(elf::symbols(&mut binary, kernel_vec.as_slice()));
-    let entry_point = loader.entry_point();
-    Ok((loader.into(), Addresses::Elf(entry_point), symbols))
+impl LoadedKernel {
+    /// Load a kernel from a vector.
+    /// This requires that the Multiboot header has already been parsed.
+    fn new(kernel_vec: Vec<u8>, header: &Header) -> Result<Self, Status> {
+        match header.get_addresses() {
+            Some(addr) => LoadedKernel::new_multiboot(kernel_vec, addr, header.header_start),
+            None => LoadedKernel::new_elf(kernel_vec),
+        }
+    }
+    
+    /// Load a kernel which has its addresses specified inside the Multiboot header.
+    fn new_multiboot(
+        kernel_vec: Vec<u8>, addresses: MultibootAddresses, header_start: u32
+    ) -> Result<Self, Status> {
+        // TODO: Add support for AOut symbols? Do we really know this binary is AOut at this point?
+        
+        // Try to allocate the memory where to load the kernel and move the kernel there.
+        // In the worst case we might have blocked the destination by loading the file there,
+        // but `move_to_where_it_should_be` should fix this later.
+        info!("moving the kernel to its desired location...");
+        let load_offset = addresses.compute_load_offset(header_start);
+        // allocate
+        let kernel_length: usize = {
+            if addresses.bss_end_address == 0 {addresses.load_end_address - addresses.load_address}
+            else {addresses.bss_end_address - addresses.load_address}
+        }.try_into().unwrap();
+        let mut allocation = Allocation::new_at(
+            addresses.load_address.try_into().unwrap(), kernel_length
+        )?;
+        let kernel_buf = allocation.as_mut_slice();
+        // copy from beginning of text to end of data segment and fill the rest with zeroes
+        kernel_buf.iter_mut().zip(
+            kernel_vec.iter()
+            .skip(load_offset.try_into().unwrap())
+            .take((addresses.load_end_address - addresses.load_address).try_into().unwrap())
+            .chain(core::iter::repeat(&0))
+        )
+        .for_each(|(dst,src)| *dst = *src);
+        // drop the old vector
+        core::mem::drop(kernel_vec);
+        
+        Ok(Self {
+            allocations: vec![allocation],
+            addresses: Addresses::Multiboot(addresses),
+            symbols: None,
+        })
+    }
+    
+    /// Load a kernel which uses ELF semantics.
+    fn new_elf(kernel_vec: Vec<u8>) -> Result<Self, Status> {
+        let mut binary = Elf::parse(kernel_vec.as_slice()).map_err(|msg| {
+            error!("failed to parse ELF structure of kernel: {}", msg);
+            Status::LOAD_ERROR
+        })?;
+        let mut loader = OurElfLoader::new(binary.entry);
+        loader.load_elf(&binary, kernel_vec.as_slice()).map_err(|msg| {
+            error!("failed to load kernel: {}", msg);
+            Status::LOAD_ERROR
+        })?;
+        let symbols = Some(elf::symbols(&mut binary, kernel_vec.as_slice()));
+        let entry_point = loader.entry_point();
+        Ok(Self{
+            allocations: loader.into(),
+            addresses: Addresses::Elf(entry_point),
+            symbols,
+        })
+    }
+    
+    /// Get the symbols struct.
+    /// This is needed for the Multiboot Information struct.
+    fn symbols_struct(&self) -> Option<&SymbolType> {
+        self.symbols.as_ref().map(|(s, _v)| s)
+    }
 }
 
 /// Prepare information for the kernel.
@@ -140,11 +169,9 @@ fn prepare_multiboot_information(
 
 pub(crate) struct PreparedEntry<'a> {
     entry: &'a Entry,
-    kernel_allocations: Vec<Allocation>,
-    addresses: Addresses,
+    loaded_kernel: LoadedKernel,
     multiboot_information: MultibootInfo,
     multiboot_allocator: MultibootAllocator,
-    symbols_vec: Option<Vec<u8>>,
     modules_vec: Vec<Allocation>,
 }
 
@@ -170,14 +197,7 @@ impl<'a> PreparedEntry<'a> {
             Status::LOAD_ERROR
         })?;
         debug!("loaded kernel {:?} to {:?}", header, kernel_vec.as_ptr());
-        let (kernel_allocations, addresses, symbols) = match header.get_addresses() {
-            Some(addr) => load_kernel_multiboot(kernel_vec, addr, header.header_start),
-            None => load_kernel_elf(kernel_vec),
-        }?;
-        let (symbols_struct, symbols_vec) = match symbols {
-            Some((s, v)) => (Some(s), Some(v)),
-            None => (None, None),
-        };
+        let loaded_kernel = LoadedKernel::new(kernel_vec, &header)?;
         
         // Load all modules, fail completely if one fails to load.
         // just always use whole pages, that's easier for us
@@ -192,12 +212,13 @@ impl<'a> PreparedEntry<'a> {
         let graphics_output = video::setup_video(&header, &systab)?;
         
         let (multiboot_information, multiboot_allocator) = prepare_multiboot_information(
-            &entry, &modules_vec, symbols_struct, graphics_output
+            &entry, &modules_vec, loaded_kernel.symbols_struct().map(|s| *s),
+            graphics_output,
         );
         
         Ok(PreparedEntry {
-            entry, kernel_allocations, addresses, multiboot_information,
-            multiboot_allocator, symbols_vec, modules_vec,
+            entry, loaded_kernel, multiboot_information,
+            multiboot_allocator, modules_vec,
         })
     }
     
@@ -239,7 +260,7 @@ impl<'a> PreparedEntry<'a> {
             &mut multiboot, mmap_iter, mb_mmap_vec.leak()
         );
         
-        for allocation in &mut self.kernel_allocations {
+        for allocation in &mut self.loaded_kernel.allocations {
             // It could be possible that we failed to allocate memory for the kernel in the correct
             // place before. Just copy it now to where is belongs.
             // This is *really* unsafe, please see the documentation comment for details.
@@ -252,9 +273,9 @@ impl<'a> PreparedEntry<'a> {
             core::mem::forget(allocation);
         }
         // The kernel is going to need the section headers and symbols.
-        core::mem::forget(self.symbols_vec);
+        core::mem::forget(self.loaded_kernel.symbols);
         
-        let entry_address = match &self.addresses {
+        let entry_address = match &self.loaded_kernel.addresses {
             Addresses::Multiboot(addr) => addr.entry_address as usize,
             Addresses::Elf(e) => *e,
         };
