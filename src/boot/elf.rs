@@ -69,7 +69,7 @@ impl OurElfLoader {
             let mut allocation = Allocation::new_at(
                 header.p_paddr.try_into().unwrap(),
                 header.p_memsz.try_into().unwrap(),
-            ).map_err(|e| "failed to allocate memory for the kernel")?;
+            ).map_err(|_e| "failed to allocate memory for the kernel")?;
             let mem_slice = allocation.as_mut_slice();
             mem_slice.fill(0);
             self.allocations.insert(header.p_vaddr, allocation);
@@ -109,7 +109,8 @@ impl OurElfLoader {
 impl Into<Vec<Allocation>> for OurElfLoader {
     // Gets our allocated memory.
     fn into(self) -> Vec<Allocation> {
-        self.allocations.into_iter().map(|(k, v)| v).collect()
+        // using .values() would just borrow the values from the hash map
+        self.allocations.into_iter().map(|(_k, v)| v).collect()
     }
 }
 

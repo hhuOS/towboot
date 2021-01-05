@@ -226,7 +226,7 @@ impl<'a> PreparedEntry<'a> {
         let estimated_size = systab.boot_services().memory_map_size() + 100;
         mmap_vec.resize(estimated_size, 0);
         mb_mmap_vec.resize(estimated_size, MemoryEntry::default());
-        let (systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())
+        let (_systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())
         .expect("failed to exit boot services").unwrap();
         // now, write! won't work anymore. Also, we can't allocate any memory.
         

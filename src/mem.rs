@@ -134,7 +134,7 @@ impl Allocation {
                                 let src: usize = self.ptr.try_into().unwrap();
                                 core::ptr::copy(src as *mut u8, dest as *mut u8, self.len);
                             },
-                            ty => panic!("would overwrite {:?}", entry),
+                            _ => panic!("would overwrite {:?}", entry),
                         }
                     },
                     None => panic!("no memory map entry contains the place we want to write to"),
@@ -153,7 +153,7 @@ fn dump_memory_map() {
     let mut buf = Vec::new();
     // The docs say that we should allocate a little bit more memory than needed.
     buf.resize(unsafe { system_table().as_ref() }.boot_services().memory_map_size() + 100, 0);
-    let (key, iterator) = unsafe { system_table().as_ref() }.boot_services()
+    let (_key, iterator) = unsafe { system_table().as_ref() }.boot_services()
     .memory_map(buf.as_mut_slice()).log_warning().expect("failed to get memory map");
     for descriptor in iterator {
         debug!("{:?}", descriptor);
@@ -176,7 +176,7 @@ impl MultibootAllocator {
 impl multiboot::information::MemoryManagement for MultibootAllocator {
     /// Get a slice to the memory referenced by the pointer.
     unsafe fn paddr_to_slice(
-        &self, addr: multiboot::information::PAddr, length: usize
+        &self, addr: multiboot::information::PAddr, _length: usize
     ) -> Option<&'static [u8]> {
         // TODO: Does this check make the function safe?
         // Or is it even too strict?
