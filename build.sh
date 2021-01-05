@@ -38,6 +38,17 @@ else
     echo "KVM has to be either yes or no, but is $KVM"
     return 1
 fi
+GDB=${GDB:-no}
+if [ $GDB = "yes" ]
+then
+    QEMUDEBUG="-S -s"
+elif [ $GDB = "no" ]
+then
+    QEMUDEBUG=""
+else
+    echo "GDB has to be either yes or no, but is $GDB"
+    return 1
+fi
 echo "building $BUILD for $ARCH, set BUILD or ARCH to override…"
 cargo build --target $ARCH-unknown-uefi $BUILD_FLAGS
 
@@ -96,6 +107,10 @@ then
 fi
 
 echo "launching qemu with KVM=$KVM…"
-qemu-system-$QEMUARCH $QEMUMACHINE -bios $OVMF_PATH \
+if [ $GDB = "yes" ]
+then
+    echo "The machine starts paused, waiting for GDB to attach to localhost:1234."
+fi
+qemu-system-$QEMUARCH $QEMUMACHINE $QEMUDEBUG -bios $OVMF_PATH \
 -serial stdio \
 -drive driver=raw,node-name=disk,file.driver=file,file.filename=image.img -m 256
