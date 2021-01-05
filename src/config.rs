@@ -82,7 +82,6 @@ fn parse_load_options(
                     LoadOptionKey::LogLevel => log_level = Some(value),
                     LoadOptionKey::Module => modules.push(value),
                     LoadOptionKey::Help => {
-                        // this doesn't work yet if just `-help` is passed
                         writeln!(
                             systab.stdout(), "Usage:\n{}", LoadOptionKey::help_text()
                         ).unwrap();

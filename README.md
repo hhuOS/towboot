@@ -5,7 +5,8 @@ a bootloader for Multiboot kernels on UEFI systems
 ## build dependencies
 
 You'll need a nightly Rust compiler.
-The version doesn't really matter, though 2020-10-05 definitely works.
+The version doesn't really matter,
+though rustc 1.51.0-nightly (61f5a0092 2021-01-04) definitely works.
 If you don't know how to install one,
 please take a look at [rustup.rs](https://rustup.rs/).
 

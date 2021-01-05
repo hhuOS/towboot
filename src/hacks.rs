@@ -9,15 +9,6 @@
 //! In the long run, they should be reported to compiler_builtins and fixed there.
 //! For now, this monkeypatching seems to be enough.
 
-// this is a bug in Rust's compiler-builtins/src/probestack.rs
-// Noone seems to be using i686-unknown-uefi.
-global_asm!("
-.globl ___rust_probestack
-___rust_probestack:
-    jmp __rust_probestack
-");
-
-
 // fmod and fmodf seem to not be supported (yet) by compiler_builtins for uefi
 // see https://github.com/rust-lang/compiler-builtins/blob/master/src/math.rs
 // We could use libm::fmod{,f} here, but then we'd need __truncdfsf2.

@@ -1,10 +1,8 @@
 #![no_std]
 #![no_main]
 #![feature(abi_efiapi)]
-#![feature(global_asm)]
 #![feature(asm)]
 #![feature(str_split_once)] // used in config.rs
-#![feature(slice_fill)] // used in boot.rs
 
 //! a bootloader for Multiboot kernels on UEFI systems
 
