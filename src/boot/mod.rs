@@ -189,7 +189,7 @@ impl<'a> PreparedEntry<'a> {
             debug!("loaded module {} to {:?}", index, module.as_ptr());
         }
         
-        let mut graphics_output = video::setup_video(&header, &systab)?;
+        let graphics_output = video::setup_video(&header, &systab)?;
         
         let (multiboot_information, multiboot_allocator) = prepare_multiboot_information(
             &entry, &modules_vec, symbols_struct, graphics_output
@@ -239,7 +239,7 @@ impl<'a> PreparedEntry<'a> {
             &mut multiboot, mmap_iter, mb_mmap_vec.leak()
         );
         
-        for mut allocation in &mut self.kernel_allocations {
+        for allocation in &mut self.kernel_allocations {
             // It could be possible that we failed to allocate memory for the kernel in the correct
             // place before. Just copy it now to where is belongs.
             // This is *really* unsafe, please see the documentation comment for details.

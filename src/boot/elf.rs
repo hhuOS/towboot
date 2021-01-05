@@ -70,7 +70,7 @@ impl OurElfLoader {
                 header.p_paddr.try_into().unwrap(),
                 header.p_memsz.try_into().unwrap(),
             ).map_err(|e| "failed to allocate memory for the kernel")?;
-            let mut mem_slice = allocation.as_mut_slice();
+            let mem_slice = allocation.as_mut_slice();
             mem_slice.fill(0);
             self.allocations.insert(header.p_vaddr, allocation);
             if header.p_vaddr <= self.virtual_entry_point
@@ -108,7 +108,7 @@ impl OurElfLoader {
 
 impl Into<Vec<Allocation>> for OurElfLoader {
     // Gets our allocated memory.
-    fn into(mut self) -> Vec<Allocation> {
+    fn into(self) -> Vec<Allocation> {
         self.allocations.into_iter().map(|(k, v)| v).collect()
     }
 }
