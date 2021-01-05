@@ -1,6 +1,7 @@
 //! File handling
 
 use core::convert::TryInto;
+use core::convert::TryFrom;
 
 use alloc::format;
 use alloc::vec::Vec;
@@ -63,31 +64,48 @@ impl<'a> File<'a> {
     }
 }
 
-// TODO: Maybe change them to TryFrom and return an Err instead of panicking.
-impl<'a> From<File<'a>> for Vec<u8> {
+impl<'a> TryFrom<File<'a>> for Vec<u8> {
+    type Error = Status;
+    
     /// Read a whole file into memory and return the resulting byte vector.
-    fn from(mut file: File) -> Vec<u8> {
+    fn try_from(mut file: File) -> Result<Self, Self::Error> {
         // Vec::with_size would allocate enough space, but won't fill it with zeros.
         // file.read seems to need this.
         let mut content_vec = Vec::<u8>::new();
         content_vec.resize(file.size, 0);
         let read_size = file.file.read(content_vec.as_mut_slice())
-        .expect_success(&format!("Failed to read from file '{}'", file.name));
-        assert_eq!(read_size, file.size);
-        content_vec
+        .log_warning().map_err(|e| {
+            error!("Failed to read from file '{}': {:?}", file.name, e);
+            e.status()
+        })?;
+        if read_size == file.size {
+            Ok(content_vec)
+        } else {
+            error!("Failed to fully read from file '{}", file.name);
+            Err(Status::END_OF_FILE)
+        }
     }
 }
 
-impl<'a> From<File<'a>> for Allocation {
+impl<'a> TryFrom<File<'a>> for Allocation {
+    type Error = Status;
+    
     /// Read a whole file into memory and return the resulting allocation.
     ///
     /// (The difference to `Into<Vec<u8>>` is that the allocated memory
     /// is page-aligned and under 4GB.)
-    fn from(mut file: File) -> Allocation {
-        let mut allocation = Allocation::new_under_4gb(file.size).unwrap();
+    fn try_from(mut file: File) -> Result<Self, Self::Error> {
+        let mut allocation = Allocation::new_under_4gb(file.size)?;
         let read_size = file.file.read(allocation.as_mut_slice())
-        .expect_success(&format!("Failed to read from file '{}'", file.name));
-        assert_eq!(read_size, file.size);
-        allocation
+        .log_warning().map_err(|e| {
+            error!("Failed to read from file '{}': {:?}", file.name, e);
+            e.status()
+        })?;
+        if read_size == file.size {
+            Ok(allocation)
+        } else {
+            error!("Failed to fully read from file '{}", file.name);
+            Err(Status::END_OF_FILE)
+        }
     }
 }

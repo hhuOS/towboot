@@ -3,6 +3,7 @@
 #![feature(abi_efiapi)]
 #![feature(asm)]
 #![feature(str_split_once)] // used in config.rs
+#![feature(result_flattening)] // used in boot/mod.rs
 
 //! a bootloader for Multiboot kernels on UEFI systems
 

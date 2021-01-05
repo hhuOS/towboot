@@ -191,7 +191,7 @@ impl<'a> PreparedEntry<'a> {
     pub(crate) fn new(
         entry: &'a Entry, volume: &mut Directory, systab: &SystemTable<Boot>
     ) -> Result<PreparedEntry<'a>, Status> {
-        let kernel_vec: Vec<u8> = File::open(&entry.image, volume)?.into();
+        let kernel_vec: Vec<u8> = File::open(&entry.image, volume)?.try_into()?;
         let header = Header::from_slice(kernel_vec.as_slice()).ok_or_else(|| {
             error!("invalid Multiboot header");
             Status::LOAD_ERROR
@@ -202,7 +202,7 @@ impl<'a> PreparedEntry<'a> {
         // Load all modules, fail completely if one fails to load.
         // just always use whole pages, that's easier for us
         let modules_vec: Vec<Allocation> = entry.modules.iter().flatten().map(|module|
-            File::open(&module.image, volume).map(|f| f.into())
+            File::open(&module.image, volume).map(|f| f.try_into()).flatten()
         ).collect::<Result<Vec<_>, _>>()?;
         info!("loaded {} modules", modules_vec.len());
         for (index, module) in modules_vec.iter().enumerate() {

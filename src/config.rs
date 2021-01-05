@@ -3,6 +3,7 @@
 //! The configuration can come from a file or from the command line.
 //! The command line options take precedence if they are specified.
 
+use core::convert::TryInto;
 use core::fmt::Write;
 
 use alloc::fmt;
@@ -48,7 +49,7 @@ pub fn get_config(
 
 /// Try to read and parse the configuration from the given file.
 fn read_file(volume: &mut Directory, file_name: &str) -> Result<Config, Status> {
-    let text: Vec<u8> = File::open(file_name, volume)?.into();
+    let text: Vec<u8> = File::open(file_name, volume)?.try_into()?;
     Ok(toml::from_slice(text.as_slice()).expect("failed to parse config file"))
 }
 
