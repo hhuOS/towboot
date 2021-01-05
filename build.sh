@@ -27,6 +27,17 @@ else
     echo "unknown arch $ARCH"
     return 1
 fi
+KVM=${KVM:-no}
+if [ $KVM = "yes" ]
+then
+    QEMUMACHINE="-machine pc,accel=kvm,kernel-irqchip=off"
+elif [ $KVM = "no" ]
+then
+    QEMUMACHINE=""
+else
+    echo "KVM has to be either yes or no, but is $KVM"
+    return 1
+fi
 echo "building $BUILD for $ARCH, set BUILD or ARCH to override…"
 cargo build --target $ARCH-unknown-uefi $BUILD_FLAGS
 
@@ -84,7 +95,7 @@ then
     fi
 fi
 
-echo "launching qemu…"
-qemu-system-$QEMUARCH -machine pc,accel=kvm,kernel-irqchip=off -bios $OVMF_PATH \
+echo "launching qemu with KVM=$KVM…"
+qemu-system-$QEMUARCH $QEMUMACHINE -bios $OVMF_PATH \
 -serial stdio \
 -drive driver=raw,node-name=disk,file.driver=file,file.filename=image.img -m 256
