@@ -57,7 +57,7 @@ impl Allocation {
     ///
     /// [`move_to_where_it_should_be`]: struct.Allocation.html#method.move_to_where_it_should_be
     pub(crate) fn new_at(address: usize, size: usize) -> Result<Self, Status>{
-        let count_pages = (size / PAGE_SIZE) + 1; // TODO: this may allocate a page too much
+        let count_pages = Self::calculate_page_count(size);
         match unsafe { system_table().as_ref() }.boot_services().allocate_pages(
             AllocateType::Address(address),
             MemoryType::LOADER_DATA,
@@ -81,7 +81,7 @@ impl Allocation {
     ///
     /// Note: This will round up to whole pages.
     pub(crate) fn new_under_4gb(size: usize) -> Result<Self, Status> {
-        let count_pages = (size / PAGE_SIZE) + 1; // TODO: this may allocate a page too much
+        let count_pages = Self::calculate_page_count(size);
         let ptr = unsafe { system_table().as_ref() }.boot_services().allocate_pages(
             // TODO: change this back to 4GB
             AllocateType::MaxAddress(200 * 1024 * 1024),
@@ -93,6 +93,12 @@ impl Allocation {
             Status::LOAD_ERROR
         })?.unwrap();
         Ok(Allocation { ptr, len:size, pages: count_pages, should_be_at: None })
+    }
+    
+    /// Calculate how many pages to allocate for the given amount of bytes.
+    const fn calculate_page_count(size: usize) -> usize {
+        (size / PAGE_SIZE) // full pages
+        + if (size % PAGE_SIZE) == 0 { 0 } else { 1 } // perhaps one page more
     }
     
     /// Return a slice that references the associated memory.
@@ -173,8 +179,7 @@ impl multiboot::information::MemoryManagement for MultibootAllocator {
     unsafe fn paddr_to_slice(
         &self, addr: multiboot::information::PAddr, _length: usize
     ) -> Option<&'static [u8]> {
-        // TODO: Does this check make the function safe?
-        // Or is it even too strict?
+        // Using layout.size instead of length brings us safety, but may be too strict.
         self.allocations.get(&addr).map(|layout|
             core::slice::from_raw_parts(addr as *const u8, layout.size())
         )
@@ -243,7 +248,6 @@ where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
                 MemoryType::UNUSABLE => multiboot::information::MemoryType::Defect,
                 MemoryType::ACPI_RECLAIM => multiboot::information::MemoryType::ACPI,
                 MemoryType::ACPI_NON_VOLATILE => multiboot::information::MemoryType::NVS,
-                // TODO: Are these correct?
                 MemoryType::MMIO | MemoryType::MMIO_PORT_SPACE | MemoryType::PAL_CODE
                 => multiboot::information::MemoryType::Reserved,
                 MemoryType::PERSISTENT_MEMORY => multiboot::information::MemoryType::Available,

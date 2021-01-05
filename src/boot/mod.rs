@@ -163,7 +163,6 @@ fn prepare_multiboot_information(
     
     video::prepare_information(&mut multiboot, graphics_output);
     
-    // TODO: the rest
     (info, allocator)
 }
 
