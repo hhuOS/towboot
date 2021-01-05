@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-OVMF_i686_RPM_FILE_NAME="edk2-ovmf-ia32-20190501stable-4.fc31.noarch.rpm"
-OVMF_i686_RPM_URL="https://download-ib01.fedoraproject.org/pub/fedora/linux/releases/31/Everything/x86_64/os/Packages/e/$OVMF_i686_RPM_FILE_NAME"
+OVMF_i686_RPM_FILE_NAME="edk2-ovmf-ia32-20200801stable-1.fc33.noarch.rpm"
+OVMF_i686_RPM_URL="https://download-ib01.fedoraproject.org/pub/fedora/linux/releases/33/Everything/x86_64/os/Packages/e/$OVMF_i686_RPM_FILE_NAME"
 
 BUILD=${BUILD:-debug}
 if [ $BUILD = "release" ]
