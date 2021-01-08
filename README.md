@@ -35,6 +35,9 @@ either `i686` or `x86_64`, whether to enable KVM or wait for a GDB to attach
 by setting the environment variables `BUILD`, `ARCH`, `KVM` or `GDB`.
 (The defaults are `debug`, `i686`, `no` and `no`.)
 
+This script expects the kernel in `../../kernels/multiboot1.elf`,
+you can override this by setting `KERNEL`.
+
 ## documentation
 
 This README file is relatively short (as you can see).

@@ -68,12 +68,14 @@ then
 fi
 
 echo "building image…"
+KERNEL=${KERNEL:-../../kernels/multiboot1.elf}
+echo "Using $KERNEL, set KERNEL to override."
 mformat -i part.img -C -F -T $(echo "100 * 1024" | bc) -h 1 -s 1024 :: # 50 MiB
 mmd -i part.img efi
 mmd -i part.img efi/boot
 mcopy -i part.img target/$ARCH-unknown-uefi/$BUILD/bootloader.efi ::efi/boot/boot$EFIARCH.efi
 mcopy -i part.img bootloader.toml ::
-mcopy -i part.img ../../kernels/multiboot1.elf ::
+mcopy -i part.img $KERNEL ::multiboot1.elf
 
 mkgpt/mkgpt -o image.img --part part.img --type system
 rm part.img
