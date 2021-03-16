@@ -88,6 +88,19 @@ fn parse_load_options(
                         ).unwrap();
                         return Ok(None)
                     },
+                    LoadOptionKey::Version => {
+                        writeln!(
+                            systab.stdout(),
+                            "This is {} {}, built as {} for {} on {}. It is licensed under the {}.",
+                            env!("CARGO_PKG_NAME"),
+                            env!("CARGO_PKG_VERSION"),
+                            env!("PROFILE"),
+                            env!("TARGET"),
+                            env!("HOST"),
+                            env!("CARGO_PKG_LICENSE"),
+                        ).unwrap();
+                        return Ok(None)
+                    }
                 }
             },
             Err(e) => {
@@ -143,6 +156,8 @@ enum LoadOptionKey {
     Module,
     /// Displays all available options and how to use them.
     Help,
+    /// Displays the version of towboot
+    Version,
 }
 
 #[derive(Deserialize, Debug)]
