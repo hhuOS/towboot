@@ -2,7 +2,7 @@
 //!
 //! This means: loading kernel and modules, handling ELF files, video initialization and jumping
 
-use alloc::{vec, vec::Vec};
+use alloc::{format, vec, vec::Vec};
 
 use core::convert::TryInto;
 
@@ -155,7 +155,9 @@ fn prepare_multiboot_information(
     
     // There is no BIOS config table.
     
-    // If we had a name we could pass it here.
+    multiboot.set_boot_loader_name(Some(&format!(
+        "{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")
+    )));
     
     // There is no APM config table.
     
