@@ -1,4 +1,4 @@
-# bootloader
+# towboot
 
 a bootloader for Multiboot kernels on UEFI systems
 
@@ -22,7 +22,7 @@ package manager or (for `i686`) let the build script download it.
 
 ## building
 
-`cargo build` creates a `bootloader.efi` file inside the `target` folder.
+`cargo build` creates a `towboot.efi` file inside the `target` folder.
 By default, this is a debug build for `i686-unknown-uefi`.
 You can change this by appending `--release`
 or by setting `--target x86_64_unknown_uefi` (for example).

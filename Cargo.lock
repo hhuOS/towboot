@@ -37,23 +37,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 
 [[package]]
-name = "bootloader"
-version = "0.1.0"
-dependencies = [
- "goblin",
- "hashbrown 0.9.1",
- "log",
- "miniarg",
- "multiboot",
- "rlibc",
- "scroll",
- "serde",
- "toml",
- "uefi",
- "uefi-services",
-]
-
-[[package]]
 name = "cfg-if"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -229,6 +212,23 @@ source = "git+https://github.com/diondokter/toml-rs.git#c4161aa70202b3992dbec79b
 dependencies = [
  "hashbrown 0.7.2",
  "serde",
+]
+
+[[package]]
+name = "towboot"
+version = "0.1.0"
+dependencies = [
+ "goblin",
+ "hashbrown 0.9.1",
+ "log",
+ "miniarg",
+ "multiboot",
+ "rlibc",
+ "scroll",
+ "serde",
+ "toml",
+ "uefi",
+ "uefi-services",
 ]
 
 [[package]]

@@ -5,7 +5,7 @@
 #![feature(str_split_once)] // used in config.rs
 #![feature(result_flattening)] // used in boot/mod.rs
 
-//! a bootloader for Multiboot kernels on UEFI systems
+//! towboot – a bootloader for Multiboot kernels on UEFI systems
 
 extern crate rlibc;
 extern crate alloc;

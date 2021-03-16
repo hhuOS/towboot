@@ -23,7 +23,7 @@ use serde::Deserialize;
 
 use super::file::File;
 
-const CONFIG_FILE: &str = "\\bootloader.toml";
+const CONFIG_FILE: &str = "\\towboot.toml";
 
 /// Get the config.
 /// If we were called with command line options, try them first.
