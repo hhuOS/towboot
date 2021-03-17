@@ -2,7 +2,43 @@
 
 a bootloader for Multiboot kernels on UEFI systems
 
-## build dependencies
+## usage
+
+towboot is a UEFI application. If you're developing an operating system or just
+want to create a boot medium, there are several possible options for where to
+place towboot and its configuration:
+
+### removable media
+
+This is the easiest one: It works for all architectures and requires no
+configuration of the system.
+Simply place the 32-bit build at `\EFI\bootia32.efi`, the 64-bit build at
+`\EFI\bootx64.efi` and a configuration file at `\towboot.toml` on the ESP.
+
+### installed system
+
+Place an appropriate build at `\EFI\yourOS\towboot.efi` and the configuration
+at `\EFI\yourOS\towboot.toml` on the ESP and add a boot option for
+`\EFI\yourOS\towboot.efi -c \EFI\yourOS\towboot.toml`.
+
+(You can also configure towboot just with command line arguments instead of
+using a configuration file; see below.)
+
+### chainloading from another bootloader
+
+If you already have a bootloader capable of loading UEFI applications but
+without support for Multiboot, you can add an entry like
+`towboot.efi -kernel "mykernel.elf quiet" -module "initramfs.img initrd"`.
+
+(You can use a configuration file instead of passing the information directly
+on the command line; see above. Please note that towboot and its configuration
+file currently have to be on the same partition.)
+
+## development
+
+If you want to compile towboot yourself, here are the instructions:
+
+### dependencies
 
 You'll need a nightly Rust compiler.
 The version doesn't really matter,
@@ -20,7 +56,7 @@ To boot the disk image in a virtual machine, QEMU is recommended.
 You'll need OVMF for that, too. You can either install it via your distribution's
 package manager or (for `i686`) let the build script download it.
 
-## building
+### building
 
 `cargo build` creates a `towboot.efi` file inside the `target` folder.
 By default, this is a debug build for `i686-unknown-uefi`.
