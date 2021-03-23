@@ -123,7 +123,7 @@ fn parse_load_options(
         }
     }
     if let Some(kernel) = kernel {
-        let mods = modules.iter().map(|m| {
+        let modules = modules.iter().map(|m| {
             let (image, argv) = m.split_once(" ").unwrap_or((m, ""));
             Module {
                 image: image.to_string(),
@@ -136,8 +136,8 @@ fn parse_load_options(
             argv: Some(kernel_argv.to_string()),
             image: kernel_image.to_string(),
             name: None,
-            quirks: Some(quirks),
-            modules: Some(mods),
+            quirks,
+            modules,
         });
         Ok(Some(ConfigSource::Given(Config {
             default: "cli".to_string(),
@@ -189,8 +189,10 @@ pub struct Entry {
     pub argv: Option<String>,
     pub image: String,
     pub name: Option<String>,
-    pub quirks: Option<HashSet<Quirk>>,
-    pub modules: Option<Vec<Module>>,
+    #[serde(default)]
+    pub quirks: HashSet<Quirk>,
+    #[serde(default)]
+    pub modules: Vec<Module>,
 }
 
 #[derive(Deserialize, Debug)]

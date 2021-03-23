@@ -132,7 +132,7 @@ fn prepare_multiboot_information(
         None => None,
         Some(s) => Some(&s),
     });
-    let mb_modules: Vec<Module> = modules.iter().zip(entry.modules.iter().flatten()).map(|(module, module_entry)| {
+    let mb_modules: Vec<Module> = modules.iter().zip(entry.modules.iter()).map(|(module, module_entry)| {
         Module::new(
             module.as_ptr() as u64,
             unsafe { module.as_ptr().offset(module.len.try_into().unwrap()) as u64 },
@@ -202,7 +202,7 @@ impl<'a> PreparedEntry<'a> {
         
         // Load all modules, fail completely if one fails to load.
         // just always use whole pages, that's easier for us
-        let modules_vec: Vec<Allocation> = entry.modules.iter().flatten().map(|module|
+        let modules_vec: Vec<Allocation> = entry.modules.iter().map(|module|
             File::open(&module.image, volume).map(|f| f.try_into()).flatten()
         ).collect::<Result<Vec<_>, _>>()?;
         info!("loaded {} modules", modules_vec.len());
