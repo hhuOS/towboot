@@ -15,11 +15,11 @@ use log::{trace, error};
 use uefi::prelude::*;
 use uefi::proto::media::file::Directory;
 
-use hashbrown::hash_map::HashMap;
+use hashbrown::{hash_map::HashMap, hash_set::HashSet};
 
 use miniarg::{ArgumentIterator, Key};
 
-use serde::Deserialize;
+use serde::{Deserialize, de::{IntoDeserializer, value}};
 
 use super::file::File;
 
@@ -73,6 +73,7 @@ fn parse_load_options(
     let mut kernel = None;
     let mut log_level = None;
     let mut modules = Vec::<&str>::new();
+    let mut quirks = HashSet::<Quirk>::new();
     for option in options {
         match option {
             Ok((key, value)) => {
@@ -82,6 +83,18 @@ fn parse_load_options(
                     LoadOptionKey::Kernel => kernel = Some(value),
                     LoadOptionKey::LogLevel => log_level = Some(value),
                     LoadOptionKey::Module => modules.push(value),
+                    LoadOptionKey::Quirk => {
+                        let parsed: Result<Quirk, value::Error> = Quirk::deserialize(
+                            value.into_deserializer()
+                        );
+                        match parsed {
+                            Ok(parsed) => quirks.insert(parsed),
+                            Err(_) => {
+                                error!("invalid value for quirk: {}", value);
+                                return Err(Status::INVALID_PARAMETER)
+                            }
+                        };
+                    },
                     LoadOptionKey::Help => {
                         writeln!(
                             systab.stdout(), "Usage:\n{}", LoadOptionKey::help_text()
@@ -123,6 +136,7 @@ fn parse_load_options(
             argv: Some(kernel_argv.to_string()),
             image: kernel_image.to_string(),
             name: None,
+            quirks: Some(quirks),
             modules: Some(mods),
         });
         Ok(Some(ConfigSource::Given(Config {
@@ -154,6 +168,8 @@ enum LoadOptionKey {
     LogLevel,
     /// Load a module with the given args. Can be specified multiple times.
     Module,
+    /// Enable a specific quirk. (Only applies when loading a kernel.)
+    Quirk,
     /// Displays all available options and how to use them.
     Help,
     /// Displays the version of towboot
@@ -173,6 +189,7 @@ pub struct Entry {
     pub argv: Option<String>,
     pub image: String,
     pub name: Option<String>,
+    pub quirks: Option<HashSet<Quirk>>,
     pub modules: Option<Vec<Module>>,
 }
 
@@ -180,4 +197,9 @@ pub struct Entry {
 pub struct Module {
     pub argv: Option<String>,
     pub image: String,
+}
+
+/// Runtime options to override information in kernel images.
+#[derive(Deserialize, Debug, Hash, PartialEq, Eq)]
+pub enum Quirk {
 }
