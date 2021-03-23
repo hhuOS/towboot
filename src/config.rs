@@ -204,4 +204,7 @@ pub struct Module {
 /// Runtime options to override information in kernel images.
 #[derive(Deserialize, Debug, Hash, PartialEq, Eq)]
 pub enum Quirk {
+    /// Treat the kernel always as an ELF file.
+    /// This ignores bit 16 of the kernel's Multiboot header.
+    ForceElf,
 }
