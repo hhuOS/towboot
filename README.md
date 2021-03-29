@@ -84,7 +84,15 @@ More documentation is available by running `cargo doc --open`.
 The `hacks` modules contains workarounds for bugs or missing features in
 the compiler.
 
-The function `mem::Allocation::new_under_4gb` is modified to keep allocations
-below 200MB. This may break for many or big modules or kernels, but seems to
-be needed for other kernels. The value might need to be adjusted or turned into
-a runtime flag.
+# Quirks
+
+You can override some specifics of how the kernel is loaded at runtime by
+adding quirks. They can be configured either in the `quirk` key of a kernel
+entry (if the kernel is loaded via a configuration file) or via the `-quirk`
+command line option (if the kernel is loaded via `-kernel`).
+
+Available quirks are:
+
+* `ForceElf`: always treat the kernel as an ELF file
+* `KeepResolution`: ignore the kernel's preferred resolution
+* `ModulesBelow200Mb`: keep allocations for modules below 200 MB
