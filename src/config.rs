@@ -207,4 +207,6 @@ pub enum Quirk {
     /// Treat the kernel always as an ELF file.
     /// This ignores bit 16 of the kernel's Multiboot header.
     ForceElf,
+    /// Ignore the kernel's preferred resolution and just keep the current one.
+    KeepResolution,
 }

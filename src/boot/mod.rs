@@ -211,7 +211,7 @@ impl<'a> PreparedEntry<'a> {
             debug!("loaded module {} to {:?}", index, module.as_ptr());
         }
         
-        let graphics_output = video::setup_video(&header, &systab)?;
+        let graphics_output = video::setup_video(&header, &systab, &entry.quirks)?;
         
         let (multiboot_information, multiboot_allocator) = prepare_multiboot_information(
             &entry, &modules_vec, loaded_kernel.symbols_struct().copied(),

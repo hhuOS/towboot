@@ -8,19 +8,25 @@ use uefi::proto::console::gop::{GraphicsOutput, Mode, PixelBitmask, PixelFormat}
 
 use log::{debug, warn, info, error};
 
+use hashbrown::hash_set::HashSet;
+
 use multiboot::header::{Header, VideoModeType};
 use multiboot::information::{ColorInfoType, ColorInfoRgb, FramebufferTable, Multiboot};
+
+use super::super::config::Quirk;
 
 /// Try to get the video in a mode the kernel wants.
 ///
 /// If there are multiple GPUs available, simply choose the first one.
 /// If there is no available mode that matches, just use the one we're already in.
 pub(super) fn setup_video<'a>(
-    header: &Header, systab: &'a SystemTable<Boot>
+    header: &Header, systab: &'a SystemTable<Boot>, quirks: &HashSet<Quirk>
 ) -> Result<&'a mut GraphicsOutput<'a>, Status> {
     info!("setting up the video...");
-    let wanted_resolution = match header.get_preferred_video_mode() {
-        Some(mode) => match mode.mode_type() {
+    let wanted_resolution = match (
+        header.get_preferred_video_mode(), quirks.contains(&Quirk::KeepResolution)
+    ) {
+        (Some(mode), false) => match mode.mode_type() {
             Some(VideoModeType::LinearGraphics) => {
                 // lets just hope that the firmware supports 24-bit RGB
                 // the other modes are way too obscure
@@ -46,7 +52,7 @@ pub(super) fn setup_video<'a>(
                 None
             },
         },
-        None => None,
+        _ => None,
     };
     // just get the first one
     let output = systab.boot_services().locate_protocol::<GraphicsOutput>().map_err(|e| {
