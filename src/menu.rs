@@ -28,6 +28,9 @@ pub fn choose<'a>(config: &'a Config, systab: &SystemTable<Boot>) -> &'a Entry {
         warn!("default entry is missing, trying the first one");
         config.entries.values().next().expect("no entries")
     });
+    if let Some(0) = config.timeout {
+        return default_entry
+    }
     match display_menu(config, default_entry, systab) {
         Ok(entry) => entry.log(),
         Err(err) => {
