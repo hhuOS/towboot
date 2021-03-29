@@ -204,7 +204,8 @@ impl<'a> PreparedEntry<'a> {
         // Load all modules, fail completely if one fails to load.
         // just always use whole pages, that's easier for us
         let modules_vec: Vec<Allocation> = entry.modules.iter().map(|module|
-            File::open(&module.image, volume).map(|f| f.try_into()).flatten()
+            File::open(&module.image, volume)
+            .map(|f| f.try_into_allocation(&entry.quirks)).flatten()
         ).collect::<Result<Vec<_>, _>>()?;
         info!("loaded {} modules", modules_vec.len());
         for (index, module) in modules_vec.iter().enumerate() {

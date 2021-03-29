@@ -209,4 +209,6 @@ pub enum Quirk {
     ForceElf,
     /// Ignore the kernel's preferred resolution and just keep the current one.
     KeepResolution,
+    /// Place modules below 200 MB.
+    ModulesBelow200Mb,
 }
