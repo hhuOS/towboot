@@ -103,7 +103,7 @@ pub(super) fn prepare_information(
     let mut bpp = 32;
     let color_info = ColorInfoType::Rgb(
         match mode.pixel_format() {
-            PixelFormat::RGB => ColorInfoRgb {
+            PixelFormat::Rgb => ColorInfoRgb {
                 red_field_position: 0,
                 red_mask_size: 8,
                 green_field_position: 8,
@@ -111,7 +111,7 @@ pub(super) fn prepare_information(
                 blue_field_position: 16,
                 blue_mask_size: 8,
             },
-            PixelFormat::BGR => ColorInfoRgb {
+            PixelFormat::Bgr => ColorInfoRgb {
                 red_field_position: 16,
                 red_mask_size: 8,
                 green_field_position: 8,
