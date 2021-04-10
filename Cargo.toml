@@ -1,9 +1,12 @@
+cargo-features = ["resolver"]
+
 [package]
 name = "towboot"
 version = "0.1.0"
 authors = ["Niklas Sombert <niklas.sombert@uni-duesseldorf.de>"]
 license = "MPL-2.0"
 edition = "2018"
+resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -29,3 +32,6 @@ multiboot = "0.6.0"
 goblin = { version = "0.3", default-features = false, features = ["elf32", "elf64", "endian_fd"] }
 scroll = { version = "0.10", default-features = false }
 miniarg = { version = "0.3", default-features = false, features = ["alloc", "derive"] }
+
+[build-dependencies]
+built = { version = "0.4", features = ["git2"] }

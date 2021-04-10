@@ -23,6 +23,11 @@ use serde::Deserialize;
 
 use super::file::File;
 
+#[allow(dead_code)]
+mod built_info {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
+
 const CONFIG_FILE: &str = "\\towboot.toml";
 
 /// Get the config.
@@ -91,13 +96,17 @@ fn parse_load_options(
                     LoadOptionKey::Version => {
                         writeln!(
                             systab.stdout(),
-                            "This is {} {}, built as {} for {} on {}. It is licensed under the {}.",
-                            env!("CARGO_PKG_NAME"),
-                            env!("CARGO_PKG_VERSION"),
-                            env!("PROFILE"),
-                            env!("TARGET"),
-                            env!("HOST"),
-                            env!("CARGO_PKG_LICENSE"),
+                            "This is {} {}{}, built as {} for {} on {}. It is licensed under the {}.",
+                            built_info::PKG_NAME,
+                            built_info::GIT_VERSION.unwrap(),
+                            match built_info::GIT_DIRTY.unwrap() {
+                                true => " (dirty)",
+                                false => "",
+                            },
+                            built_info::PROFILE,
+                            built_info::TARGET,
+                            built_info::HOST,
+                            built_info::PKG_LICENSE,
                         ).unwrap();
                         return Ok(None)
                     }
