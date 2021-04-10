@@ -13,6 +13,9 @@ use uefi::proto::media::file::{
     Directory, File as UefiFile, FileAttribute, FileInfo, FileMode, FileType, RegularFile
 };
 
+use hashbrown::hash_set::HashSet;
+
+use super::config::Quirk;
 use super::mem::Allocation;
 
 /// An opened file.
@@ -62,6 +65,25 @@ impl<'a> File<'a> {
         .unwrap().file_size().try_into().unwrap();
         Ok(Self { file, name, size })
     }
+    
+    /// Read a whole file into memory and return the resulting allocation.
+    ///
+    /// (The difference to `TryInto<Vec<u8>>` is that the allocated memory
+    /// is page-aligned and under 4GB.)
+    pub(crate) fn try_into_allocation(mut self, quirks: &HashSet<Quirk>) -> Result<Allocation, Status> {
+        let mut allocation = Allocation::new_under_4gb(self.size, &quirks)?;
+        let read_size = self.file.read(allocation.as_mut_slice())
+        .log_warning().map_err(|e| {
+            error!("Failed to read from file '{}': {:?}", self.name, e);
+            e.status()
+        })?;
+        if read_size == self.size {
+            Ok(allocation)
+        } else {
+            error!("Failed to fully read from file '{}", self.name);
+            Err(Status::END_OF_FILE)
+        }
+    }
 }
 
 impl<'a> TryFrom<File<'a>> for Vec<u8> {
@@ -80,29 +102,6 @@ impl<'a> TryFrom<File<'a>> for Vec<u8> {
         })?;
         if read_size == file.size {
             Ok(content_vec)
-        } else {
-            error!("Failed to fully read from file '{}", file.name);
-            Err(Status::END_OF_FILE)
-        }
-    }
-}
-
-impl<'a> TryFrom<File<'a>> for Allocation {
-    type Error = Status;
-    
-    /// Read a whole file into memory and return the resulting allocation.
-    ///
-    /// (The difference to `Into<Vec<u8>>` is that the allocated memory
-    /// is page-aligned and under 4GB.)
-    fn try_from(mut file: File) -> Result<Self, Self::Error> {
-        let mut allocation = Allocation::new_under_4gb(file.size)?;
-        let read_size = file.file.read(allocation.as_mut_slice())
-        .log_warning().map_err(|e| {
-            error!("Failed to read from file '{}': {:?}", file.name, e);
-            e.status()
-        })?;
-        if read_size == file.size {
-            Ok(allocation)
         } else {
             error!("Failed to fully read from file '{}", file.name);
             Err(Status::END_OF_FILE)

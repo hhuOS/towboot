@@ -15,11 +15,11 @@ use log::{trace, error};
 use uefi::prelude::*;
 use uefi::proto::media::file::Directory;
 
-use hashbrown::hash_map::HashMap;
+use hashbrown::{hash_map::HashMap, hash_set::HashSet};
 
 use miniarg::{ArgumentIterator, Key};
 
-use serde::Deserialize;
+use serde::{Deserialize, de::{IntoDeserializer, value}};
 
 use super::file::File;
 
@@ -78,6 +78,7 @@ fn parse_load_options(
     let mut kernel = None;
     let mut log_level = None;
     let mut modules = Vec::<&str>::new();
+    let mut quirks = HashSet::<Quirk>::new();
     for option in options {
         match option {
             Ok((key, value)) => {
@@ -87,6 +88,18 @@ fn parse_load_options(
                     LoadOptionKey::Kernel => kernel = Some(value),
                     LoadOptionKey::LogLevel => log_level = Some(value),
                     LoadOptionKey::Module => modules.push(value),
+                    LoadOptionKey::Quirk => {
+                        let parsed: Result<Quirk, value::Error> = Quirk::deserialize(
+                            value.into_deserializer()
+                        );
+                        match parsed {
+                            Ok(parsed) => quirks.insert(parsed),
+                            Err(_) => {
+                                error!("invalid value for quirk: {}", value);
+                                return Err(Status::INVALID_PARAMETER)
+                            }
+                        };
+                    },
                     LoadOptionKey::Help => {
                         writeln!(
                             systab.stdout(), "Usage:\n{}", LoadOptionKey::help_text()
@@ -119,7 +132,7 @@ fn parse_load_options(
         }
     }
     if let Some(kernel) = kernel {
-        let mods = modules.iter().map(|m| {
+        let modules = modules.iter().map(|m| {
             let (image, argv) = m.split_once(" ").unwrap_or((m, ""));
             Module {
                 image: image.to_string(),
@@ -132,7 +145,8 @@ fn parse_load_options(
             argv: Some(kernel_argv.to_string()),
             image: kernel_image.to_string(),
             name: None,
-            modules: Some(mods),
+            quirks,
+            modules,
         });
         Ok(Some(ConfigSource::Given(Config {
             default: "cli".to_string(),
@@ -163,6 +177,8 @@ enum LoadOptionKey {
     LogLevel,
     /// Load a module with the given args. Can be specified multiple times.
     Module,
+    /// Enable a specific quirk. (Only applies when loading a kernel.)
+    Quirk,
     /// Displays all available options and how to use them.
     Help,
     /// Displays the version of towboot
@@ -182,11 +198,26 @@ pub struct Entry {
     pub argv: Option<String>,
     pub image: String,
     pub name: Option<String>,
-    pub modules: Option<Vec<Module>>,
+    #[serde(default)]
+    pub quirks: HashSet<Quirk>,
+    #[serde(default)]
+    pub modules: Vec<Module>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Module {
     pub argv: Option<String>,
     pub image: String,
+}
+
+/// Runtime options to override information in kernel images.
+#[derive(Deserialize, Debug, Hash, PartialEq, Eq)]
+pub enum Quirk {
+    /// Treat the kernel always as an ELF file.
+    /// This ignores bit 16 of the kernel's Multiboot header.
+    ForceElf,
+    /// Ignore the kernel's preferred resolution and just keep the current one.
+    KeepResolution,
+    /// Place modules below 200 MB.
+    ModulesBelow200Mb,
 }

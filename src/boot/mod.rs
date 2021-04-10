@@ -18,8 +18,9 @@ use multiboot::information::{
 };
 
 use goblin::elf::Elf;
+use hashbrown::hash_set::HashSet;
 
-use super::config::Entry;
+use super::config::{Entry, Quirk};
 use super::file::File;
 use super::mem::{Allocation, MultibootAllocator};
 
@@ -44,10 +45,10 @@ struct LoadedKernel {
 impl LoadedKernel {
     /// Load a kernel from a vector.
     /// This requires that the Multiboot header has already been parsed.
-    fn new(kernel_vec: Vec<u8>, header: &Header) -> Result<Self, Status> {
-        match header.get_addresses() {
-            Some(addr) => LoadedKernel::new_multiboot(kernel_vec, addr, header.header_start),
-            None => LoadedKernel::new_elf(kernel_vec),
+    fn new(kernel_vec: Vec<u8>, header: &Header, quirks: &HashSet<Quirk>) -> Result<Self, Status> {
+        match (header.get_addresses(), quirks.contains(&Quirk::ForceElf)) {
+            (Some(addr), false) => LoadedKernel::new_multiboot(kernel_vec, addr, header.header_start),
+            _ => LoadedKernel::new_elf(kernel_vec),
         }
     }
     
@@ -132,7 +133,7 @@ fn prepare_multiboot_information(
         None => None,
         Some(s) => Some(&s),
     });
-    let mb_modules: Vec<Module> = modules.iter().zip(entry.modules.iter().flatten()).map(|(module, module_entry)| {
+    let mb_modules: Vec<Module> = modules.iter().zip(entry.modules.iter()).map(|(module, module_entry)| {
         Module::new(
             module.as_ptr() as u64,
             unsafe { module.as_ptr().offset(module.len.try_into().unwrap()) as u64 },
@@ -198,19 +199,20 @@ impl<'a> PreparedEntry<'a> {
             Status::LOAD_ERROR
         })?;
         debug!("loaded kernel {:?} to {:?}", header, kernel_vec.as_ptr());
-        let loaded_kernel = LoadedKernel::new(kernel_vec, &header)?;
+        let loaded_kernel = LoadedKernel::new(kernel_vec, &header, &entry.quirks)?;
         
         // Load all modules, fail completely if one fails to load.
         // just always use whole pages, that's easier for us
-        let modules_vec: Vec<Allocation> = entry.modules.iter().flatten().map(|module|
-            File::open(&module.image, volume).map(|f| f.try_into()).flatten()
+        let modules_vec: Vec<Allocation> = entry.modules.iter().map(|module|
+            File::open(&module.image, volume)
+            .map(|f| f.try_into_allocation(&entry.quirks)).flatten()
         ).collect::<Result<Vec<_>, _>>()?;
         info!("loaded {} modules", modules_vec.len());
         for (index, module) in modules_vec.iter().enumerate() {
             debug!("loaded module {} to {:?}", index, module.as_ptr());
         }
         
-        let graphics_output = video::setup_video(&header, &systab)?;
+        let graphics_output = video::setup_video(&header, &systab, &entry.quirks)?;
         
         let (multiboot_information, multiboot_allocator) = prepare_multiboot_information(
             &entry, &modules_vec, loaded_kernel.symbols_struct().copied(),

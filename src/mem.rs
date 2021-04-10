@@ -18,7 +18,9 @@ use uefi_services::system_table;
 
 use log::{debug, warn, error};
 
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
+
+use super::config::Quirk;
 
 // no multiboot import here as some of the types have the same name as the UEFI ones
 
@@ -69,7 +71,7 @@ impl Allocation {
                 dump_memory_map();
                 warn!("going to allocate it somewhere else and try to move it later");
                 warn!("this might fail without notice");
-                Self::new_under_4gb(size).map(|mut allocation| {
+                Self::new_under_4gb(size, &HashSet::default()).map(|mut allocation| {
                     allocation.should_be_at = Some(address.try_into().unwrap());
                     allocation
                 })
@@ -80,11 +82,14 @@ impl Allocation {
     /// Allocate memory page-aligned below 4GB.
     ///
     /// Note: This will round up to whole pages.
-    pub(crate) fn new_under_4gb(size: usize) -> Result<Self, Status> {
+    pub(crate) fn new_under_4gb(size: usize, quirks: &HashSet<Quirk>) -> Result<Self, Status> {
         let count_pages = Self::calculate_page_count(size);
         let ptr = unsafe { system_table().as_ref() }.boot_services().allocate_pages(
-            // TODO: change this back to 4GB
-            AllocateType::MaxAddress(200 * 1024 * 1024),
+            AllocateType::MaxAddress(match quirks.contains(&Quirk::ModulesBelow200Mb) {
+                true => 200 * 1024 * 1024,
+                false => u32::MAX as usize,
+            }
+            ),
             MemoryType::LOADER_DATA,
             count_pages
         ).map_err(|e| {
