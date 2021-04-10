@@ -42,7 +42,7 @@ If you want to compile towboot yourself, here are the instructions:
 
 You'll need a nightly Rust compiler.
 The version doesn't really matter,
-though rustc 1.51.0-nightly (61f5a0092 2021-01-04) definitely works.
+though rustc 1.53.0-nightly (07e0e2ec2 2021-03-24) definitely works.
 If you don't know how to install one,
 please take a look at [rustup.rs](https://rustup.rs/).
 (You can configure rustup to use a nightly toolchain just for the current folder

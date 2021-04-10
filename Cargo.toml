@@ -1,5 +1,3 @@
-cargo-features = ["resolver"]
-
 [package]
 name = "towboot"
 version = "0.1.0"
