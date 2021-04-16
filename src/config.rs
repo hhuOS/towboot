@@ -92,13 +92,12 @@ fn parse_load_options(
                         let parsed: Result<Quirk, value::Error> = Quirk::deserialize(
                             value.into_deserializer()
                         );
-                        match parsed {
-                            Ok(parsed) => quirks.insert(parsed),
-                            Err(_) => {
-                                error!("invalid value for quirk: {}", value);
-                                return Err(Status::INVALID_PARAMETER)
-                            }
-                        };
+                        if let Ok(parsed) = parsed {
+                            quirks.insert(parsed);
+                        } else {
+                            error!("invalid value for quirk: {}", value);
+                            return Err(Status::INVALID_PARAMETER);
+                        }
                     },
                     LoadOptionKey::Help => {
                         writeln!(
@@ -112,9 +111,10 @@ fn parse_load_options(
                             "This is {} {}{}, built as {} for {} on {}. It is licensed under the {}.",
                             built_info::PKG_NAME,
                             built_info::GIT_VERSION.unwrap(),
-                            match built_info::GIT_DIRTY.unwrap() {
-                                true => " (dirty)",
-                                false => "",
+                            if built_info::GIT_DIRTY.unwrap() {
+                                " (dirty)"
+                            } else {
+                                ""
                             },
                             built_info::PROFILE,
                             built_info::TARGET,
@@ -151,7 +151,7 @@ fn parse_load_options(
         Ok(Some(ConfigSource::Given(Config {
             default: "cli".to_string(),
             timeout: Some(0),
-            log_level: log_level.map(|l| l.to_string()),
+            log_level: log_level.map(ToString::to_string),
             entries
         })))
     } else if let Some(c) = config_file {

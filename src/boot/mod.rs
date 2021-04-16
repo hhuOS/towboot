@@ -129,18 +129,12 @@ fn prepare_multiboot_information(
     // We don't have much information about the partition we loaded the kernel from.
     // There's the UEFI Handle, but the kernel probably won't understand that.
     
-    multiboot.set_command_line(match &entry.argv {
-        None => None,
-        Some(s) => Some(&s),
-    });
+    multiboot.set_command_line(entry.argv.as_deref());
     let mb_modules: Vec<Module> = modules.iter().zip(entry.modules.iter()).map(|(module, module_entry)| {
         Module::new(
             module.as_ptr() as u64,
             unsafe { module.as_ptr().offset(module.len.try_into().unwrap()) as u64 },
-            match &module_entry.argv {
-                None => None,
-                Some(s) => Some(&s),
-            }
+            module_entry.argv.as_deref()
         )
     }).collect();
     multiboot.set_modules(Some(&mb_modules));
@@ -228,7 +222,7 @@ impl<'a> PreparedEntry<'a> {
     /// Actually boot an entry.
     ///
     /// What this means:
-    /// 1. exit BootServices
+    /// 1. exit `BootServices`
     /// 2. pass the memory map to the kernel
     /// 3. copy the kernel to its desired location (if needed)
     /// 4. bring the machine in the correct state

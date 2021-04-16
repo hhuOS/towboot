@@ -56,7 +56,7 @@ fn display_menu<'a>(
             EventType::TIMER, Tpl::APPLICATION, None
         ) }?.log();
         systab.boot_services().set_timer(
-            timer, TimerTrigger::Relative(timeout as u64 * 10000000)
+            timer, TimerTrigger::Relative(u64::from(timeout) * 10_000_000)
         )?.log();
         let key_event = systab.stdin().wait_for_key_event();
         loop {

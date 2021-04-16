@@ -69,9 +69,10 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
         }
     };
     if let Some(level) = &config.log_level {
-        match log::LevelFilter::from_str(&level) {
-            Ok(l) => log::set_max_level(l),
-            Err(_) => warn!("'{}' is not a valid log level, using default", level),
+        if let Ok(level) = log::LevelFilter::from_str(&level) {
+            log::set_max_level(level);
+        } else {
+            warn!("'{}' is not a valid log level, using default", level);
         }
     }
     debug!("config: {:?}", config);

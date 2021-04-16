@@ -63,7 +63,7 @@ impl<'a> File<'a> {
         let size: usize = file.get_info::<FileInfo>(info_vec.as_mut_slice())
         .expect(&format!("Failed to get metadata of file '{}'", name))
         .unwrap().file_size().try_into().unwrap();
-        Ok(Self { file, name, size })
+        Ok(Self { name, file, size })
     }
     
     /// Read a whole file into memory and return the resulting allocation.

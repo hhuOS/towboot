@@ -6,7 +6,7 @@
 //! The UEFI targets are only Tier 3 which means they are rarely tested and may not work fully.
 //! (see <https://doc.rust-lang.org/nightly/rustc/platform-support.html#tier-3>)
 //! The code below is mostly adding unknown symbols.
-//! In the long run, they should be reported to compiler_builtins and fixed there.
+//! In the long run, they should be reported to `compiler_builtins` and fixed there.
 //! For now, this monkeypatching seems to be enough.
 
 // fmod and fmodf seem to not be supported (yet) by compiler_builtins for uefi

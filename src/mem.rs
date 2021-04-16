@@ -85,11 +85,11 @@ impl Allocation {
     pub(crate) fn new_under_4gb(size: usize, quirks: &HashSet<Quirk>) -> Result<Self, Status> {
         let count_pages = Self::calculate_page_count(size);
         let ptr = unsafe { system_table().as_ref() }.boot_services().allocate_pages(
-            AllocateType::MaxAddress(match quirks.contains(&Quirk::ModulesBelow200Mb) {
-                true => 200 * 1024 * 1024,
-                false => u32::MAX as usize,
-            }
-            ),
+            AllocateType::MaxAddress(if quirks.contains(&Quirk::ModulesBelow200Mb) {
+                200 * 1024 * 1024
+            } else {
+                u32::MAX as usize
+            }),
             MemoryType::LOADER_DATA,
             count_pages
         ).map_err(|e| {

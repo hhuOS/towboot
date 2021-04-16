@@ -63,10 +63,10 @@ pub(super) fn setup_video<'a>(
         Status::DEVICE_ERROR
     })?.log();
     let output = unsafe { &mut *output.get() };
-    let modes: Vec<Mode> = output.modes().map(|c| c.log()).collect();
+    let modes: Vec<Mode> = output.modes().map(uefi::Completion::log).collect();
     debug!(
         "available video modes: {:?}",
-        modes.iter().map(|m| m.info()).map(|i| (i.resolution(), i.pixel_format()))
+        modes.iter().map(Mode::info).map(|i| (i.resolution(), i.pixel_format()))
         .collect::<Vec<((usize, usize), PixelFormat)>>()
     );
     // try to see, if we find a matching mode
@@ -173,7 +173,7 @@ fn bitmask_to_bpp(pixel_bitmask: PixelBitmask) -> u8 {
     bpp
 }
 
-/// Converts a bitmask into a tuple of field_position, mask_size.
+/// Converts a bitmask into a tuple of `field_position`, `mask_size`.
 fn parse_color_bitmap(bitmask: u32) -> (u8, u8) {
     // find the first set bit
     let mut field_position = 0;

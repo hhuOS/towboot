@@ -50,12 +50,11 @@ impl OurElfLoader {
     /// We should have found it in `allocate`,
     /// else fall back to the virtual one and hope for the best.
     pub(super) fn entry_point(&self) -> usize {
-        match self.physical_entry_point {
-            Some(a) => a,
-            None => {
-                warn!("didn't find the entry point while loading sections, assuming virtual = physical");
-                self.virtual_entry_point.try_into().unwrap()
-            },
+        if let Some(a) = self.physical_entry_point {
+            a
+        } else {
+            warn!("didn't find the entry point while loading sections, assuming virtual = physical");
+            self.virtual_entry_point.try_into().unwrap()
         }
     }
     
@@ -125,7 +124,7 @@ pub(super) fn symbols(binary: &mut elf::Elf, data: &[u8]) -> (SymbolType, Vec<u8
     let mut memory = Vec::new();
     // reserve memory so that we don't have to re-allocate
     memory.reserve((
-        (size * num) as u64
+        u64::from(size * num)
         + binary.section_headers.iter().filter(|s| s.sh_addr == 0).map(|s| s.sh_size).sum::<u64>()
     ).try_into().unwrap());
     let ptr = memory.as_ptr();
