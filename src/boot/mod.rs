@@ -298,7 +298,13 @@ impl<'a> PreparedEntry<'a> {
                 "cli",
                 // virtual 8086 mode can't be set, as we're 32 or 64 bit code
                 // (and changing that flag is rather difficult)
-                
+
+                // Writing to RBX (and thus EBX) using in("ebx") is forbidden,
+                // since this register is used internally by LLVM.
+                // Thus, we need to write the mulitboot information address to EAX
+                // and copy it into EBX here.
+                "mov ebx, eax",
+
                 // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
                 // > Other bits are all undefined.
                 "mov ecx, cr0",
@@ -315,7 +321,7 @@ impl<'a> PreparedEntry<'a> {
                 "mov cr4, ecx",
                 
                 // TODO: Only do this on x86_64?
-                // x86_64: switch from compatiblity mode to protected mode
+                // x86_64: switch from compatibility mode to protected mode
                 // get the EFER
                 "mov ecx, 0xC0000080",
                 "rdmsr",
@@ -326,11 +332,11 @@ impl<'a> PreparedEntry<'a> {
                 // write the signature to EAX
                 "mov eax, {}",
                 // finally jump to the kernel
-                "jmp esi",
+                "jmp edi",
                 
                 const SIGNATURE_EAX,
-                in("ebx") &self.multiboot_information,
-                in("esi") entry_address,
+                in("eax") &self.multiboot_information,
+                in("edi") entry_address,
                 options(noreturn),
             );
         }
