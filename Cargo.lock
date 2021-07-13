@@ -27,12 +27,6 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
 name = "bit_field"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed8765909f9009617974ab6b7d332625b320b33c326b1e9321382ef1999b5d56"
-
-[[package]]
-name = "bit_field"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dcb6dd1c2376d2e096796e234a70e17e94cc2d5d54ff8ce42b28cef1d0d359a4"
@@ -45,9 +39,9 @@ checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 
 [[package]]
 name = "built"
-version = "0.4.4"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8f1b029cb3929cb0c99780b0c10fe512f60be5438adf5f757e4afa1bc75a984"
+checksum = "4f346b6890a0dfa7266974910e7df2d5088120dd54721b9b0e5aae1ae5e05715"
 dependencies = [
  "cargo-lock",
  "git2",
@@ -55,9 +49,9 @@ dependencies = [
 
 [[package]]
 name = "cargo-lock"
-version = "4.0.1"
+version = "7.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8504b63dd1249fd1745b7b4ef9b6f7b107ddeb3c95370043c7dbcc38653a2679"
+checksum = "7fb04b88bd5b2036e30704f95c6ee16f3b5ca3b4ca307da2889d9006648e5c88"
 dependencies = [
  "semver",
  "serde",
@@ -280,6 +274,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "qemu-exit"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "220eb94f40665452ab6114bf8a8d86aa1fd41c6dbfaa4ab71b5912c8adb80389"
+
+[[package]]
 name = "quote"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -316,19 +316,12 @@ dependencies = [
 
 [[package]]
 name = "semver"
-version = "0.9.0"
+version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d7eb9ef2c18661902cc47e535f9bc51b78acd254da71d375c2f6720d9a40403"
+checksum = "5f3aac57ee7f3272d8395c6e4f502f434f0e289fcd62876f70daa008c20dcabe"
 dependencies = [
- "semver-parser",
  "serde",
 ]
-
-[[package]]
-name = "semver-parser"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
 name = "serde"
@@ -418,14 +411,14 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bad643914094137d475641b6bab89462505316ec2ce70907ad20102d28a79ab8"
 dependencies = [
- "bit_field 0.10.1",
+ "bit_field",
 ]
 
 [[package]]
 name = "uefi"
-version = "0.8.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41f86f972322768901e872186fc8b7df009ca4ce3e945fc337614cdca0c526d4"
+checksum = "4630a92e80ac72f2b3dedb865dac3cf9e0215ce7e222301f0a37d8e6e3c5dbf4"
 dependencies = [
  "bitflags",
  "log",
@@ -446,14 +439,14 @@ dependencies = [
 
 [[package]]
 name = "uefi-services"
-version = "0.5.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03df29f1a75c0b92df0b701f815fa3e66a25cb510f99a8d59f720b289ed94a3d"
+checksum = "f5a4d69a19217c0917154283ccef70e4fa7dfd30c7b8c94402ab203f5b892c6d"
 dependencies = [
  "cfg-if",
  "log",
+ "qemu-exit",
  "uefi",
- "x86_64",
 ]
 
 [[package]]
@@ -509,13 +502,3 @@ name = "wasi"
 version = "0.10.2+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd6fbd9a79829dd1ad0cc20627bf1ed606756a7f77edff7b66b7064f9cb327c6"
-
-[[package]]
-name = "x86_64"
-version = "0.13.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f00e138c487966a6efdb30416baff8f973d17c61c9560a6047c74f8828c46fe1"
-dependencies = [
- "bit_field 0.9.0",
- "bitflags",
-]
