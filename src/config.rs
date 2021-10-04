@@ -204,6 +204,12 @@ pub struct Entry {
     pub modules: Vec<Module>,
 }
 
+impl fmt::Display for Entry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name.as_ref().unwrap_or(&self.image))
+    }
+}
+
 #[derive(Deserialize, Debug)]
 pub struct Module {
     pub argv: Option<String>,

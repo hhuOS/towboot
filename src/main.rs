@@ -15,7 +15,7 @@ use uefi::prelude::*;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::media::fs::SimpleFileSystem;
 
-use log::{debug, warn, error};
+use log::{debug, info, warn, error};
 
 mod boot;
 // contains several workarounds for bugs in the Rust UEFI targets
@@ -78,9 +78,11 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     debug!("config: {:?}", config);
     let entry_to_boot = menu::choose(&config, &systab);
     debug!("okay, trying to load {:?}", entry_to_boot);
+    info!("loading {}...", entry_to_boot);
     
     match boot::PreparedEntry::new(&entry_to_boot, &mut volume, &systab) {
         Ok(e) => {
+            info!("booting {}...", entry_to_boot);
             e.boot(image, systab);
             unreachable!();
         },

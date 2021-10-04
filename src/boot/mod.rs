@@ -194,6 +194,7 @@ impl<'a> PreparedEntry<'a> {
         })?;
         debug!("loaded kernel {:?} to {:?}", header, kernel_vec.as_ptr());
         let loaded_kernel = LoadedKernel::new(kernel_vec, &header, &entry.quirks)?;
+        info!("kernel is loaded and bootable");
         
         // Load all modules, fail completely if one fails to load.
         // just always use whole pages, that's easier for us
@@ -230,11 +231,6 @@ impl<'a> PreparedEntry<'a> {
     ///
     /// This function won't return.
     pub(crate) fn boot(mut self, image: Handle, systab: SystemTable<Boot>) {
-        match &self.entry.name {
-            Some(n) => info!("booting '{}'...", n),
-            None => info!("booting..."),
-        }
-        
         // allocate memory for the memory map
         // also, keep a bit of room
         info!("exiting boot services...");

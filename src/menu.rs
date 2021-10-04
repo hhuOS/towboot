@@ -78,7 +78,7 @@ fn display_menu<'a>(
     writeln!(systab.stdout(), "available entries:").unwrap();
     for (index, (key, entry)) in config.entries.iter().enumerate() {
         writeln!(
-            systab.stdout(), "{}. [{}] {}", index, key, entry.name.as_ref().unwrap_or(key)
+            systab.stdout(), "{}. [{}] {}", index, key, entry
         ).unwrap();
     }
     loop {
