@@ -130,9 +130,11 @@ pub(super) fn symbols(binary: &mut elf::Elf, data: &[u8]) -> (SymbolType, Vec<u8
     
     // copy the symbols
     // only copy sections that are not already loaded
-    for mut section in binary.section_headers.iter_mut().filter(|s| s.sh_addr == 0) {
+    for mut section in binary.section_headers.iter_mut().filter(
+        |s| s.sh_addr == 0 && s.file_range().is_some()
+    ) {
         let index = memory.len();
-        memory.extend_from_slice(&data[section.file_range()]);
+        memory.extend_from_slice(&data[section.file_range().unwrap()]);
         section.sh_addr = (index + ptr as usize).try_into().unwrap();
         trace!("Loaded section {:?} to {:#x}", section, section.sh_addr);
     }

@@ -26,11 +26,11 @@ mod mem;
 mod menu;
 
 #[entry]
-fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
+fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
     // Putting this comment above the function breaks the entry annotation.
     //! This is the main function.
     //! Startup happens here.
-    uefi_services::init(&systab).expect_success("Failed to initialize utilities");
+    uefi_services::init(&mut systab).expect_success("Failed to initialize utilities");
     
     // get information about the way we were loaded
     // the interesting thing here is the partition handle
@@ -60,7 +60,7 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
     let fs = unsafe { &mut *fs.get() };
     let mut volume = fs.open_volume().expect_success("Failed to open root directory");
     
-    let config = match config::get_config(&mut volume, &systab, load_options) {
+    let config = match config::get_config(&mut volume, &mut systab, load_options) {
         Ok(Some(c)) => c,
         Ok(None) => return Status::SUCCESS,
         Err(e) => {
@@ -76,7 +76,7 @@ fn efi_main(image: Handle, systab: SystemTable<Boot>) -> Status {
         }
     }
     debug!("config: {:?}", config);
-    let entry_to_boot = menu::choose(&config, &systab);
+    let entry_to_boot = menu::choose(&config, &mut systab);
     debug!("okay, trying to load {:?}", entry_to_boot);
     info!("loading {}...", entry_to_boot);
     

@@ -22,7 +22,7 @@ use crate::config::{Config, Entry};
 /// If the default entry is missing, it will try to use the first one instead.
 /// If there are no entries, it will panic.
 // TODO: perhaps this should return a Result?
-pub fn choose<'a>(config: &'a Config, systab: &SystemTable<Boot>) -> &'a Entry {
+pub fn choose<'a>(config: &'a Config, systab: &mut SystemTable<Boot>) -> &'a Entry {
     let default_entry = config.entries.get(&config.default).unwrap_or_else(|| {
         warn!("default entry is missing, trying the first one");
         config.entries.values().next().expect("no entries")
@@ -42,7 +42,7 @@ pub fn choose<'a>(config: &'a Config, systab: &SystemTable<Boot>) -> &'a Entry {
 
 /// Display the menu. This can fail.
 fn display_menu<'a>(
-    config: &'a Config, default_entry: &'a Entry, systab: &SystemTable<Boot>
+    config: &'a Config, default_entry: &'a Entry, systab: &mut SystemTable<Boot>
 ) -> uefi::Result<&'a Entry> {
     if let Some(timeout) = config.timeout {
         writeln!(
@@ -81,7 +81,7 @@ fn display_menu<'a>(
         ).unwrap();
     }
     loop {
-        match select_entry(&config.entries, &systab) {
+        match select_entry(&config.entries, systab) {
             Ok(entry) => return Ok(entry),
             Err(err) => {
                 writeln!(systab.stdout(), "invalid choice: {:?}", err).unwrap();
@@ -92,7 +92,7 @@ fn display_menu<'a>(
 
 /// Try to select an entry.
 fn select_entry<'a>(
-    entries: &'a BTreeMap<String, Entry>, systab: &SystemTable<Boot>
+    entries: &'a BTreeMap<String, Entry>, systab: &mut SystemTable<Boot>
 ) -> uefi::Result<&'a Entry> {
     let mut value = String::new();
     let key_event = systab.stdin().wait_for_key_event();

@@ -9,8 +9,8 @@ resolver = "2"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-uefi = { version = "0.11", features = ["alloc", "logger", "exts"] }
-uefi-services = "0.8"
+uefi = { version = "0.12", features = ["alloc", "logger", "exts"] }
+uefi-services = "0.9"
 
 log = { version = "0.4", default-features = false }
 
@@ -25,7 +25,7 @@ serde = { version = "1.0", default-features = false, features = ["alloc", "deriv
 # libm = "0.2"
 
 multiboot = "0.7"
-goblin = { version = "0.3", default-features = false, features = ["elf32", "elf64", "endian_fd"] }
+goblin = { version = "0.4", default-features = false, features = ["elf32", "elf64", "endian_fd"] }
 scroll = { version = "0.10", default-features = false }
 miniarg = { version = "0.3", default-features = false, features = ["alloc", "derive"] }
 
