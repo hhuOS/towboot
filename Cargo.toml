@@ -24,8 +24,6 @@ toml = { git = "https://github.com/diondokter/toml-rs.git", default-features = f
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 # libm = "0.2"
 
-hashbrown = { version = "0.11", features = ["serde"] }
-
 multiboot = "0.7"
 goblin = { version = "0.3", default-features = false, features = ["elf32", "elf64", "endian_fd"] }
 scroll = { version = "0.10", default-features = false }

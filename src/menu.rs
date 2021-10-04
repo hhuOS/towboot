@@ -1,5 +1,6 @@
 //! Select an entry to boot by displaying a menu.
 use core::fmt::Write;
+use alloc::collections::btree_map::BTreeMap;
 use alloc::string::String;
 
 use uefi::prelude::*;
@@ -8,8 +9,6 @@ use uefi::proto::console::text::{Key, ScanCode};
 use uefi::table::boot::{EventType, TimerTrigger, Tpl};
 
 use log::{error, warn};
-
-use hashbrown::hash_map::HashMap;
 
 use crate::config::{Config, Entry};
 
@@ -93,7 +92,7 @@ fn display_menu<'a>(
 
 /// Try to select an entry.
 fn select_entry<'a>(
-    entries: &'a HashMap<String, Entry>, systab: &SystemTable<Boot>
+    entries: &'a BTreeMap<String, Entry>, systab: &SystemTable<Boot>
 ) -> uefi::Result<&'a Entry> {
     let mut value = String::new();
     let key_event = systab.stdin().wait_for_key_event();

@@ -1,11 +1,10 @@
 //! Handling of ELF files
 
 use core::convert::TryInto;
+use alloc::collections::btree_map::BTreeMap;
 use alloc::vec::Vec;
 
 use log::{trace, debug, warn};
-
-use hashbrown::HashMap;
 
 use goblin::elf;
 use goblin::container;
@@ -17,7 +16,7 @@ use super::super::mem::Allocation;
 
 pub(super) struct OurElfLoader {
     // maps virtual to physical addresses
-    allocations: HashMap<u64, Allocation>,
+    allocations: BTreeMap<u64, Allocation>,
     virtual_entry_point: u64,
     physical_entry_point: Option<usize>,
 }
@@ -28,7 +27,7 @@ impl OurElfLoader {
     /// The parameter is the virtual address of the entry point.
     pub(super) fn new(entry_point: u64) -> Self {
         OurElfLoader {
-            allocations: HashMap::new(),
+            allocations: BTreeMap::new(),
             virtual_entry_point: entry_point,
             physical_entry_point: None,
         }

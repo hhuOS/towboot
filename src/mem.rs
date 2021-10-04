@@ -10,6 +10,7 @@
 use core::convert::TryInto;
 
 use alloc::alloc::{alloc, dealloc, Layout};
+use alloc::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 use alloc::vec::Vec;
 
 use uefi::prelude::*;
@@ -17,8 +18,6 @@ use uefi::table::boot::{AllocateType, MemoryDescriptor, MemoryType};
 use uefi_services::system_table;
 
 use log::{debug, warn, error};
-
-use hashbrown::{HashMap, HashSet};
 
 use super::config::Quirk;
 
@@ -71,7 +70,7 @@ impl Allocation {
                 dump_memory_map();
                 warn!("going to allocate it somewhere else and try to move it later");
                 warn!("this might fail without notice");
-                Self::new_under_4gb(size, &HashSet::default()).map(|mut allocation| {
+                Self::new_under_4gb(size, &BTreeSet::default()).map(|mut allocation| {
                     allocation.should_be_at = Some(address.try_into().unwrap());
                     allocation
                 })
@@ -82,7 +81,7 @@ impl Allocation {
     /// Allocate memory page-aligned below 4GB.
     ///
     /// Note: This will round up to whole pages.
-    pub(crate) fn new_under_4gb(size: usize, quirks: &HashSet<Quirk>) -> Result<Self, Status> {
+    pub(crate) fn new_under_4gb(size: usize, quirks: &BTreeSet<Quirk>) -> Result<Self, Status> {
         let count_pages = Self::calculate_page_count(size);
         let ptr = unsafe { system_table().as_ref() }.boot_services().allocate_pages(
             AllocateType::MaxAddress(if quirks.contains(&Quirk::ModulesBelow200Mb) {
@@ -169,13 +168,13 @@ fn dump_memory_map() {
 
 /// Proxy Rust's allocator to the multiboot crate.
 pub(super) struct MultibootAllocator {
-    allocations: HashMap<multiboot::information::PAddr, Layout>
+    allocations: BTreeMap<multiboot::information::PAddr, Layout>
 }
 
 impl MultibootAllocator {
     /// Initialize the allocator.
     pub(super) fn new() -> Self {
-        MultibootAllocator { allocations: HashMap::new() }
+        MultibootAllocator { allocations: BTreeMap::new() }
     }
 }
 

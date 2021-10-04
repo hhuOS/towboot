@@ -2,7 +2,12 @@
 //!
 //! This means: loading kernel and modules, handling ELF files, video initialization and jumping
 
-use alloc::{format, vec, vec::Vec};
+use alloc::{
+    collections::btree_set::BTreeSet,
+    format,
+    vec,
+    vec::Vec,
+};
 
 use core::convert::TryInto;
 
@@ -18,7 +23,6 @@ use multiboot::information::{
 };
 
 use goblin::elf::Elf;
-use hashbrown::hash_set::HashSet;
 
 use super::config::{Entry, Quirk};
 use super::file::File;
@@ -45,7 +49,9 @@ struct LoadedKernel {
 impl LoadedKernel {
     /// Load a kernel from a vector.
     /// This requires that the Multiboot header has already been parsed.
-    fn new(kernel_vec: Vec<u8>, header: &Header, quirks: &HashSet<Quirk>) -> Result<Self, Status> {
+    fn new(
+        kernel_vec: Vec<u8>, header: &Header, quirks: &BTreeSet<Quirk>,
+    ) -> Result<Self, Status> {
         match (header.get_addresses(), quirks.contains(&Quirk::ForceElf)) {
             (Some(addr), false) => LoadedKernel::new_multiboot(kernel_vec, addr, header.header_start),
             _ => LoadedKernel::new_elf(kernel_vec),

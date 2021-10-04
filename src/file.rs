@@ -3,6 +3,7 @@
 use core::convert::TryInto;
 use core::convert::TryFrom;
 
+use alloc::collections::btree_set::BTreeSet;
 use alloc::format;
 use alloc::vec::Vec;
 
@@ -12,8 +13,6 @@ use uefi::prelude::*;
 use uefi::proto::media::file::{
     Directory, File as UefiFile, FileAttribute, FileInfo, FileMode, FileType, RegularFile
 };
-
-use hashbrown::hash_set::HashSet;
 
 use super::config::Quirk;
 use super::mem::Allocation;
@@ -70,7 +69,9 @@ impl<'a> File<'a> {
     ///
     /// (The difference to `TryInto<Vec<u8>>` is that the allocated memory
     /// is page-aligned and under 4GB.)
-    pub(crate) fn try_into_allocation(mut self, quirks: &HashSet<Quirk>) -> Result<Allocation, Status> {
+    pub(crate) fn try_into_allocation(
+        mut self, quirks: &BTreeSet<Quirk>,
+    ) -> Result<Allocation, Status> {
         let mut allocation = Allocation::new_under_4gb(self.size, &quirks)?;
         let read_size = self.file.read(allocation.as_mut_slice())
         .log_warning().map_err(|e| {

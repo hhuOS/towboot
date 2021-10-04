@@ -6,6 +6,7 @@
 use core::convert::TryInto;
 use core::fmt::Write;
 
+use alloc::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 use alloc::fmt;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -14,8 +15,6 @@ use log::{trace, error};
 
 use uefi::prelude::*;
 use uefi::proto::media::file::Directory;
-
-use hashbrown::{hash_map::HashMap, hash_set::HashSet};
 
 use miniarg::{ArgumentIterator, Key};
 
@@ -78,7 +77,7 @@ fn parse_load_options(
     let mut kernel = None;
     let mut log_level = None;
     let mut modules = Vec::<&str>::new();
-    let mut quirks = HashSet::<Quirk>::new();
+    let mut quirks = BTreeSet::<Quirk>::new();
     for option in options {
         match option {
             Ok((key, value)) => {
@@ -140,7 +139,7 @@ fn parse_load_options(
             }
         }).collect();
         let (kernel_image, kernel_argv) = kernel.split_once(" ").unwrap_or((kernel, ""));
-        let mut entries = HashMap::new();
+        let mut entries = BTreeMap::new();
         entries.insert("cli".to_string(), Entry {
             argv: Some(kernel_argv.to_string()),
             image: kernel_image.to_string(),
@@ -190,7 +189,7 @@ pub struct Config {
     pub default: String,
     pub timeout: Option<u8>,
     pub log_level: Option<String>,
-    pub entries: HashMap<String, Entry>,
+    pub entries: BTreeMap<String, Entry>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -199,7 +198,7 @@ pub struct Entry {
     pub image: String,
     pub name: Option<String>,
     #[serde(default)]
-    pub quirks: HashSet<Quirk>,
+    pub quirks: BTreeSet<Quirk>,
     #[serde(default)]
     pub modules: Vec<Module>,
 }
@@ -217,7 +216,7 @@ pub struct Module {
 }
 
 /// Runtime options to override information in kernel images.
-#[derive(Deserialize, Debug, Hash, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Quirk {
     /// Treat the kernel always as an ELF file.
     /// This ignores bit 16 of the kernel's Multiboot header.

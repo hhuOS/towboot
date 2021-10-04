@@ -1,14 +1,13 @@
 //! Management of the video mode.
 
 use core::convert::TryInto;
+use alloc::collections::btree_set::BTreeSet;
 use alloc::vec::Vec;
 
 use uefi::prelude::*;
 use uefi::proto::console::gop::{GraphicsOutput, Mode, PixelBitmask, PixelFormat};
 
 use log::{debug, warn, info, error};
-
-use hashbrown::hash_set::HashSet;
 
 use multiboot::header::{Header, VideoModeType};
 use multiboot::information::{ColorInfoType, ColorInfoRgb, FramebufferTable, Multiboot};
@@ -20,7 +19,7 @@ use super::super::config::Quirk;
 /// If there are multiple GPUs available, simply choose the first one.
 /// If there is no available mode that matches, just use the one we're already in.
 pub(super) fn setup_video<'a>(
-    header: &Header, systab: &'a SystemTable<Boot>, quirks: &HashSet<Quirk>
+    header: &Header, systab: &'a SystemTable<Boot>, quirks: &BTreeSet<Quirk>
 ) -> Result<&'a mut GraphicsOutput<'a>, Status> {
     info!("setting up the video...");
     let wanted_resolution = match (
