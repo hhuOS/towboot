@@ -60,7 +60,7 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
     let fs = unsafe { &mut *fs.get() };
     let mut volume = fs.open_volume().expect_success("Failed to open root directory");
     
-    let config = match config::get_config(&mut volume, &mut systab, load_options) {
+    let config = match config::get(&mut volume, &mut systab, load_options) {
         Ok(Some(c)) => c,
         Ok(None) => return Status::SUCCESS,
         Err(e) => {
@@ -69,7 +69,7 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
         }
     };
     if let Some(level) = &config.log_level {
-        if let Ok(level) = log::LevelFilter::from_str(&level) {
+        if let Ok(level) = log::LevelFilter::from_str(level) {
             log::set_max_level(level);
         } else {
             warn!("'{}' is not a valid log level, using default", level);
@@ -80,7 +80,7 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
     debug!("okay, trying to load {:?}", entry_to_boot);
     info!("loading {}...", entry_to_boot);
     
-    match boot::PreparedEntry::new(&entry_to_boot, &mut volume, &systab) {
+    match boot::PreparedEntry::new(entry_to_boot, &mut volume, &systab) {
         Ok(e) => {
             info!("booting {}...", entry_to_boot);
             e.boot(image, systab);

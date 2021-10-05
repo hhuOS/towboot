@@ -72,7 +72,7 @@ impl<'a> File<'a> {
     pub(crate) fn try_into_allocation(
         mut self, quirks: &BTreeSet<Quirk>,
     ) -> Result<Allocation, Status> {
-        let mut allocation = Allocation::new_under_4gb(self.size, &quirks)?;
+        let mut allocation = Allocation::new_under_4gb(self.size, quirks)?;
         let read_size = self.file.read(allocation.as_mut_slice())
         .log_warning().map_err(|e| {
             error!("Failed to read from file '{}': {:?}", self.name, e);

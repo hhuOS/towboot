@@ -82,7 +82,7 @@ pub(super) fn setup_video<'a>(
     // in that case: set it
     } {
         debug!("chose {:?} as the video mode", mode.info().resolution());
-        output.set_mode(&mode).map_err(|e| {
+        output.set_mode(mode).map_err(|e| {
             error!("failed to set video mode: {:?}", e);
             Status::DEVICE_ERROR
         })?.log();

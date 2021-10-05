@@ -37,7 +37,7 @@ impl OurElfLoader {
     pub(super) fn load_elf(&mut self, binary: &elf::Elf, data: &[u8]) -> Result<(), &'static str> {
         for program_header in &binary.program_headers {
             if program_header.p_type == elf::program_header::PT_LOAD {
-                self.allocate(&program_header)?;
+                self.allocate(program_header)?;
                 self.load(program_header.p_vaddr, &data[program_header.file_range()])?;
             }
         }

@@ -34,7 +34,7 @@ const CONFIG_FILE: &str = "\\towboot.toml";
 /// Otherwise, read and parse a configuration file.
 ///
 /// Returns None if just a help text has been displayed.
-pub fn get_config(
+pub fn get(
     volume: &mut Directory, systab: &mut SystemTable<Boot>, load_options: Option<&str>
 ) -> Result<Option<Config>, Status> {
     let config_source: ConfigSource = match load_options {
@@ -72,7 +72,7 @@ fn read_file(volume: &mut Directory, file_name: &str) -> Result<Config, Status> 
 fn parse_load_options(
     load_options: &str, systab: &mut SystemTable<Boot>
 ) -> Result<Option<ConfigSource>, Status> {
-    let options = LoadOptionKey::parse(&load_options);
+    let options = LoadOptionKey::parse(load_options);
     let mut config_file = None;
     let mut kernel = None;
     let mut log_level = None;

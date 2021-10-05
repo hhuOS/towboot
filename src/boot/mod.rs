@@ -206,17 +206,17 @@ impl<'a> PreparedEntry<'a> {
         // just always use whole pages, that's easier for us
         let modules_vec: Vec<Allocation> = entry.modules.iter().map(|module|
             File::open(&module.image, volume)
-            .map(|f| f.try_into_allocation(&entry.quirks)).flatten()
+            .and_then(|f| f.try_into_allocation(&entry.quirks))
         ).collect::<Result<Vec<_>, _>>()?;
         info!("loaded {} modules", modules_vec.len());
         for (index, module) in modules_vec.iter().enumerate() {
             debug!("loaded module {} to {:?}", index, module.as_ptr());
         }
         
-        let graphics_output = video::setup_video(&header, &systab, &entry.quirks)?;
+        let graphics_output = video::setup_video(&header, systab, &entry.quirks)?;
         
         let (multiboot_information, multiboot_allocator) = prepare_multiboot_information(
-            &entry, &modules_vec, loaded_kernel.symbols_struct().copied(),
+            entry, &modules_vec, loaded_kernel.symbols_struct().copied(),
             graphics_output,
         );
         
@@ -263,7 +263,7 @@ impl<'a> PreparedEntry<'a> {
             // It could be possible that we failed to allocate memory for the kernel in the correct
             // place before. Just copy it now to where is belongs.
             // This is *really* unsafe, please see the documentation comment for details.
-            unsafe { allocation.move_to_where_it_should_be(&mb_mmap) };
+            unsafe { allocation.move_to_where_it_should_be(mb_mmap) };
         }
         // The kernel will need its code and data, so make sure it stays around indefinitely.
         core::mem::forget(self.loaded_kernel.allocations);
