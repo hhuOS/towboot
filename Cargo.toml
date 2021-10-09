@@ -14,12 +14,6 @@ uefi-services = "0.9"
 
 log = { version = "0.4", default-features = false }
 
-# quoting https://github.com/rust-osdev/uefi-rs/blob/v0.6.0/uefi-test-runner/Cargo.toml:
-# > When building using Cargo's `build-std` feature, the `mem` feature of `compiler-builtins`
-# > does not automatically get enabled. Therefore, we have to manually add support for
-# > the memory functions.
-rlibc = "1.0"
-
 toml = { git = "https://github.com/diondokter/toml-rs.git", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 # libm = "0.2"

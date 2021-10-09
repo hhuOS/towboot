@@ -6,7 +6,6 @@
 
 //! towboot – a bootloader for Multiboot kernels on UEFI systems
 
-extern crate rlibc;
 extern crate alloc;
 
 use core::str::FromStr;

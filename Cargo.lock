@@ -245,12 +245,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rlibc"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc874b127765f014d792f16763a81245ab80500e2ad921ed4ee9e82481ee08fe"
-
-[[package]]
 name = "scroll"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -345,14 +339,13 @@ dependencies = [
 
 [[package]]
 name = "towboot"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "built",
  "goblin",
  "log",
  "miniarg",
  "multiboot",
- "rlibc",
  "scroll",
  "serde",
  "toml 0.5.6",
