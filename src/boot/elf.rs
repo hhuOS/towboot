@@ -89,9 +89,11 @@ impl OurElfLoader {
         match self.allocations.get_mut(&base) {
             None => panic!("we didn't allocate {:#x}, but tried to write to it o.O", base),
             Some(alloc) => {
-                if alloc.len < region.len() {
-                    panic!("{:#x} doesn't fit into the memory allocated for it", base);
-                }
+                assert!(
+                    alloc.len >= region.len(),
+                    "{:#x} doesn't fit into the memory allocated for it",
+                    base
+                );
                 let ptr = alloc.as_ptr();
                 debug!(
                     "load {} bytes into {:#x} (at {:#x})", region.len(), base, ptr as usize

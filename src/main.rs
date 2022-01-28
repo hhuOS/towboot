@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(abi_efiapi)]
-#![feature(asm)]
+#![feature(asm_const)]
 #![feature(result_flattening)] // used in boot/mod.rs
 
 //! towboot – a bootloader for Multiboot kernels on UEFI systems

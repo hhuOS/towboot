@@ -9,8 +9,8 @@ use alloc::{
     vec::Vec,
 };
 
+use core::arch::asm;
 use core::convert::TryInto;
-
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::media::file::Directory;
@@ -243,7 +243,7 @@ impl<'a> PreparedEntry<'a> {
         let mut mmap_vec = Vec::<u8>::new();
         let mut mb_mmap_vec = Vec::<MemoryEntry>::new();
         // Leave a bit of room at the end, we only have one chance.
-        let estimated_size = systab.boot_services().memory_map_size() + 100;
+        let estimated_size = systab.boot_services().memory_map_size().map_size + 100;
         mmap_vec.resize(estimated_size, 0);
         mb_mmap_vec.resize(estimated_size, MemoryEntry::default());
         let (_systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())

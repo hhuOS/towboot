@@ -9,16 +9,18 @@
 //! In the long run, they should be reported to `compiler_builtins` and fixed there.
 //! For now, this monkeypatching seems to be enough.
 
-// fmod and fmodf seem to not be supported (yet) by compiler_builtins for uefi
+// fmod and fmodf seem to not be supported (yet) by compiler_builtins for uefi32
 // see https://github.com/rust-lang/compiler-builtins/blob/master/src/math.rs
 // We could use libm::fmod{,f} here, but then we'd need __truncdfsf2.
 // This once was in compiler_builtins, but it's not anymore.
 // see https://github.com/rust-lang/compiler-builtins/pull/262
 // So, let's just hope they are never called.
+#[cfg(target_arch = "x86")]
 #[no_mangle]
 pub extern "C" fn fmod(_x: f64, _y: f64) -> f64 {
     unimplemented!();
 }
+#[cfg(target_arch = "x86")]
 #[no_mangle]
 pub extern "C" fn fmodf(_x: f32, _y: f32) -> f32 {
     unimplemented!();

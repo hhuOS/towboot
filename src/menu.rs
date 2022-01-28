@@ -52,15 +52,20 @@ fn display_menu<'a>(
         ).unwrap();
         // This is safe because there is no callback.
         let timer = unsafe { systab.boot_services().create_event(
-            EventType::TIMER, Tpl::APPLICATION, None
+            EventType::TIMER, Tpl::APPLICATION, None, None
         ) }?.log();
         systab.boot_services().set_timer(
-            timer, TimerTrigger::Relative(u64::from(timeout) * 10_000_000)
+            &timer, TimerTrigger::Relative(u64::from(timeout) * 10_000_000)
         )?.log();
-        let key_event = systab.stdin().wait_for_key_event();
+        // this is safe because we're never calling close_event
+        let key_event = unsafe { systab.stdin().wait_for_key_event().unsafe_clone() };
         loop {
             match systab.boot_services().wait_for_event(
-                &mut [key_event, timer]
+                // this is safe because we're never calling close_event
+                &mut [
+                    unsafe { key_event.unsafe_clone() },
+                    unsafe { timer.unsafe_clone() },
+                ]
             ).discard_errdata()?.log() {
                 // key
                 0 => match systab.stdin().read_key()?.log() {
@@ -72,7 +77,7 @@ fn display_menu<'a>(
                 e => warn!("firmware returned invalid event {}", e),
             }
         }
-        systab.boot_services().set_timer(timer, TimerTrigger::Cancel)?.log();
+        systab.boot_services().set_timer(&timer, TimerTrigger::Cancel)?.log();
     }
     writeln!(systab.stdout(), "available entries:").unwrap();
     for (index, (key, entry)) in config.entries.iter().enumerate() {
@@ -95,10 +100,14 @@ fn select_entry<'a>(
     entries: &'a BTreeMap<String, Entry>, systab: &mut SystemTable<Boot>
 ) -> uefi::Result<&'a Entry> {
     let mut value = String::new();
-    let key_event = systab.stdin().wait_for_key_event();
+    // this is safe because we're never calling close_event
+    let key_event = unsafe { systab.stdin().wait_for_key_event().unsafe_clone() };
     loop {
         write!(systab.stdout(), "\rplease select an entry to boot: {} ", value).unwrap();
-        systab.boot_services().wait_for_event(&mut [key_event]).discard_errdata()?.log();
+        systab.boot_services().wait_for_event(
+            // this is safe because we're never calling close_event
+            &mut [unsafe { key_event.unsafe_clone() }]
+        ).discard_errdata()?.log();
         if let Some(Key::Printable(c)) = systab.stdin().read_key()?.log() {
             match c.into() {
                 '\r' => break, // enter

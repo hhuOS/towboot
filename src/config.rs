@@ -132,13 +132,13 @@ fn parse_load_options(
     }
     if let Some(kernel) = kernel {
         let modules = modules.iter().map(|m| {
-            let (image, argv) = m.split_once(" ").unwrap_or((m, ""));
+            let (image, argv) = m.split_once(' ').unwrap_or((m, ""));
             Module {
                 image: image.to_string(),
                 argv: Some(argv.to_string()),
             }
         }).collect();
-        let (kernel_image, kernel_argv) = kernel.split_once(" ").unwrap_or((kernel, ""));
+        let (kernel_image, kernel_argv) = kernel.split_once(' ').unwrap_or((kernel, ""));
         let mut entries = BTreeMap::new();
         entries.insert("cli".to_string(), Entry {
             argv: Some(kernel_argv.to_string()),

@@ -157,7 +157,12 @@ fn dump_memory_map() {
     debug!("memory map:");
     let mut buf = Vec::new();
     // The docs say that we should allocate a little bit more memory than needed.
-    buf.resize(unsafe { system_table().as_ref() }.boot_services().memory_map_size() + 100, 0);
+    buf.resize(
+        unsafe { system_table().as_ref() }
+        .boot_services()
+        .memory_map_size().map_size + 100,
+        0
+    );
     let (_key, iterator) = unsafe { system_table().as_ref() }.boot_services()
     .memory_map(buf.as_mut_slice()).log_warning().expect("failed to get memory map");
     for descriptor in iterator {
