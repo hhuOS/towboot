@@ -75,7 +75,7 @@ mmd -i part.img efi
 mmd -i part.img efi/boot
 mcopy -i part.img target/$ARCH-unknown-uefi/$BUILD/towboot.efi ::efi/boot/boot$EFIARCH.efi
 mcopy -i part.img towboot.toml ::
-mcopy -i part.img $KERNEL ::multiboot1.elf
+mcopy -i part.img "$KERNEL" ::multiboot1.elf
 
 mkgpt/mkgpt -o image.img --part part.img --type system
 rm part.img
