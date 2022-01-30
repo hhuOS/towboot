@@ -3,18 +3,6 @@
 version = 3
 
 [[package]]
-name = "ahash"
-version = "0.3.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8fd72866655d1904d6b0997d0b07ba561047d070fbe29de039031c641b61217"
-
-[[package]]
-name = "autocfg"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
-
-[[package]]
 name = "bit_field"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -44,7 +32,7 @@ checksum = "7fb04b88bd5b2036e30704f95c6ee16f3b5ca3b4ca307da2889d9006648e5c88"
 dependencies = [
  "semver",
  "serde",
- "toml 0.5.8",
+ "toml 0.5.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "url",
 ]
 
@@ -95,16 +83,6 @@ dependencies = [
  "log",
  "plain",
  "scroll",
-]
-
-[[package]]
-name = "hashbrown"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96282e96bfcd3da0d3aa9938bedf1e50df3269b6db08b4876d2da0bb1a0841cf"
-dependencies = [
- "ahash",
- "autocfg",
 ]
 
 [[package]]
@@ -321,18 +299,17 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "toml"
-version = "0.5.6"
-source = "git+https://github.com/diondokter/toml-rs.git#c4161aa70202b3992dbec79b76e7a8659713b604"
+version = "0.5.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a31142970826733df8241ef35dc040ef98c679ab14d7c3e54d827099b3acecaa"
 dependencies = [
- "hashbrown",
  "serde",
 ]
 
 [[package]]
 name = "toml"
 version = "0.5.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a31142970826733df8241ef35dc040ef98c679ab14d7c3e54d827099b3acecaa"
+source = "git+https://github.com/thomcc/toml-rs.git?branch=nostd#080972fe0e937d82f5adf7f540849e5b6cbc748b"
 dependencies = [
  "serde",
 ]
@@ -348,7 +325,7 @@ dependencies = [
  "multiboot",
  "scroll",
  "serde",
- "toml 0.5.6",
+ "toml 0.5.8 (git+https://github.com/thomcc/toml-rs.git?branch=nostd)",
  "uefi",
  "uefi-services",
 ]
