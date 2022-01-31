@@ -7,8 +7,6 @@
 //!
 //! Also, gathering memory map information for the kernel happens here.
 
-use core::convert::TryInto;
-
 use alloc::alloc::{alloc, dealloc, Layout};
 use alloc::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 use alloc::vec::Vec;

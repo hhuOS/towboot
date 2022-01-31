@@ -1,6 +1,5 @@
 //! Handling of ELF files
 
-use core::convert::TryInto;
 use alloc::collections::btree_map::BTreeMap;
 use alloc::vec::Vec;
 

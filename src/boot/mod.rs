@@ -10,7 +10,6 @@ use alloc::{
 };
 
 use core::arch::asm;
-use core::convert::TryInto;
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::media::file::Directory;

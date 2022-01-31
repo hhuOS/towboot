@@ -3,7 +3,6 @@
 //! The configuration can come from a file or from the command line.
 //! The command line options take precedence if they are specified.
 
-use core::convert::TryInto;
 use core::fmt::Write;
 
 use alloc::collections::{btree_map::BTreeMap, btree_set::BTreeSet};

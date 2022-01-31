@@ -1,6 +1,5 @@
 //! Management of the video mode.
 
-use core::convert::TryInto;
 use alloc::collections::btree_set::BTreeSet;
 use alloc::vec::Vec;
 
