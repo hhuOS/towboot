@@ -55,8 +55,7 @@ pub(super) fn setup_video<'a>(
     // just get the first one
     let output = systab.boot_services().locate_protocol::<GraphicsOutput>().map_err(|e| {
         error!(
-            "Failed to find a graphics output. Do you have a graphics card (and a driver)?: {:?}",
-            e
+            "Failed to find a graphics output. Do you have a graphics card (and a driver)?: {e:?}"
         );
         Status::DEVICE_ERROR
     })?.log();
@@ -73,7 +72,7 @@ pub(super) fn setup_video<'a>(
             modes.iter().find(|m|
                 m.info().resolution() == (w as usize, h as usize)
             ).or_else(|| {
-                warn!("failed to find a matching video mode (kernel wants {}x{})", w, h);
+                warn!("failed to find a matching video mode (kernel wants {w}x{h})");
                 None
             })
         },
@@ -82,7 +81,7 @@ pub(super) fn setup_video<'a>(
     } {
         debug!("chose {:?} as the video mode", mode.info().resolution());
         output.set_mode(mode).map_err(|e| {
-            error!("failed to set video mode: {:?}", e);
+            error!("failed to set video mode: {e:?}");
             Status::DEVICE_ERROR
         })?.log();
         info!("set {:?} as the video mode", mode.info().resolution());
@@ -96,7 +95,7 @@ pub(super) fn prepare_information(
 ) {
     let address = graphics_output.frame_buffer().as_mut_ptr();
     let mode = graphics_output.current_mode_info();
-    debug!("gop mode: {:?}", mode);
+    debug!("gop mode: {mode:?}");
     let (width, height) = mode.resolution();
     let mut bpp = 32;
     let color_info = ColorInfoType::Rgb(
@@ -134,7 +133,7 @@ pub(super) fn prepare_information(
         bpp,
         color_info
     );
-    debug!("passing {:?}", framebuffer_table);
+    debug!("passing {framebuffer_table:?}");
     multiboot.set_framebuffer_table(Some(framebuffer_table));
 }
 

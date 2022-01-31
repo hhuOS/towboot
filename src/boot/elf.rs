@@ -57,7 +57,7 @@ impl OurElfLoader {
     }
     
     fn allocate(&mut self, header: &elf::program_header::ProgramHeader) -> Result<(), &'static str> {
-            trace!("header: {:?}", header);
+            trace!("header: {header:?}");
             debug!(
                 "allocating {} {} bytes at {:#x} for {:#x}",
                 header.p_memsz, header.p_flags, header.p_paddr, header.p_vaddr
@@ -86,12 +86,11 @@ impl OurElfLoader {
     fn load(&mut self, base: u64, region: &[u8]) -> Result<(), &'static str> {
         // check whether we actually allocated this
         match self.allocations.get_mut(&base) {
-            None => panic!("we didn't allocate {:#x}, but tried to write to it o.O", base),
+            None => panic!("we didn't allocate {base:#x}, but tried to write to it o.O"),
             Some(alloc) => {
                 assert!(
                     alloc.len >= region.len(),
-                    "{:#x} doesn't fit into the memory allocated for it",
-                    base
+                    "{base:#x} doesn't fit into the memory allocated for it"
                 );
                 let ptr = alloc.as_ptr();
                 debug!(

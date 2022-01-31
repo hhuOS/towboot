@@ -42,11 +42,11 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
     let mut load_options_buf: [u8; 2048] = [0; 2048];
     let load_options = match loaded_image.load_options(&mut load_options_buf) {
         Ok(s) => {
-            debug!("got load options: {:}", s);
+            debug!("got load options: {s:}");
             Some(s)
         },
         Err(e) => {
-            warn!("failed to get load options: {:?}", e);
+            warn!("failed to get load options: {e:?}");
             warn!("assuming there were none");
             None
         },
@@ -63,7 +63,7 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
         Ok(Some(c)) => c,
         Ok(None) => return Status::SUCCESS,
         Err(e) => {
-            error!("failed to get config: {:?}", e);
+            error!("failed to get config: {e:?}");
             return Status::INVALID_PARAMETER
         }
     };
@@ -71,22 +71,22 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
         if let Ok(level) = log::LevelFilter::from_str(level) {
             log::set_max_level(level);
         } else {
-            warn!("'{}' is not a valid log level, using default", level);
+            warn!("'{level}' is not a valid log level, using default");
         }
     }
-    debug!("config: {:?}", config);
+    debug!("config: {config:?}");
     let entry_to_boot = menu::choose(&config, &mut systab);
-    debug!("okay, trying to load {:?}", entry_to_boot);
-    info!("loading {}...", entry_to_boot);
+    debug!("okay, trying to load {entry_to_boot:?}");
+    info!("loading {entry_to_boot}...");
     
     match boot::PreparedEntry::new(entry_to_boot, &mut volume, &systab) {
         Ok(e) => {
-            info!("booting {}...", entry_to_boot);
+            info!("booting {entry_to_boot}...");
             e.boot(image, systab);
             unreachable!();
         },
         Err(e) => {
-            error!("failed to prepare the entry: {:?}", e);
+            error!("failed to prepare the entry: {e:?}");
             return e // give up
             // TODO: perhaps redisplay the menu or something like that
         },

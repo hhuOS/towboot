@@ -64,7 +64,7 @@ impl Allocation {
         ).log_warning() {
             Ok(ptr) => Ok(Allocation { ptr, len: size, pages: count_pages, should_be_at: None }),
             Err(e) => {
-                warn!("failed to allocate {} bytes of memory at {:x}: {:?}", size, address, e);
+                warn!("failed to allocate {size} bytes of memory at {address:x}: {e:?}");
                 dump_memory_map();
                 warn!("going to allocate it somewhere else and try to move it later");
                 warn!("this might fail without notice");
@@ -90,7 +90,7 @@ impl Allocation {
             MemoryType::LOADER_DATA,
             count_pages
         ).map_err(|e| {
-            error!("failed to allocate {} bytes of memory: {:?}", size, e);
+            error!("failed to allocate {size} bytes of memory: {e:?}");
             dump_memory_map();
             Status::LOAD_ERROR
         })?.unwrap();
@@ -138,7 +138,7 @@ impl Allocation {
                             let src: usize = self.ptr.try_into().unwrap();
                             core::ptr::copy(src as *mut u8, dest as *mut u8, self.len);
                         },
-                        _ => panic!("would overwrite {:?}", entry),
+                        _ => panic!("would overwrite {entry:?}"),
                     }
                 },
                 None => panic!("no memory map entry contains the place we want to write to"),
@@ -164,7 +164,7 @@ fn dump_memory_map() {
     let (_key, iterator) = unsafe { system_table().as_ref() }.boot_services()
     .memory_map(buf.as_mut_slice()).log_warning().expect("failed to get memory map");
     for descriptor in iterator {
-        debug!("{:?}", descriptor);
+        debug!("{descriptor:?}");
     }
 }
 
@@ -220,7 +220,7 @@ impl multiboot::information::MemoryManagement for MultibootAllocator {
         }
         match self.allocations.remove(&addr) {
             None => panic!(
-                "couldn't free memory that has not been previously allocated: {}", addr
+                "couldn't free memory that has not been previously allocated: {addr}"
             ),
             Some(layout) => dealloc(addr as *mut u8, layout)
         }

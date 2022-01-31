@@ -33,7 +33,7 @@ pub fn choose<'a>(config: &'a Config, systab: &mut SystemTable<Boot>) -> &'a Ent
     match display_menu(config, default_entry, systab) {
         Ok(entry) => entry.log(),
         Err(err) => {
-            error!("failed to display menu: {:?}", err);
+            error!("failed to display menu: {err:?}");
             warn!("booting default entry");
             default_entry
         }
@@ -74,7 +74,7 @@ fn display_menu<'a>(
                 },
                 // timer
                 1 => return Ok(Completion::new(Status::SUCCESS, default_entry)),
-                e => warn!("firmware returned invalid event {}", e),
+                e => warn!("firmware returned invalid event {e}"),
             }
         }
         systab.boot_services().set_timer(&timer, TimerTrigger::Cancel)?.log();
@@ -82,14 +82,14 @@ fn display_menu<'a>(
     writeln!(systab.stdout(), "available entries:").unwrap();
     for (index, (key, entry)) in config.entries.iter().enumerate() {
         writeln!(
-            systab.stdout(), "{}. [{}] {}", index, key, entry
+            systab.stdout(), "{index}. [{key}] {entry}"
         ).unwrap();
     }
     loop {
         match select_entry(&config.entries, systab) {
             Ok(entry) => return Ok(entry),
             Err(err) => {
-                writeln!(systab.stdout(), "invalid choice: {:?}", err).unwrap();
+                writeln!(systab.stdout(), "invalid choice: {err:?}").unwrap();
             }
         }
     }
@@ -103,7 +103,7 @@ fn select_entry<'a>(
     // this is safe because we're never calling close_event
     let key_event = unsafe { systab.stdin().wait_for_key_event().unsafe_clone() };
     loop {
-        write!(systab.stdout(), "\rplease select an entry to boot: {} ", value).unwrap();
+        write!(systab.stdout(), "\rplease select an entry to boot: {value} ").unwrap();
         systab.boot_services().wait_for_event(
             // this is safe because we're never calling close_event
             &mut [unsafe { key_event.unsafe_clone() }]

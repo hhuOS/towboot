@@ -30,19 +30,19 @@ impl<'a> File<'a> {
     /// * `Status::NOT_FOUND`: the file does not exist
     /// * `Status::UNSUPPORTED`: the given path does exist, but it's a directory
     pub(crate) fn open(name: &'a str, volume: &mut Directory) -> Result<Self, Status> {
-        info!("loading file '{}'...", name);
+        info!("loading file '{name}'...");
         let file_handle = match volume.open(name, FileMode::Read, FileAttribute::READ_ONLY) {
             Ok(file_handle) => file_handle.unwrap(),
             Err(e) => return {
-                error!("Failed to find file '{}': {:?}", name, e);
+                error!("Failed to find file '{name}': {e:?}");
                 Err(Status::NOT_FOUND)
             }
         };
         let mut file = match file_handle.into_type()
-        .expect_success(&format!("Failed to open file '{}'", name)) {
+        .expect_success(&format!("Failed to open file '{name}'")) {
             FileType::Regular(file) => file,
             FileType::Dir(_) => return {
-                error!("File '{}' is a directory", name);
+                error!("File '{name}' is a directory");
                 Err(Status::UNSUPPORTED)
             }
         };
@@ -57,7 +57,7 @@ impl<'a> File<'a> {
         info_vec.resize(info_size, 0);
         
         let size: usize = file.get_info::<FileInfo>(info_vec.as_mut_slice())
-        .expect(&format!("Failed to get metadata of file '{}'", name))
+        .expect(&format!("Failed to get metadata of file '{name}'"))
         .unwrap().file_size().try_into().unwrap();
         Ok(Self { name, file, size })
     }

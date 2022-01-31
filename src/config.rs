@@ -80,7 +80,7 @@ fn parse_load_options(
     for option in options {
         match option {
             Ok((key, value)) => {
-                trace!("option: {} => {}", key, value);
+                trace!("option: {key} => {value}");
                 match key {
                     LoadOptionKey::Config => config_file = Some(value),
                     LoadOptionKey::Kernel => kernel = Some(value),
@@ -93,7 +93,7 @@ fn parse_load_options(
                         if let Ok(parsed) = parsed {
                             quirks.insert(parsed);
                         } else {
-                            error!("invalid value for quirk: {}", value);
+                            error!("invalid value for quirk: {value}");
                             return Err(Status::INVALID_PARAMETER);
                         }
                     },
@@ -124,7 +124,7 @@ fn parse_load_options(
                 }
             },
             Err(e) => {
-                error!("failed parsing load options: {:?}", e);
+                error!("failed parsing load options: {e:?}");
                 return Err(Status::INVALID_PARAMETER)
             },
         }

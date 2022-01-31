@@ -98,12 +98,12 @@ impl LoadedKernel {
     /// Load a kernel which uses ELF semantics.
     fn new_elf(kernel_vec: Vec<u8>) -> Result<Self, Status> {
         let mut binary = Elf::parse(kernel_vec.as_slice()).map_err(|msg| {
-            error!("failed to parse ELF structure of kernel: {}", msg);
+            error!("failed to parse ELF structure of kernel: {msg}");
             Status::LOAD_ERROR
         })?;
         let mut loader = OurElfLoader::new(binary.entry);
         loader.load_elf(&binary, kernel_vec.as_slice()).map_err(|msg| {
-            error!("failed to load kernel: {}", msg);
+            error!("failed to load kernel: {msg}");
             Status::LOAD_ERROR
         })?;
         let symbols = Some(elf::symbols(&mut binary, kernel_vec.as_slice()));
