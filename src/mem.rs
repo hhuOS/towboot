@@ -40,7 +40,7 @@ impl Drop for Allocation {
         // But this only happens in `PreparedEntry::boot` and this function doesn't return.
         unsafe { system_table().as_ref() }.boot_services().free_pages(self.ptr, self.pages)
         // let's just panic if we can't free
-        .expect("failed to free the allocated memory").unwrap();
+        .expect("failed to free the allocated memory");
     }
 }
 
@@ -61,7 +61,7 @@ impl Allocation {
             AllocateType::Address(address),
             MemoryType::LOADER_DATA,
             count_pages
-        ).log_warning() {
+        ) {
             Ok(ptr) => Ok(Allocation { ptr, len: size, pages: count_pages, should_be_at: None }),
             Err(e) => {
                 warn!("failed to allocate {size} bytes of memory at {address:x}: {e:?}");
@@ -93,7 +93,7 @@ impl Allocation {
             error!("failed to allocate {size} bytes of memory: {e:?}");
             dump_memory_map();
             Status::LOAD_ERROR
-        })?.unwrap();
+        })?;
         Ok(Allocation { ptr, len:size, pages: count_pages, should_be_at: None })
     }
     
@@ -162,7 +162,7 @@ fn dump_memory_map() {
         0
     );
     let (_key, iterator) = unsafe { system_table().as_ref() }.boot_services()
-    .memory_map(buf.as_mut_slice()).log_warning().expect("failed to get memory map");
+    .memory_map(buf.as_mut_slice()).expect("failed to get memory map");
     for descriptor in iterator {
         debug!("{descriptor:?}");
     }

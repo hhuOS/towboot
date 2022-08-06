@@ -9,6 +9,7 @@
 extern crate alloc;
 
 use core::str::FromStr;
+use alloc::string::ToString;
 
 use uefi::prelude::*;
 use uefi::proto::loaded_image::LoadedImage;
@@ -29,21 +30,20 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
     // Putting this comment above the function breaks the entry annotation.
     //! This is the main function.
     //! Startup happens here.
-    uefi_services::init(&mut systab).expect_success("Failed to initialize utilities");
+    uefi_services::init(&mut systab).expect("Failed to initialize utilities");
     
     // get information about the way we were loaded
     // the interesting thing here is the partition handle
     let loaded_image = systab.boot_services()
     .handle_protocol::<LoadedImage>(image)
-    .expect_success("Failed to open loaded image protocol");
+    .expect("Failed to open loaded image protocol");
     let loaded_image = unsafe { &mut *loaded_image.get() };
     
     // get the load options
-    let mut load_options_buf: [u8; 2048] = [0; 2048];
-    let load_options = match loaded_image.load_options(&mut load_options_buf) {
+    let load_options = match loaded_image.load_options_as_cstr16() {
         Ok(s) => {
             debug!("got load options: {s:}");
-            Some(s)
+            Some(s.to_string())
         },
         Err(e) => {
             warn!("failed to get load options: {e:?}");
@@ -55,11 +55,13 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
     // open the filesystem
     let fs = systab.boot_services()
     .handle_protocol::<SimpleFileSystem>(loaded_image.device())
-    .expect_success("Failed to open filesystem");
+    .expect("Failed to open filesystem");
     let fs = unsafe { &mut *fs.get() };
-    let mut volume = fs.open_volume().expect_success("Failed to open root directory");
+    let mut volume = fs.open_volume().expect("Failed to open root directory");
     
-    let config = match config::get(&mut volume, &mut systab, load_options) {
+    let config = match config::get(
+        &mut volume, &mut systab, load_options.as_deref(),
+    ) {
         Ok(Some(c)) => c,
         Ok(None) => return Status::SUCCESS,
         Err(e) => {

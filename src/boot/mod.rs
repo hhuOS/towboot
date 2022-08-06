@@ -246,7 +246,7 @@ impl<'a> PreparedEntry<'a> {
         mmap_vec.resize(estimated_size, 0);
         mb_mmap_vec.resize(estimated_size, MemoryEntry::default());
         let (_systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())
-        .expect("failed to exit boot services").unwrap();
+        .expect("failed to exit boot services");
         // now, write! won't work anymore. Also, we can't allocate any memory.
         
         // Passing the memory map has to happen here,

@@ -58,9 +58,9 @@ pub(super) fn setup_video<'a>(
             "Failed to find a graphics output. Do you have a graphics card (and a driver)?: {e:?}"
         );
         Status::DEVICE_ERROR
-    })?.log();
+    })?;
     let output = unsafe { &mut *output.get() };
-    let modes: Vec<Mode> = output.modes().map(uefi::Completion::log).collect();
+    let modes: Vec<Mode> = output.modes().collect();
     debug!(
         "available video modes: {:?}",
         modes.iter().map(Mode::info).map(|i| (i.resolution(), i.pixel_format()))
@@ -83,7 +83,7 @@ pub(super) fn setup_video<'a>(
         output.set_mode(mode).map_err(|e| {
             error!("failed to set video mode: {e:?}");
             Status::DEVICE_ERROR
-        })?.log();
+        })?;
         info!("set {:?} as the video mode", mode.info().resolution());
     }
     Ok(output)

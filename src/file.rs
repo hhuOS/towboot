@@ -7,6 +7,7 @@ use alloc::vec::Vec;
 use log::{info, error};
 
 use uefi::prelude::*;
+use uefi::CStr16;
 use uefi::proto::media::file::{
     Directory, File as UefiFile, FileAttribute, FileInfo, FileMode, FileType, RegularFile
 };
@@ -31,15 +32,24 @@ impl<'a> File<'a> {
     /// * `Status::UNSUPPORTED`: the given path does exist, but it's a directory
     pub(crate) fn open(name: &'a str, volume: &mut Directory) -> Result<Self, Status> {
         info!("loading file '{name}'...");
-        let file_handle = match volume.open(name, FileMode::Read, FileAttribute::READ_ONLY) {
-            Ok(file_handle) => file_handle.unwrap(),
+        let mut filename_buf = [0; 1024];
+        let file_handle = match volume.open(
+            CStr16::from_str_with_buf(name, &mut filename_buf)
+            .map_err(|e| {
+                error!("filename is invalid because of {e:?}");
+                Status::PROTOCOL_ERROR
+            })?,
+            FileMode::Read,
+            FileAttribute::READ_ONLY,
+        ) {
+            Ok(file_handle) => file_handle,
             Err(e) => return {
                 error!("Failed to find file '{name}': {e:?}");
                 Err(Status::NOT_FOUND)
             }
         };
         let mut file = match file_handle.into_type()
-        .expect_success(&format!("Failed to open file '{name}'")) {
+        .expect(&format!("Failed to open file '{name}'")) {
             FileType::Regular(file) => file,
             FileType::Dir(_) => return {
                 error!("File '{name}' is a directory");
@@ -58,7 +68,7 @@ impl<'a> File<'a> {
         
         let size: usize = file.get_info::<FileInfo>(info_vec.as_mut_slice())
         .expect(&format!("Failed to get metadata of file '{name}'"))
-        .unwrap().file_size().try_into().unwrap();
+        .file_size().try_into().unwrap();
         Ok(Self { name, file, size })
     }
     
@@ -71,7 +81,7 @@ impl<'a> File<'a> {
     ) -> Result<Allocation, Status> {
         let mut allocation = Allocation::new_under_4gb(self.size, quirks)?;
         let read_size = self.file.read(allocation.as_mut_slice())
-        .log_warning().map_err(|e| {
+        .map_err(|e| {
             error!("Failed to read from file '{}': {:?}", self.name, e);
             e.status()
         })?;
@@ -94,7 +104,7 @@ impl<'a> TryFrom<File<'a>> for Vec<u8> {
         let mut content_vec = Vec::<u8>::new();
         content_vec.resize(file.size, 0);
         let read_size = file.file.read(content_vec.as_mut_slice())
-        .log_warning().map_err(|e| {
+        .map_err(|e| {
             error!("Failed to read from file '{}': {:?}", file.name, e);
             e.status()
         })?;

@@ -4,7 +4,6 @@ use alloc::collections::btree_map::BTreeMap;
 use alloc::string::String;
 
 use uefi::prelude::*;
-use uefi::Completion;
 use uefi::proto::console::text::{Key, ScanCode};
 use uefi::table::boot::{EventType, TimerTrigger, Tpl};
 
@@ -31,7 +30,7 @@ pub fn choose<'a>(config: &'a Config, systab: &mut SystemTable<Boot>) -> &'a Ent
         return default_entry
     }
     match display_menu(config, default_entry, systab) {
-        Ok(entry) => entry.log(),
+        Ok(entry) => entry,
         Err(err) => {
             error!("failed to display menu: {err:?}");
             warn!("booting default entry");
@@ -53,10 +52,10 @@ fn display_menu<'a>(
         // This is safe because there is no callback.
         let timer = unsafe { systab.boot_services().create_event(
             EventType::TIMER, Tpl::APPLICATION, None, None
-        ) }?.log();
+        ) }?;
         systab.boot_services().set_timer(
             &timer, TimerTrigger::Relative(u64::from(timeout) * 10_000_000)
-        )?.log();
+        )?;
         // this is safe because we're never calling close_event
         let key_event = unsafe { systab.stdin().wait_for_key_event().unsafe_clone() };
         loop {
@@ -66,18 +65,18 @@ fn display_menu<'a>(
                     unsafe { key_event.unsafe_clone() },
                     unsafe { timer.unsafe_clone() },
                 ]
-            ).discard_errdata()?.log() {
+            ).discard_errdata()? {
                 // key
-                0 => match systab.stdin().read_key()?.log() {
+                0 => match systab.stdin().read_key()? {
                     Some(Key::Special(ScanCode::ESCAPE)) => break,
                     _ => (),
                 },
                 // timer
-                1 => return Ok(Completion::new(Status::SUCCESS, default_entry)),
+                1 => return Ok(default_entry),
                 e => warn!("firmware returned invalid event {e}"),
             }
         }
-        systab.boot_services().set_timer(&timer, TimerTrigger::Cancel)?.log();
+        systab.boot_services().set_timer(&timer, TimerTrigger::Cancel)?;
     }
     writeln!(systab.stdout(), "available entries:").unwrap();
     for (index, (key, entry)) in config.entries.iter().enumerate() {
@@ -107,8 +106,8 @@ fn select_entry<'a>(
         systab.boot_services().wait_for_event(
             // this is safe because we're never calling close_event
             &mut [unsafe { key_event.unsafe_clone() }]
-        ).discard_errdata()?.log();
-        if let Some(Key::Printable(c)) = systab.stdin().read_key()?.log() {
+        ).discard_errdata()?;
+        if let Some(Key::Printable(c)) = systab.stdin().read_key()? {
             match c.into() {
                 '\r' => break, // enter
                 '\u{8}' => {value.pop();}, // backspace
@@ -121,5 +120,5 @@ fn select_entry<'a>(
     match value.parse::<usize>() {
         Ok(index) => entries.values().nth(index),
         Err(_) => entries.get(&value),
-    }.ok_or(Status::INVALID_PARAMETER.into()).map(|v| Completion::new(Status::SUCCESS, v))
+    }.ok_or(Status::INVALID_PARAMETER.into())
 }
