@@ -14,6 +14,7 @@ use log::{trace, error};
 
 use uefi::prelude::*;
 use uefi::proto::media::file::Directory;
+use uefi_services::system_table;
 
 use miniarg::{ArgumentIterator, Key};
 
@@ -34,10 +35,10 @@ const CONFIG_FILE: &str = "\\towboot.toml";
 ///
 /// Returns None if just a help text has been displayed.
 pub fn get(
-    volume: &mut Directory, systab: &mut SystemTable<Boot>, load_options: Option<&str>
+    volume: &mut Directory, load_options: Option<&str>,
 ) -> Result<Option<Config>, Status> {
     let config_source: ConfigSource = match load_options {
-        Some(lo) => match parse_load_options(lo, systab)? {
+        Some(lo) => match parse_load_options(lo)? {
             Some(cs) => cs,
             None => return Ok(None),
         },
@@ -69,7 +70,7 @@ fn read_file(volume: &mut Directory, file_name: &str) -> Result<Config, Status> 
 ///
 /// [`LoadOptionKey`]: enum.LoadOptionKey.html
 fn parse_load_options(
-    load_options: &str, systab: &mut SystemTable<Boot>
+    load_options: &str,
 ) -> Result<Option<ConfigSource>, Status> {
     let options = LoadOptionKey::parse(load_options);
     let mut config_file = None;
@@ -99,13 +100,14 @@ fn parse_load_options(
                     },
                     LoadOptionKey::Help => {
                         writeln!(
-                            systab.stdout(), "Usage:\n{}", LoadOptionKey::help_text()
+                            unsafe { system_table().as_mut() }.stdout(),
+                            "Usage:\n{}", LoadOptionKey::help_text(),
                         ).unwrap();
                         return Ok(None)
                     },
                     LoadOptionKey::Version => {
                         writeln!(
-                            systab.stdout(),
+                            unsafe { system_table().as_mut() }.stdout(),
                             "This is {} {}{}, built as {} for {} on {}. It is licensed under the {}.",
                             built_info::PKG_NAME,
                             built_info::GIT_VERSION.unwrap(),
