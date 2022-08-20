@@ -15,6 +15,7 @@ use uefi::prelude::*;
 use uefi::table::boot::OpenProtocolAttributes;
 use uefi::table::boot::OpenProtocolParams;
 use uefi::proto::loaded_image::LoadedImage;
+use uefi::proto::loaded_image::LoadOptionsError;
 use uefi::proto::media::fs::SimpleFileSystem;
 
 use log::{debug, info, warn, error};
@@ -70,6 +71,10 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
             Ok(s) => {
                 debug!("got load options: {s:}");
                 Some(s.to_string())
+            },
+            Err(LoadOptionsError::NotSet) => {
+                debug!("got no load options");
+                None
             },
             Err(e) => {
                 warn!("failed to get load options: {e:?}");
