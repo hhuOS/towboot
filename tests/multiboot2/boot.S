@@ -87,7 +87,7 @@ framebuffer_tag_start:
 framebuffer_tag_end:
         .short MULTIBOOT_HEADER_TAG_END
         .short 0
-        .long 8
+        .long multiboot_header_end - framebuffer_tag_end +1
 multiboot_header_end:
 multiboot_entry:
         /*  Initialize the stack pointer. */
