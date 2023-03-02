@@ -16,16 +16,16 @@ use uefi::proto::media::file::Directory;
 
 use log::{debug, info, error};
 
-use multiboot::header::{Header, MultibootAddresses};
-use multiboot::information::{
-    MemoryEntry, Module, Multiboot, MultibootInfo, SIGNATURE_EAX, SymbolType
+use multiboot12::header::{Header, Addresses as MultibootAddresses};
+use multiboot12::information::{
+    Module, InfoBuilder, Symbols
 };
 
 use goblin::elf::Elf;
 
 use super::config::{Entry, Quirk};
 use super::file::File;
-use super::mem::{Allocation, MultibootAllocator};
+use super::mem::Allocation;
 
 mod elf;
 mod video;
@@ -42,7 +42,7 @@ enum Addresses {
 struct LoadedKernel {
     allocations: Vec<Allocation>,
     addresses: Addresses,
-    symbols: Option<(SymbolType, Vec<u8>)>,
+    symbols: Option<(Symbols, Vec<u8>)>,
 }
 
 impl LoadedKernel {
@@ -52,8 +52,10 @@ impl LoadedKernel {
         kernel_vec: Vec<u8>, header: &Header, quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
         match (header.get_addresses(), quirks.contains(&Quirk::ForceElf)) {
-            (Some(addr), false) => LoadedKernel::new_multiboot(kernel_vec, addr, header.header_start),
-            _ => LoadedKernel::new_elf(kernel_vec),
+            (Some(addr), false) => LoadedKernel::new_multiboot(
+                kernel_vec, addr, header.header_start()
+            ),
+            _ => LoadedKernel::new_elf(header, kernel_vec),
         }
     }
     
@@ -69,19 +71,16 @@ impl LoadedKernel {
         info!("moving the kernel to its desired location...");
         let load_offset = addresses.compute_load_offset(header_start);
         // allocate
-        let kernel_length: usize = {
-            if addresses.bss_end_address == 0 {addresses.load_end_address - addresses.load_address}
-            else {addresses.bss_end_address - addresses.load_address}
-        }.try_into().unwrap();
+        let kernel_length: usize = addresses.compute_kernel_length().try_into().unwrap();
         let mut allocation = Allocation::new_at(
-            addresses.load_address.try_into().unwrap(), kernel_length
+            addresses.load_addr().try_into().unwrap(), kernel_length
         )?;
         let kernel_buf = allocation.as_mut_slice();
         // copy from beginning of text to end of data segment and fill the rest with zeroes
         kernel_buf.iter_mut().zip(
             kernel_vec.iter()
             .skip(load_offset.try_into().unwrap())
-            .take((addresses.load_end_address - addresses.load_address).try_into().unwrap())
+            .take((addresses.load_end_addr() - addresses.load_addr()).try_into().unwrap())
             .chain(core::iter::repeat(&0))
         )
         .for_each(|(dst,src)| *dst = *src);
@@ -96,7 +95,7 @@ impl LoadedKernel {
     }
     
     /// Load a kernel which uses ELF semantics.
-    fn new_elf(kernel_vec: Vec<u8>) -> Result<Self, Status> {
+    fn new_elf(header: &Header, kernel_vec: Vec<u8>) -> Result<Self, Status> {
         let mut binary = Elf::parse(kernel_vec.as_slice()).map_err(|msg| {
             error!("failed to parse ELF structure of kernel: {msg}");
             Status::LOAD_ERROR
@@ -106,7 +105,7 @@ impl LoadedKernel {
             error!("failed to load kernel: {msg}");
             Status::LOAD_ERROR
         })?;
-        let symbols = Some(elf::symbols(&mut binary, kernel_vec.as_slice()));
+        let symbols = Some(elf::symbols(header, &mut binary, kernel_vec.as_slice()));
         let entry_point = loader.entry_point();
         Ok(Self{
             allocations: loader.into(),
@@ -117,33 +116,31 @@ impl LoadedKernel {
     
     /// Get the symbols struct.
     /// This is needed for the Multiboot Information struct.
-    fn symbols_struct(&self) -> Option<&SymbolType> {
+    fn symbols_struct(&self) -> Option<&Symbols> {
         self.symbols.as_ref().map(|(s, _v)| s)
     }
 }
 
 /// Prepare information for the kernel.
 fn prepare_multiboot_information(
-    entry: &Entry, modules: &[Allocation], symbols: Option<SymbolType>,
-    graphics_output: &mut GraphicsOutput
-) -> (MultibootInfo, MultibootAllocator) {
-    let mut info = MultibootInfo::default();
-    let mut allocator = MultibootAllocator::new();
-    let mut multiboot = Multiboot::from_ref(&mut info, &mut allocator);
+    entry: &Entry, header: Header, modules: &[Allocation],
+    symbols: Option<Symbols>, graphics_output: &mut GraphicsOutput,
+) -> InfoBuilder {
+    let mut info_builder = header.info_builder();
     
     // We don't have much information about the partition we loaded the kernel from.
     // There's the UEFI Handle, but the kernel probably won't understand that.
     
-    multiboot.set_command_line(entry.argv.as_deref());
+    info_builder.set_command_line(entry.argv.as_deref());
     let mb_modules: Vec<Module> = modules.iter().zip(entry.modules.iter()).map(|(module, module_entry)| {
-        Module::new(
+        info_builder.new_module(
             module.as_ptr() as u64,
             unsafe { module.as_ptr().offset(module.len.try_into().unwrap()) as u64 },
             module_entry.argv.as_deref()
         )
     }).collect();
-    multiboot.set_modules(Some(&mb_modules));
-    multiboot.set_symbols(symbols);
+    info_builder.set_modules(Some(mb_modules));
+    info_builder.set_symbols(symbols);
     
     // Passing memory information happens after exiting BootServices,
     // so we don't accidentally allocate or deallocate, making the data obsolete.
@@ -155,7 +152,7 @@ fn prepare_multiboot_information(
     
     // There is no BIOS config table.
     
-    multiboot.set_boot_loader_name(Some(&format!(
+    info_builder.set_boot_loader_name(Some(&format!(
         "{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")
     )));
     
@@ -163,16 +160,15 @@ fn prepare_multiboot_information(
     
     // There is no VBE information.
     
-    video::prepare_information(&mut multiboot, graphics_output);
+    video::prepare_information(&mut info_builder, graphics_output);
     
-    (info, allocator)
+    info_builder
 }
 
 pub(crate) struct PreparedEntry<'a> {
     entry: &'a Entry,
     loaded_kernel: LoadedKernel,
-    multiboot_information: MultibootInfo,
-    multiboot_allocator: MultibootAllocator,
+    multiboot_information: InfoBuilder,
     modules_vec: Vec<Allocation>,
 }
 
@@ -214,14 +210,13 @@ impl<'a> PreparedEntry<'a> {
         
         let graphics_output = video::setup_video(&header, systab, &entry.quirks)?;
         
-        let (multiboot_information, multiboot_allocator) = prepare_multiboot_information(
-            entry, &modules_vec, loaded_kernel.symbols_struct().copied(),
-            graphics_output,
+        let multiboot_information = prepare_multiboot_information(
+            entry, header, &modules_vec,
+            loaded_kernel.symbols_struct().copied(), graphics_output,
         );
         
         Ok(PreparedEntry {
-            entry, loaded_kernel, multiboot_information,
-            multiboot_allocator, modules_vec,
+            entry, loaded_kernel, multiboot_information, modules_vec,
         })
     }
     
@@ -240,22 +235,21 @@ impl<'a> PreparedEntry<'a> {
         // also, keep a bit of room
         info!("exiting boot services...");
         let mut mmap_vec = Vec::<u8>::new();
-        let mut mb_mmap_vec = Vec::<MemoryEntry>::new();
         // Leave a bit of room at the end, we only have one chance.
         let estimated_size = systab.boot_services().memory_map_size().map_size + 100;
         mmap_vec.resize(estimated_size, 0);
-        mb_mmap_vec.resize(estimated_size, MemoryEntry::default());
-        let (_systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())
-        .expect("failed to exit boot services");
-        // now, write! won't work anymore. Also, we can't allocate any memory.
+        let mut mb_mmap_vec = self.multiboot_information
+            .allocate_memory_info_vec(estimated_size);
+        let (_key, mmap_iter) = systab.boot_services().memory_map(mmap_vec.as_mut_slice()).unwrap();
+        // let (_systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())
+        // .expect("failed to exit boot services");
+        // // now, write! won't work anymore. Also, we can't allocate any memory.
         
         // Passing the memory map has to happen here,
         // since we can't allocate or deallocate anymore.
-        let mut multiboot = Multiboot::from_ref(
-            &mut self.multiboot_information, &mut self.multiboot_allocator
-        );
         let mb_mmap = super::mem::prepare_information(
-            &mut multiboot, mmap_iter, mb_mmap_vec.leak()
+            &mut self.multiboot_information,
+            mmap_iter, mb_mmap_vec.leak()
         );
         
         for allocation in &mut self.loaded_kernel.allocations {
@@ -272,9 +266,11 @@ impl<'a> PreparedEntry<'a> {
         core::mem::forget(self.loaded_kernel.symbols);
         
         let entry_address = match &self.loaded_kernel.addresses {
-            Addresses::Multiboot(addr) => addr.entry_address as usize,
+            Addresses::Multiboot(addr) => addr.entry_addr() as usize,
             Addresses::Elf(e) => *e,
         };
+        let (info, signature) = self.multiboot_information.build();
+        debug!("passing {}...", signature);
         
         unsafe {
             asm!(
@@ -283,7 +279,10 @@ impl<'a> PreparedEntry<'a> {
                 // so this has no effect.
                 // If we're built for x86_64, this brings us to compatibility mode.
                 ".code32",
-                
+
+                // copy the signature
+                "mov ebp, eax",
+
                 // 3.2 Machine state says:
                 
                 // > ‘CS’: Must be a 32-bit read/execute code segment with an offset of ‘0’
@@ -300,11 +299,6 @@ impl<'a> PreparedEntry<'a> {
                 // virtual 8086 mode can't be set, as we're 32 or 64 bit code
                 // (and changing that flag is rather difficult)
 
-                // Writing to RBX (and thus EBX) using in("ebx") is forbidden,
-                // since this register is used internally by LLVM.
-                // Thus, we need to write the mulitboot information address to EAX
-                // and copy it into EBX here.
-                "mov ebx, eax",
 
                 // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
                 // > Other bits are all undefined.
@@ -331,12 +325,12 @@ impl<'a> PreparedEntry<'a> {
                 "wrmsr",
                 
                 // write the signature to EAX
-                "mov eax, {}",
+                "mov eax, ebp",
                 // finally jump to the kernel
                 "jmp edi",
                 
-                const SIGNATURE_EAX,
-                in("eax") &self.multiboot_information,
+                in("eax") signature,
+                in("ebx") &info,
                 in("edi") entry_address,
                 options(noreturn),
             );

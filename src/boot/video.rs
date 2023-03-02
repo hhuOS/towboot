@@ -8,8 +8,8 @@ use uefi::proto::console::gop::{GraphicsOutput, Mode, PixelBitmask, PixelFormat}
 
 use log::{debug, warn, info, error};
 
-use multiboot::header::{Header, VideoModeType};
-use multiboot::information::{ColorInfoType, ColorInfoRgb, FramebufferTable, Multiboot};
+use multiboot12::header::Header;
+use multiboot12::information::{InfoBuilder, ColorInfo};
 
 use super::super::config::Quirk;
 
@@ -24,8 +24,8 @@ pub(super) fn setup_video<'a>(
     let wanted_resolution = match (
         header.get_preferred_video_mode(), quirks.contains(&Quirk::KeepResolution)
     ) {
-        (Some(mode), false) => match mode.mode_type() {
-            Some(VideoModeType::LinearGraphics) => {
+        (Some(mode), false) => {
+            if mode.is_graphics() {
                 // lets just hope that the firmware supports 24-bit RGB
                 // the other modes are way too obscure
                 // 0 means "no preference"
@@ -35,20 +35,15 @@ pub(super) fn setup_video<'a>(
                         mode.depth().unwrap()
                     );
                 }
-                Some((mode.width, mode.height))
-            },
-            Some(VideoModeType::TextMode) => {
+                Some((mode.width().unwrap(), mode.height().unwrap()))
+            } else {
                 // We could set the console to this resolution,
                 // but if the kernel doesn't have any EFI support, it won't be able to use it.
                 // So, just chose a video mode and hope that the kernel supports video.
                 // TODO: Perhaps support EFI text mode later on.
                 warn!("text mode is not implemented");
                 None
-            },
-            None => {
-                warn!("kernel wants unknown video mode");
-                None
-            },
+            }
         },
         _ => None,
     };
@@ -91,62 +86,61 @@ pub(super) fn setup_video<'a>(
 
 /// Pass the framebuffer information to the kernel.
 pub(super) fn prepare_information(
-    multiboot: &mut Multiboot, graphics_output: &mut GraphicsOutput
+    multiboot: &mut InfoBuilder, graphics_output: &mut GraphicsOutput
 ) {
     let address = graphics_output.frame_buffer().as_mut_ptr();
     let mode = graphics_output.current_mode_info();
     debug!("gop mode: {mode:?}");
     let (width, height) = mode.resolution();
     let mut bpp = 32;
-    let color_info = ColorInfoType::Rgb(
-        match mode.pixel_format() {
-            PixelFormat::Rgb => ColorInfoRgb {
-                red_field_position: 0,
-                red_mask_size: 8,
-                green_field_position: 8,
-                green_mask_size: 8,
-                blue_field_position: 16,
-                blue_mask_size: 8,
-            },
-            PixelFormat::Bgr => ColorInfoRgb {
-                red_field_position: 16,
-                red_mask_size: 8,
-                green_field_position: 8,
-                green_mask_size: 8,
-                blue_field_position: 0,
-                blue_mask_size: 8,
-            },
-            PixelFormat::Bitmask => {
-                let bitmask = mode.pixel_bitmask().unwrap();
-                bpp = bitmask_to_bpp(bitmask);
-                bitmask_to_color_info(bitmask)
-            },
-            PixelFormat::BltOnly => panic!("GPU doesn't support pixel access"),
-        }
-    );
+    let color_info = match mode.pixel_format() {
+        PixelFormat::Rgb => multiboot.new_color_info_rgb(
+            0,
+            8,
+            8,
+            8,
+            6,
+            8,
+        ),
+        PixelFormat::Bgr => multiboot.new_color_info_rgb(
+            16,
+            8,
+            8,
+            8,
+            0,
+            8,
+        ),
+        PixelFormat::Bitmask => {
+            let bitmask = mode.pixel_bitmask().unwrap();
+            bpp = bitmask_to_bpp(bitmask);
+            bitmask_to_color_info(multiboot, bitmask)
+        },
+        PixelFormat::BltOnly => panic!("GPU doesn't support pixel access"),
+    };
     let pitch = mode.stride() * (bpp / 8) as usize;
-    let framebuffer_table = FramebufferTable::new(
+    let framebuffer_table = color_info.to_framebuffer_info(
         address as u64,
         pitch.try_into().unwrap(),
         width.try_into().unwrap(),
         height.try_into().unwrap(),
         bpp,
-        color_info
     );
     debug!("passing {framebuffer_table:?}");
     multiboot.set_framebuffer_table(Some(framebuffer_table));
 }
 
 /// Converts UEFI's `PixelBitmask` to Multiboot's `ColorInfoRGB`.
-fn bitmask_to_color_info(pixel_bitmask: PixelBitmask) -> ColorInfoRgb {
+fn bitmask_to_color_info(
+    info_builder: &InfoBuilder, pixel_bitmask: PixelBitmask
+) -> ColorInfo {
     let (red_field_position, red_mask_size) = parse_color_bitmap(pixel_bitmask.red);
     let (green_field_position, green_mask_size) = parse_color_bitmap(pixel_bitmask.green);
     let (blue_field_position, blue_mask_size) = parse_color_bitmap(pixel_bitmask.blue);
-    ColorInfoRgb {
+    info_builder.new_color_info_rgb(
         red_field_position, red_mask_size,
         green_field_position, green_mask_size,
         blue_field_position, blue_mask_size,
-    }
+    )
 }
 
 macro_rules! check_bit {

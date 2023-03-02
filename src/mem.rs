@@ -7,8 +7,7 @@
 //!
 //! Also, gathering memory map information for the kernel happens here.
 
-use alloc::alloc::{alloc, dealloc, Layout};
-use alloc::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
+use alloc::collections::btree_set::BTreeSet;
 use alloc::vec::Vec;
 
 use uefi::prelude::*;
@@ -123,7 +122,7 @@ impl Allocation {
     /// This is unsafe: In the worst case we could overwrite ourselves, our variables,
     /// the Multiboot info struct or anything referenced therein.
     pub(crate) unsafe fn move_to_where_it_should_be(
-        &mut self, memory_map: &[multiboot::information::MemoryEntry]
+        &mut self, memory_map: &[multiboot12::information::MemoryEntry]
     ) {
         if let Some(a) = self.should_be_at {
             let mut filter = memory_map.iter().filter(|e|
@@ -133,7 +132,7 @@ impl Allocation {
             match filter.next() {
                 Some(entry) => {
                     match entry.memory_type() {
-                        multiboot::information::MemoryType::Available => {
+                        multiboot12::information::MemoryType::Available => {
                             let dest: usize = a.try_into().unwrap();
                             let src: usize = self.ptr.try_into().unwrap();
                             core::ptr::copy(src as *mut u8, dest as *mut u8, self.len);
@@ -169,96 +168,38 @@ fn dump_memory_map() {
 }
 
 
-/// Proxy Rust's allocator to the multiboot crate.
-pub(super) struct MultibootAllocator {
-    allocations: BTreeMap<multiboot::information::PAddr, Layout>
-}
-
-impl MultibootAllocator {
-    /// Initialize the allocator.
-    pub(super) fn new() -> Self {
-        MultibootAllocator { allocations: BTreeMap::new() }
-    }
-}
-
-impl multiboot::information::MemoryManagement for MultibootAllocator {
-    /// Get a slice to the memory referenced by the pointer.
-    unsafe fn paddr_to_slice(
-        &self, addr: multiboot::information::PAddr, _length: usize
-    ) -> Option<&'static [u8]> {
-        // Using layout.size instead of length brings us safety, but may be too strict.
-        self.allocations.get(&addr).map(|layout|
-            core::slice::from_raw_parts(addr as *const u8, layout.size())
-        )
-    }
-
-    /// Allocate n bytes of memory and return the address.
-    unsafe fn allocate(
-        &mut self, length: usize
-    ) -> Option<(multiboot::information::PAddr, &mut [u8])> {
-        let layout = Layout::array::<u8>(length).expect("tried to allocate more than usize");
-        let ptr = alloc(layout);
-        if ptr as usize >= u32::MAX as usize {
-            error!("couldn't allocate memory below 4GB");
-            return None
-        }
-        if ptr.is_null() {
-            error!("failed to allocate memory");
-            None
-        } else {
-            self.allocations.insert(ptr as multiboot::information::PAddr, layout);
-            Some((
-                ptr as multiboot::information::PAddr, core::slice::from_raw_parts_mut(ptr, length)
-            ))
-        }
-    }
-    
-    /// Free the previously allocated memory.
-    unsafe fn deallocate(&mut self, addr: multiboot::information::PAddr) {
-        if addr == 0 {
-            return;
-        }
-        match self.allocations.remove(&addr) {
-            None => panic!(
-                "couldn't free memory that has not been previously allocated: {addr}"
-            ),
-            Some(layout) => dealloc(addr as *mut u8, layout)
-        }
-    }
-}
-
 /// Pass the memory map to the kernel.
 ///
 /// This needs to have a buffer to write to because we can't allocate memory anymore.
 /// (The buffer may be too large.)
 pub(super) fn prepare_information<'a, I>(
-    multiboot: &mut multiboot::information::Multiboot, mmap_iter: I,
-    mb_mmap_buf: &'static mut[multiboot::information::MemoryEntry]
-) -> &'static [multiboot::information::MemoryEntry]
+    multiboot: &mut multiboot12::information::InfoBuilder, mmap_iter: I,
+    mb_mmap_buf: &'static mut[multiboot12::information::MemoryEntry]
+) -> &'static [multiboot12::information::MemoryEntry]
 where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
     // Descriptors are the ones from UEFI, Entries are the ones from Multiboot.
     let mut count = 0;
     let mut entry_iter = mb_mmap_buf.iter_mut();
     let mut current_entry = entry_iter.next().unwrap();
     for descriptor in mmap_iter {
-        let next_entry = multiboot::information::MemoryEntry::new(
+        let next_entry = multiboot.new_memory_entry(
             descriptor.phys_start, descriptor.page_count * PAGE_SIZE as u64, match descriptor.ty {
                 // after we've started the kernel, no-one needs our code or data
                 MemoryType::LOADER_CODE | MemoryType::LOADER_DATA
                 | MemoryType::BOOT_SERVICES_CODE | MemoryType::BOOT_SERVICES_DATA
-                => multiboot::information::MemoryType::Available,
+                => multiboot12::information::MemoryType::Available,
                 // the kernel may want to use UEFI Runtime Services
                 MemoryType::RUNTIME_SERVICES_CODE | MemoryType::RUNTIME_SERVICES_DATA
-                => multiboot::information::MemoryType::Reserved,
+                => multiboot12::information::MemoryType::Reserved,
                 // it's free memory!
-                MemoryType::CONVENTIONAL => multiboot::information::MemoryType::Available,
-                MemoryType::UNUSABLE => multiboot::information::MemoryType::Defect,
-                MemoryType::ACPI_RECLAIM => multiboot::information::MemoryType::ACPI,
-                MemoryType::ACPI_NON_VOLATILE => multiboot::information::MemoryType::NVS,
+                MemoryType::CONVENTIONAL => multiboot12::information::MemoryType::Available,
+                MemoryType::UNUSABLE => multiboot12::information::MemoryType::Defective,
+                MemoryType::ACPI_RECLAIM => multiboot12::information::MemoryType::AcpiAvailable,
+                MemoryType::ACPI_NON_VOLATILE => multiboot12::information::MemoryType::ReservedHibernate,
                 MemoryType::MMIO | MemoryType::MMIO_PORT_SPACE | MemoryType::PAL_CODE
-                => multiboot::information::MemoryType::Reserved,
-                MemoryType::PERSISTENT_MEMORY => multiboot::information::MemoryType::Available,
-                _ => multiboot::information::MemoryType::Reserved, // better be safe than sorry
+                => multiboot12::information::MemoryType::Reserved,
+                MemoryType::PERSISTENT_MEMORY => multiboot12::information::MemoryType::Available,
+                _ => multiboot12::information::MemoryType::Reserved, // better be safe than sorry
             }
         );
         if count == 0 {
@@ -273,7 +214,7 @@ where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
                     current_entry.base_address() + current_entry.length()
                 )
             ) {
-                *current_entry = multiboot::information::MemoryEntry::new(
+                *current_entry = multiboot.new_memory_entry(
                     current_entry.base_address(),
                     current_entry.length() + next_entry.length(),
                     current_entry.memory_type(),
@@ -297,8 +238,7 @@ where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
     .unwrap().length() / 1024;
     multiboot.set_memory_bounds(Some((lower.try_into().unwrap(), upper.try_into().unwrap())));
     
-    multiboot.set_memory_regions(Some((
-        mb_mmap_buf.as_ptr() as multiboot::information::PAddr, count
-    )));
+    // TODO: this allocates!
+    multiboot.set_memory_regions(Some(mb_mmap_buf[0..count].to_vec()));
     &mb_mmap_buf[0..count]
 }

@@ -9,7 +9,8 @@ use goblin::elf;
 use goblin::container;
 use scroll::ctx::IntoCtx;
 
-use multiboot::information::{ElfSymbols, SymbolType};
+use multiboot12::header::Header;
+use multiboot12::information::Symbols;
 
 use super::super::mem::Allocation;
 
@@ -114,7 +115,9 @@ impl From<OurElfLoader> for Vec<Allocation> {
 /// Bring the binary's symbols in a format for Multiboot.
 ///
 /// Returns a tuple of informations struct and vector containing the symbols.
-pub(super) fn symbols(binary: &mut elf::Elf, data: &[u8]) -> (SymbolType, Vec<u8>) {
+pub(super) fn symbols(
+    header: &Header, binary: &mut elf::Elf, data: &[u8]
+) -> (Symbols, Vec<u8>) {
     // Let's just hope they fit into u32s.
     let num: u32 = binary.header.e_shnum.into();
     let size: u32 = binary.header.e_shentsize.try_into().unwrap();
@@ -156,9 +159,9 @@ pub(super) fn symbols(binary: &mut elf::Elf, data: &[u8]) -> (SymbolType, Vec<u8
     }
     let shndx = binary.header.e_shstrndx.try_into().unwrap();
     (
-        SymbolType::Elf(ElfSymbols::from_addr(
-            num, size, (ptr as usize + shdr_begin) as multiboot::information::PAddr, shndx
-        )),
+        header.new_elf_symbols(
+            num, size, ptr as usize + shdr_begin, shndx
+        ),
         memory
     )
 }
