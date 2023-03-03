@@ -195,7 +195,7 @@ dependencies = [
 [[package]]
 name = "multiboot12"
 version = "0.1.0"
-source = "git+https://github.com/YtvwlD/multiboot12#a5e223d0f18e1d58ec8f8ca50c524737a8d076fa"
+source = "git+https://github.com/YtvwlD/multiboot12#4b7f3333d18972665df63b4e8de71ef55898e87b"
 dependencies = [
  "multiboot",
  "multiboot2 0.14.0",

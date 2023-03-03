@@ -174,12 +174,11 @@ fn dump_memory_map() {
 /// (The buffer may be too large.)
 pub(super) fn prepare_information<'a, I>(
     multiboot: &mut multiboot12::information::InfoBuilder, mmap_iter: I,
-    mb_mmap_buf: &'static mut[multiboot12::information::MemoryEntry]
-) -> &'static [multiboot12::information::MemoryEntry]
-where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
+    mb_mmap_vec: &mut Vec<multiboot12::information::MemoryEntry>
+) where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
     // Descriptors are the ones from UEFI, Entries are the ones from Multiboot.
     let mut count = 0;
-    let mut entry_iter = mb_mmap_buf.iter_mut();
+    let mut entry_iter = mb_mmap_vec.iter_mut();
     let mut current_entry = entry_iter.next().unwrap();
     for descriptor in mmap_iter {
         let next_entry = multiboot.new_memory_entry(
@@ -226,6 +225,9 @@ where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
             }
         }
     }
+    debug!("shrunk memory areas down to {count}");
+    mb_mmap_vec.truncate(count);
+    assert_eq!(mb_mmap_vec.len(), count);
     
     // "Lower" and "upper" memory as understood by a BIOS in kilobytes.
     // This means:
@@ -234,11 +236,9 @@ where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
     // Upper memory is the part of the memory from 1 MB to the next memory hole
     // (usually a few megabytes).
     let lower = 640; // If we had less than 640KB, we wouldn't fit into memory.
-    let upper = mb_mmap_buf.iter().find(|e| e.base_address() == 1024 * 1024)
+    let upper = mb_mmap_vec.iter().find(|e| e.base_address() == 1024 * 1024)
     .unwrap().length() / 1024;
     multiboot.set_memory_bounds(Some((lower.try_into().unwrap(), upper.try_into().unwrap())));
     
-    // TODO: this allocates!
-    multiboot.set_memory_regions(Some(mb_mmap_buf[0..count].to_vec()));
-    &mb_mmap_buf[0..count]
+    multiboot.set_memory_regions(Some(mb_mmap_vec));
 }
