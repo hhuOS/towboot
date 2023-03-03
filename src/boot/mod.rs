@@ -290,6 +290,8 @@ impl<'a> PreparedEntry<'a> {
 
                 // copy the signature
                 "mov ebp, eax",
+                // copy the struct address
+                "mov esi, ecx",
 
                 // 3.2 Machine state says:
                 
@@ -334,11 +336,14 @@ impl<'a> PreparedEntry<'a> {
                 
                 // write the signature to EAX
                 "mov eax, ebp",
+                // write the struct address to EBX
+                "mov ebx, esi",
                 // finally jump to the kernel
                 "jmp edi",
                 
+                // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
                 in("eax") signature,
-                in("ebx") &info,
+                in("ecx") &info,
                 in("edi") entry_address,
                 options(noreturn),
             );
