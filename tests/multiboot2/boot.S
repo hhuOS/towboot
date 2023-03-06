@@ -56,6 +56,7 @@ multiboot_header:
         /*  checksum */
         .long   -(MULTIBOOT2_HEADER_MAGIC + MULTIBOOT_ARCHITECTURE_I386 + (multiboot_header_end - multiboot_header))
 #ifndef __ELF__
+        .align 8
 address_tag_start:      
         .short MULTIBOOT_HEADER_TAG_ADDRESS
         .short MULTIBOOT_HEADER_TAG_OPTIONAL
@@ -69,6 +70,7 @@ address_tag_start:
         /*  bss_end_addr */
         .long   _end
 address_tag_end:
+        .align 8
 entry_address_tag_start:        
         .short MULTIBOOT_HEADER_TAG_ENTRY_ADDRESS
         .short MULTIBOOT_HEADER_TAG_OPTIONAL
@@ -85,9 +87,12 @@ framebuffer_tag_start:
         .long 768
         .long 32
 framebuffer_tag_end:
+        .align 8
+end_tag_start:
         .short MULTIBOOT_HEADER_TAG_END
         .short 0
-        .long multiboot_header_end - framebuffer_tag_end +1
+        .long end_tag_end - end_tag_start
+end_tag_end:
 multiboot_header_end:
 multiboot_entry:
         /*  Initialize the stack pointer. */
