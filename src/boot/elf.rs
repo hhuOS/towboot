@@ -162,6 +162,6 @@ pub(super) fn symbols(
         header.new_elf_symbols(
             num, size, ptr as usize + shdr_begin, shndx
         ),
-        memory
+        memory // we could drop this for multiboot2
     )
 }

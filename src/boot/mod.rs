@@ -118,8 +118,12 @@ impl LoadedKernel {
     
     /// Get the symbols struct.
     /// This is needed for the Multiboot Information struct.
-    fn symbols_struct(&self) -> Option<&Symbols> {
-        self.symbols.as_ref().map(|(s, _v)| s)
+    /// This leaks the allocated memory.
+    fn symbols_struct(&mut self) -> Option<Symbols> {
+        self.symbols.take().map(|(s, v)| {
+            core::mem::forget(v);
+            s
+        })
     }
 }
 
@@ -196,7 +200,7 @@ impl<'a> PreparedEntry<'a> {
             Status::LOAD_ERROR
         })?;
         debug!("loaded kernel {:?} to {:?}", header, kernel_vec.as_ptr());
-        let loaded_kernel = LoadedKernel::new(kernel_vec, &header, &entry.quirks)?;
+        let mut loaded_kernel = LoadedKernel::new(kernel_vec, &header, &entry.quirks)?;
         info!("kernel is loaded and bootable");
         
         // Load all modules, fail completely if one fails to load.
@@ -214,7 +218,7 @@ impl<'a> PreparedEntry<'a> {
         
         let multiboot_information = prepare_multiboot_information(
             entry, header, &modules_vec,
-            loaded_kernel.symbols_struct().copied(), graphics_output,
+            loaded_kernel.symbols_struct(), graphics_output,
         );
         
         Ok(PreparedEntry {
