@@ -347,7 +347,7 @@ impl<'a> PreparedEntry<'a> {
                 
                 // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
                 in("eax") signature,
-                in("ecx") &info,
+                in("ecx") &info.as_slice()[0],
                 in("edi") entry_address,
                 options(noreturn),
             );
