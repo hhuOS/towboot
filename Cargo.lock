@@ -195,7 +195,7 @@ dependencies = [
 [[package]]
 name = "multiboot12"
 version = "0.1.0"
-source = "git+https://github.com/YtvwlD/multiboot12#6169bd1c3b942a7e4a6ebccff5dc9f303fac6974"
+source = "git+https://github.com/YtvwlD/multiboot12#1d738810f1719200c312dcc073e1512c4d6241e6"
 dependencies = [
  "multiboot",
  "multiboot2 0.14.0",
@@ -215,7 +215,7 @@ dependencies = [
 [[package]]
 name = "multiboot2"
 version = "0.14.0"
-source = "git+https://github.com/YtvwlD/multiboot2?branch=bootloader#dbfad37e0cfda7a16dca7bd5dd72ec774ef82d7a"
+source = "git+https://github.com/YtvwlD/multiboot2?branch=bootloader#a46d236424e104cf6172dee9165a132386827cfb"
 dependencies = [
  "bitflags",
 ]
@@ -223,7 +223,7 @@ dependencies = [
 [[package]]
 name = "multiboot2-header"
 version = "0.2.0"
-source = "git+https://github.com/YtvwlD/multiboot2?branch=bootloader#dbfad37e0cfda7a16dca7bd5dd72ec774ef82d7a"
+source = "git+https://github.com/YtvwlD/multiboot2?branch=bootloader#a46d236424e104cf6172dee9165a132386827cfb"
 dependencies = [
  "multiboot2 0.13.3",
 ]

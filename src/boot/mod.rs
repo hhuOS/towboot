@@ -140,8 +140,10 @@ fn prepare_multiboot_information(
     info_builder.set_command_line(entry.argv.as_deref());
     let mb_modules: Vec<Module> = modules.iter().zip(entry.modules.iter()).map(|(module, module_entry)| {
         info_builder.new_module(
-            module.as_ptr() as u64,
-            unsafe { module.as_ptr().offset(module.len.try_into().unwrap()) as u64 },
+            (module.as_ptr() as usize).try_into().unwrap(),
+            (unsafe {
+                module.as_ptr().offset(module.len.try_into().unwrap())
+            } as usize ).try_into().unwrap(),
             module_entry.argv.as_deref()
         )
     }).collect();
