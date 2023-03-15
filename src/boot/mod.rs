@@ -10,11 +10,9 @@ use alloc::{
 };
 
 use core::arch::asm;
-use core::mem::size_of;
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::media::file::Directory;
-use uefi::table::boot::MemoryDescriptor;
 
 use log::{debug, info, error};
 
@@ -243,31 +241,31 @@ impl<'a> PreparedEntry<'a> {
         // also, keep a bit of room
         let mut mmap_vec = Vec::<u8>::new();
         // Leave a bit of room at the end, we only have one chance.
-        let estimated_size = systab.boot_services().memory_map_size().map_size + 100;
-        let estimated_count = estimated_size / size_of::<MemoryDescriptor>();
+        let map_size = systab.boot_services().memory_map_size();
+        let estimated_size = map_size.map_size + 200;
+        let estimated_count = estimated_size / map_size.entry_size;
         debug!("expecting {estimated_count} memory areas");
+        // these are just placeholders
         mmap_vec.resize(estimated_size, 0);
         let mut mb_mmap_vec = self.multiboot_information
             .allocate_memory_map_vec(estimated_count);
-        let (_key, mmap_iter) = systab.boot_services().memory_map(mmap_vec.as_mut_slice()).unwrap();
+        self.multiboot_information.set_memory_bounds(Some((0, 0)));
+        let (
+            mut info, signature, update_memory_info,
+        ) = self.multiboot_information.build();
+        debug!("passing {} to kernel...", signature);
+        info!("exiting boot services...");
+        let (_systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())
+        .expect("failed to exit boot services");
         debug!("got {} memory areas", mmap_iter.len());
-        // exiting boot services should have happened here
+        // now, write! won't work anymore. Also, we can't allocate any memory.
         
         // Passing the memory map has to happen here,
         // since we can't allocate or deallocate anymore.
         super::mem::prepare_information(
-            &mut self.multiboot_information,
+            &mut info, update_memory_info,
             mmap_iter, &mut mb_mmap_vec,
         );
-        // TODO: this somehow allocates?
-        let (info, signature) = self.multiboot_information.build();
-        debug!("passing {}...", signature);
-
-        info!("exiting boot services...");
-        let (_systab, _mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())
-        .expect("failed to exit boot services");
-        // now, write! won't work anymore. Also, we can't allocate any memory.
-
         for allocation in &mut self.loaded_kernel.allocations {
             // It could be possible that we failed to allocate memory for the kernel in the correct
             // place before. Just copy it now to where is belongs.

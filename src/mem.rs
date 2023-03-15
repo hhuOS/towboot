@@ -7,6 +7,7 @@
 //!
 //! Also, gathering memory map information for the kernel happens here.
 
+use alloc::boxed::Box;
 use alloc::collections::btree_set::BTreeSet;
 use alloc::vec::Vec;
 
@@ -173,15 +174,20 @@ fn dump_memory_map() {
 /// This needs to have a buffer to write to because we can't allocate memory anymore.
 /// (The buffer may be too large.)
 pub(super) fn prepare_information<'a, I>(
-    multiboot: &mut multiboot12::information::InfoBuilder, mmap_iter: I,
-    mb_mmap_vec: &mut Vec<multiboot12::information::MemoryEntry>
+    info_bytes: &mut [u8],
+    mut update_memory_info: Box<dyn FnMut(
+        &mut [u8], u32, u32, &[multiboot12::information::MemoryEntry],
+    )>,
+    mmap_iter: I,
+    mb_mmap_vec: &mut Vec<multiboot12::information::MemoryEntry>,
 ) where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
     // Descriptors are the ones from UEFI, Entries are the ones from Multiboot.
+    let empty_entry = mb_mmap_vec[0].clone();
     let mut count = 0;
     let mut entry_iter = mb_mmap_vec.iter_mut();
     let mut current_entry = entry_iter.next().unwrap();
     for descriptor in mmap_iter {
-        let next_entry = multiboot.new_memory_entry(
+        let next_entry = empty_entry.with(
             descriptor.phys_start, descriptor.page_count * PAGE_SIZE as u64, match descriptor.ty {
                 // after we've started the kernel, no-one needs our code or data
                 MemoryType::LOADER_CODE | MemoryType::LOADER_DATA
@@ -213,7 +219,7 @@ pub(super) fn prepare_information<'a, I>(
                     current_entry.base_address() + current_entry.length()
                 )
             ) {
-                *current_entry = multiboot.new_memory_entry(
+                *current_entry = empty_entry.with(
                     current_entry.base_address(),
                     current_entry.length() + next_entry.length(),
                     current_entry.memory_type(),
@@ -238,7 +244,9 @@ pub(super) fn prepare_information<'a, I>(
     let lower = 640; // If we had less than 640KB, we wouldn't fit into memory.
     let upper = mb_mmap_vec.iter().find(|e| e.base_address() == 1024 * 1024)
     .unwrap().length() / 1024;
-    multiboot.set_memory_bounds(Some((lower.try_into().unwrap(), upper.try_into().unwrap())));
     
-    multiboot.set_memory_regions(Some(mb_mmap_vec));
+    update_memory_info(
+        info_bytes, lower.try_into().unwrap(), upper.try_into().unwrap(),
+        mb_mmap_vec.as_slice(),
+    );
 }
