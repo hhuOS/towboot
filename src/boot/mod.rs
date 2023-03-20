@@ -270,7 +270,9 @@ impl<'a> PreparedEntry<'a> {
             // It could be possible that we failed to allocate memory for the kernel in the correct
             // place before. Just copy it now to where is belongs.
             // This is *really* unsafe, please see the documentation comment for details.
-            unsafe { allocation.move_to_where_it_should_be(&mb_mmap_vec) };
+            unsafe { allocation.move_to_where_it_should_be(
+                &mb_mmap_vec, &self.entry.quirks,
+            ) };
         }
         // The kernel will need its code and data, so make sure it stays around indefinitely.
         core::mem::forget(self.loaded_kernel.allocations);

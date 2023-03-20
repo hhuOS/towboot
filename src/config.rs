@@ -222,6 +222,9 @@ pub enum Quirk {
     /// Treat the kernel always as an ELF file.
     /// This ignores bit 16 of the kernel's Multiboot header.
     ForceElf,
+    /// Ignore the memory map when loading the kernel.
+    /// This might damage your hardware!
+    ForceOverwrite,
     /// Ignore the kernel's preferred resolution and just keep the current one.
     KeepResolution,
     /// Place modules below 200 MB.

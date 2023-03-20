@@ -24,6 +24,7 @@ use super::config::Quirk;
 pub(super) const PAGE_SIZE: usize = 4096;
 
 /// Tracks our own allocations.
+#[derive(Debug)]
 pub(super) struct Allocation {
     ptr: u64,
     pub len: usize,
@@ -123,27 +124,25 @@ impl Allocation {
     /// This is unsafe: In the worst case we could overwrite ourselves, our variables,
     /// the Multiboot info struct or anything referenced therein.
     pub(crate) unsafe fn move_to_where_it_should_be(
-        &mut self, memory_map: &[multiboot12::information::MemoryEntry]
+        &mut self, memory_map: &[multiboot12::information::MemoryEntry],
+        quirks: &BTreeSet<Quirk>,
     ) {
         if let Some(a) = self.should_be_at {
+            debug!("trying to write {:?}...", self);
             let mut filter = memory_map.iter().filter(|e|
                 e.base_address() <= a
                 && e.base_address() + e.length() >= a + self.len as u64
             );
-            match filter.next() {
-                Some(entry) => {
-                    match entry.memory_type() {
-                        multiboot12::information::MemoryType::Available => {
-                            let dest: usize = a.try_into().unwrap();
-                            let src: usize = self.ptr.try_into().unwrap();
-                            core::ptr::copy(src as *mut u8, dest as *mut u8, self.len);
-                        },
-                        _ => panic!("would overwrite {entry:?}"),
-                    }
-                },
-                None => panic!("no memory map entry contains the place we want to write to"),
-            };
-            assert!(filter.next().is_none()); // there shouldn't be another matching entry
+            if !quirks.contains(&Quirk::ForceOverwrite) {
+                let entry = filter.next().expect("the memory map to contain the place we want to write to");
+                if entry.memory_type() != multiboot12::information::MemoryType::Available {
+                    panic!("would overwrite {entry:?}; specify the ForceOverwrite quirk if you really want to do this");
+                }
+                assert!(filter.next().is_none()); // there shouldn't be another matching entry
+            }
+            let dest: usize = a.try_into().unwrap();
+            let src: usize = self.ptr.try_into().unwrap();
+            core::ptr::copy(src as *mut u8, dest as *mut u8, self.len);
             self.ptr = a;
             self.should_be_at = None;
         }

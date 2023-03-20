@@ -94,5 +94,7 @@ command line option (if the kernel is loaded via `-kernel`).
 Available quirks are:
 
 * `ForceElf`: always treat the kernel as an ELF file
+* `ForceOverwrite`: ignore the memory map when loading the kernel
+        (This might damage your hardware!)
 * `KeepResolution`: ignore the kernel's preferred resolution
 * `ModulesBelow200Mb`: keep allocations for modules below 200 MB
