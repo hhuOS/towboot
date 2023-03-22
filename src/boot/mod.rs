@@ -32,16 +32,10 @@ mod video;
 
 use elf::OurElfLoader;
 
-enum Addresses {
-    Multiboot(MultibootAddresses),
-    /// the entry address
-    Elf(usize),
-}
-
 /// A kernel loaded into memory
 struct LoadedKernel {
     allocations: Vec<Allocation>,
-    addresses: Addresses,
+    entry_address: usize,
     symbols: Option<(Symbols, Vec<u8>)>,
 }
 
@@ -51,25 +45,25 @@ impl LoadedKernel {
     fn new(
         kernel_vec: Vec<u8>, header: &Header, quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
-        match (header.get_addresses(), quirks.contains(&Quirk::ForceElf)) {
-            (Some(addr), false) => LoadedKernel::new_multiboot(
-                kernel_vec, addr, header.header_start()
-            ),
-            _ => LoadedKernel::new_elf(header, kernel_vec),
+        if header.get_load_addresses().is_some() && !quirks.contains(&Quirk::ForceElf) {
+            LoadedKernel::new_multiboot(kernel_vec, header)
+        } else {
+            LoadedKernel::new_elf(header, kernel_vec)
         }
     }
     
     /// Load a kernel which has its addresses specified inside the Multiboot header.
     fn new_multiboot(
-        kernel_vec: Vec<u8>, addresses: MultibootAddresses, header_start: u32
+        kernel_vec: Vec<u8>, header: &Header,
     ) -> Result<Self, Status> {
         // TODO: Add support for AOut symbols? Do we really know this binary is AOut at this point?
+        let addresses = header.get_load_addresses().unwrap();
         
         // Try to allocate the memory where to load the kernel and move the kernel there.
         // In the worst case we might have blocked the destination by loading the file there,
         // but `move_to_where_it_should_be` should fix this later.
         info!("moving the kernel to its desired location...");
-        let load_offset = addresses.compute_load_offset(header_start);
+        let load_offset = addresses.compute_load_offset(header.header_start());
         // allocate
         let kernel_length: usize = addresses.compute_kernel_length().try_into().unwrap();
         let mut allocation = Allocation::new_at(
@@ -89,7 +83,9 @@ impl LoadedKernel {
         
         Ok(Self {
             allocations: vec![allocation],
-            addresses: Addresses::Multiboot(addresses),
+            entry_address: header.get_entry_address().expect(
+                "kernels that specify a load address to also specify an entry address"
+            ).try_into().unwrap(),
             symbols: None,
         })
     }
@@ -106,11 +102,12 @@ impl LoadedKernel {
             Status::LOAD_ERROR
         })?;
         let symbols = Some(elf::symbols(header, &mut binary, kernel_vec.as_slice()));
-        let entry_point = loader.entry_point();
-        Ok(Self{
-            allocations: loader.into(),
-            addresses: Addresses::Elf(entry_point),
-            symbols,
+        let entry_address = match header.get_entry_address() {
+            Some(a) => a.try_into().unwrap(),
+            None => loader.entry_point(),
+        };
+        Ok(Self {
+            allocations: loader.into(), entry_address, symbols,
         })
     }
     
@@ -281,11 +278,6 @@ impl<'a> PreparedEntry<'a> {
         // The kernel is going to need the section headers and symbols.
         core::mem::forget(self.loaded_kernel.symbols);
         
-        let entry_address = match &self.loaded_kernel.addresses {
-            Addresses::Multiboot(addr) => addr.entry_addr() as usize,
-            Addresses::Elf(e) => *e,
-        };
-        
         unsafe {
             asm!(
                 // The jump to the kernel has to happen in protected mode.
@@ -350,7 +342,7 @@ impl<'a> PreparedEntry<'a> {
                 // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
                 in("eax") signature,
                 in("ecx") &info.as_slice()[0],
-                in("edi") entry_address,
+                in("edi") self.loaded_kernel.entry_address,
                 options(noreturn),
             );
         }
