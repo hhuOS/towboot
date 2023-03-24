@@ -219,6 +219,10 @@ pub struct Module {
 /// Runtime options to override information in kernel images.
 #[derive(Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Quirk {
+    /// Do not exit Boot Services.
+    /// This starts the kernel with more privileges and less available memory.
+    /// In some cases this might also display more helpful error messages.
+    DontExitBootServices,
     /// Treat the kernel always as an ELF file.
     /// This ignores bit 16 of the kernel's Multiboot header.
     ForceElf,

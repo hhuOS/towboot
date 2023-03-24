@@ -177,8 +177,8 @@ pub(super) fn prepare_information<'a, I>(
     mut update_memory_info: Box<dyn FnMut(
         &mut [u8], u32, u32, &[multiboot12::information::MemoryEntry],
     )>,
-    mmap_iter: I,
-    mb_mmap_vec: &mut Vec<multiboot12::information::MemoryEntry>,
+    mmap_iter: I, mb_mmap_vec: &mut Vec<multiboot12::information::MemoryEntry>,
+    boot_services_exited: bool,
 ) where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
     // Descriptors are the ones from UEFI, Entries are the ones from Multiboot.
     let empty_entry = mb_mmap_vec[0].clone();
@@ -190,8 +190,13 @@ pub(super) fn prepare_information<'a, I>(
             descriptor.phys_start, descriptor.page_count * PAGE_SIZE as u64, match descriptor.ty {
                 // after we've started the kernel, no-one needs our code or data
                 MemoryType::LOADER_CODE | MemoryType::LOADER_DATA
-                | MemoryType::BOOT_SERVICES_CODE | MemoryType::BOOT_SERVICES_DATA
                 => multiboot12::information::MemoryType::Available,
+                // have Boot Services been exited?
+                MemoryType::BOOT_SERVICES_CODE | MemoryType::BOOT_SERVICES_DATA
+                => match boot_services_exited {
+                    true => multiboot12::information::MemoryType::Available,
+                    false => multiboot12::information::MemoryType::Reserved,
+                },
                 // the kernel may want to use UEFI Runtime Services
                 MemoryType::RUNTIME_SERVICES_CODE | MemoryType::RUNTIME_SERVICES_DATA
                 => multiboot12::information::MemoryType::Reserved,

@@ -251,18 +251,27 @@ impl<'a> PreparedEntry<'a> {
             mut info, signature, update_memory_info,
         ) = self.multiboot_information.build();
         debug!("passing {} to kernel...", signature);
-        info!("exiting boot services...");
-        let (_systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())
-        .expect("failed to exit boot services");
-        debug!("got {} memory areas", mmap_iter.len());
-        // now, write! won't work anymore. Also, we can't allocate any memory.
+        if !self.entry.quirks.contains(&Quirk::DontExitBootServices) {
+            info!("exiting boot services...");
+            let (_systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())
+                .expect("failed to exit boot services");
+            // now, write! won't work anymore. Also, we can't allocate any memory.
+            
+            // Passing the memory map has to happen here,
+            // since we can't allocate or deallocate anymore.
+            super::mem::prepare_information(
+                &mut info, update_memory_info,
+                mmap_iter, &mut mb_mmap_vec, true,
+            );
+        } else {
+            let (_key, mmap_iter) = systab.boot_services().memory_map(mmap_vec.as_mut_slice()).unwrap();
+            debug!("got {} memory areas", mmap_iter.len());
+            super::mem::prepare_information(
+                &mut info, update_memory_info,
+                mmap_iter, &mut mb_mmap_vec, false,
+            );
+        }
         
-        // Passing the memory map has to happen here,
-        // since we can't allocate or deallocate anymore.
-        super::mem::prepare_information(
-            &mut info, update_memory_info,
-            mmap_iter, &mut mb_mmap_vec,
-        );
         for allocation in &mut self.loaded_kernel.allocations {
             // It could be possible that we failed to allocate memory for the kernel in the correct
             // place before. Just copy it now to where is belongs.
@@ -278,6 +287,11 @@ impl<'a> PreparedEntry<'a> {
         // The kernel is going to need the section headers and symbols.
         core::mem::forget(self.loaded_kernel.symbols);
         
+        debug!(
+            "preparing machine state and jumping to 0x{:x}",
+            self.loaded_kernel.entry_address,
+        );
+
         unsafe {
             asm!(
                 // The jump to the kernel has to happen in protected mode.

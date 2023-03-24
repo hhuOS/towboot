@@ -93,6 +93,9 @@ command line option (if the kernel is loaded via `-kernel`).
 
 Available quirks are:
 
+* `DontExitBootServices`: do not exit Boot Services
+        This starts the kernel with more privileges and less available memory.
+        In some cases this might also display more helpful error messages.
 * `ForceElf`: always treat the kernel as an ELF file
 * `ForceOverwrite`: ignore the memory map when loading the kernel
         (This might damage your hardware!)
