@@ -65,7 +65,9 @@ impl LoadedKernel {
         info!("moving the kernel to its desired location...");
         let load_offset = addresses.compute_load_offset(header.header_start());
         // allocate
-        let kernel_length: usize = addresses.compute_kernel_length().try_into().unwrap();
+        let kernel_length: usize = addresses.compute_kernel_length(
+            kernel_vec.len().try_into().unwrap()
+        ).try_into().unwrap();
         let mut allocation = Allocation::new_at(
             addresses.load_addr().try_into().unwrap(), kernel_length
         )?;
@@ -74,7 +76,7 @@ impl LoadedKernel {
         kernel_buf.iter_mut().zip(
             kernel_vec.iter()
             .skip(load_offset.try_into().unwrap())
-            .take((addresses.load_end_addr() - addresses.load_addr()).try_into().unwrap())
+            .take(kernel_length)
             .chain(core::iter::repeat(&0))
         )
         .for_each(|(dst,src)| *dst = *src);
