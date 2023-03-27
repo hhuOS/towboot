@@ -14,7 +14,7 @@ use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::media::file::Directory;
 
-use log::{debug, info, error};
+use log::{debug, info, error, warn};
 
 use multiboot12::header::{Header, Addresses as MultibootAddresses};
 use multiboot12::information::{
@@ -22,6 +22,7 @@ use multiboot12::information::{
 };
 
 use goblin::elf::Elf;
+use uefi_services::system_table;
 
 use super::config::{Entry, Quirk};
 use super::file::File;
@@ -167,6 +168,21 @@ fn prepare_multiboot_information(
     
     if let Some(go) = graphics_output {
         video::prepare_information(&mut info_builder, go);
+    }
+
+    // This only has an effect on Multiboot2.
+    // TODO: Does this stay valid when we exit Boot Services?
+    let systab_ptr = system_table().as_ptr();
+    if cfg!(target_arch = "x86") {
+        info_builder.set_system_table_ia32(Some(
+            (systab_ptr as usize).try_into().unwrap()
+        ));
+    } else if cfg!(target_arch = "x86_64") {
+        info_builder.set_system_table_x64(Some(
+            (systab_ptr as usize).try_into().unwrap()
+        ));
+    } else {
+        warn!("don't know how to pass the UEFI System Table on this target");
     }
     
     info_builder
