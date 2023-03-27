@@ -127,7 +127,7 @@ impl LoadedKernel {
 /// Prepare information for the kernel.
 fn prepare_multiboot_information(
     entry: &Entry, header: Header, modules: &[Allocation],
-    symbols: Option<Symbols>, graphics_output: &mut GraphicsOutput,
+    symbols: Option<Symbols>, graphics_output: Option<&mut GraphicsOutput>,
 ) -> InfoBuilder {
     let mut info_builder = header.info_builder();
     
@@ -165,7 +165,9 @@ fn prepare_multiboot_information(
     
     // There is no VBE information.
     
-    video::prepare_information(&mut info_builder, graphics_output);
+    if let Some(go) = graphics_output {
+        video::prepare_information(&mut info_builder, go);
+    }
     
     info_builder
 }
@@ -213,7 +215,7 @@ impl<'a> PreparedEntry<'a> {
             debug!("loaded module {} to {:?}", index, module.as_ptr());
         }
         
-        let graphics_output = video::setup_video(&header, systab, &entry.quirks)?;
+        let graphics_output = video::setup_video(&header, systab, &entry.quirks);
         
         let multiboot_information = prepare_multiboot_information(
             entry, header, &modules_vec,

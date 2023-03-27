@@ -19,7 +19,7 @@ use super::super::config::Quirk;
 /// If there is no available mode that matches, just use the one we're already in.
 pub(super) fn setup_video<'a>(
     header: &Header, systab: &'a SystemTable<Boot>, quirks: &BTreeSet<Quirk>
-) -> Result<&'a mut GraphicsOutput<'a>, Status> {
+) -> Option<&'a mut GraphicsOutput<'a>> {
     info!("setting up the video...");
     let wanted_resolution = match (
         header.get_preferred_video_mode(), quirks.contains(&Quirk::KeepResolution)
@@ -49,11 +49,11 @@ pub(super) fn setup_video<'a>(
     };
     // just get the first one
     let output = systab.boot_services().locate_protocol::<GraphicsOutput>().map_err(|e| {
-        error!(
+        warn!(
             "Failed to find a graphics output. Do you have a graphics card (and a driver)?: {e:?}"
         );
         Status::DEVICE_ERROR
-    })?;
+    }).ok()?;
     let output = unsafe { &mut *output.get() };
     let modes: Vec<Mode> = output.modes().collect();
     debug!(
@@ -78,10 +78,10 @@ pub(super) fn setup_video<'a>(
         output.set_mode(mode).map_err(|e| {
             error!("failed to set video mode: {e:?}");
             Status::DEVICE_ERROR
-        })?;
+        }).ok()?;
         info!("set {:?} as the video mode", mode.info().resolution());
     }
-    Ok(output)
+    Some(output)
 }
 
 /// Pass the framebuffer information to the kernel.
