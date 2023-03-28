@@ -1,7 +1,8 @@
 //! Handle UEFI config tables.
 use alloc::slice;
-use log::debug;
+use log::{debug, warn};
 use multiboot12::information::InfoBuilder;
+use rsdp::Rsdp;
 use smbioslib::{SMBiosEntryPoint32, SMBiosEntryPoint64};
 use uefi::table::cfg::{
     ConfigTableEntry, ACPI_GUID, ACPI2_GUID, DEBUG_IMAGE_INFO_GUID,
@@ -18,8 +19,8 @@ pub(super) fn parse_for_multiboot(
     debug!("going through configuration tables...");
     for table in config_tables {
         match table.guid {
-            ACPI_GUID => todo!(),
-            ACPI2_GUID => todo!(),
+            ACPI_GUID => handle_acpi(table, info_builder),
+            ACPI2_GUID => handle_acpi(table, info_builder),
             DEBUG_IMAGE_INFO_GUID => debug!("ignoring image debug info"),
             DXE_SERVICES_GUID => debug!("ignoring dxe services table"),
             HAND_OFF_BLOCK_LIST_GUID => debug!("ignoring hand-off block list"),
@@ -32,6 +33,30 @@ pub(super) fn parse_for_multiboot(
         }
     }
 }
+
+fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
+    debug!("handling ACPI RSDP");
+    let rsdp = unsafe { *(table.address as *const Rsdp) };
+    if rsdp.validate().is_err() {
+        warn!("the RSDP is invalid");
+        return;
+    }
+    if rsdp.revision() == 0 {
+        info_builder.set_rsdp_v1(
+            rsdp.signature(), rsdp.checksum(),
+            rsdp.oem_id().as_bytes()[0..6].try_into().unwrap(),
+            rsdp.revision(), rsdp.rsdt_address(),
+        );
+    } else {
+        info_builder.set_rsdp_v2(
+            rsdp.signature(), rsdp.checksum(),
+            rsdp.oem_id().as_bytes()[0..6].try_into().unwrap(),
+            rsdp.revision(), rsdp.rsdt_address(), rsdp.length(),
+            rsdp.xsdt_address(), rsdp.ext_checksum(),
+        );
+    }
+}
+
 
 enum EntryPoint {
     SMBIOS2(SMBiosEntryPoint32),
