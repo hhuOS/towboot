@@ -64,6 +64,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "core-foundation"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25b9e03f145fd4f2bf705e07b900cd41fc636598fe5dc452fd0db1441c3f496d"
+dependencies = [
+ "core-foundation-sys",
+ "libc",
+]
+
+[[package]]
+name = "core-foundation-sys"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7ca8a5221364ef15ce201e8ed2f609fc312682a8f4e0e3d4aa5879764e0fa3b"
+
+[[package]]
 name = "form_urlencoded"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -106,6 +122,16 @@ dependencies = [
  "matches",
  "unicode-bidi",
  "unicode-normalization",
+]
+
+[[package]]
+name = "io-kit-sys"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f21dcc74995dd4cd090b147e79789f8d65959cbfb5f0b118002db869ea3bd0a0"
+dependencies = [
+ "core-foundation-sys",
+ "mach 0.2.3",
 ]
 
 [[package]]
@@ -157,6 +183,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "mach"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86dd2487cdfea56def77b88438a2c915fb45113c5319bfe7e14306ca4cd0b0e1"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "mach"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b823e83b2affd8f40a9ee8c29dbc56404c1e34cd2710921f2801e2cf29527afa"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "matches"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -195,7 +239,7 @@ dependencies = [
 [[package]]
 name = "multiboot12"
 version = "0.1.0"
-source = "git+https://github.com/YtvwlD/multiboot12#8e6c19f0ad5fc09ed2a17709b3b8f31399dc18a8"
+source = "git+https://github.com/YtvwlD/multiboot12#cc7c7b267ae57472dd05a635de7f399b2db3ff11"
 dependencies = [
  "multiboot",
  "multiboot2 0.14.0",
@@ -215,7 +259,7 @@ dependencies = [
 [[package]]
 name = "multiboot2"
 version = "0.14.0"
-source = "git+https://github.com/YtvwlD/multiboot2?branch=bootloader#e65761b9e74e3186ff937027b3e9b8ce00127a9e"
+source = "git+https://github.com/YtvwlD/multiboot2?branch=bootloader#c7ff6a3adce620364f76368432c2e1d462a319ec"
 dependencies = [
  "bitflags",
 ]
@@ -223,7 +267,7 @@ dependencies = [
 [[package]]
 name = "multiboot2-header"
 version = "0.2.0"
-source = "git+https://github.com/YtvwlD/multiboot2?branch=bootloader#e65761b9e74e3186ff937027b3e9b8ce00127a9e"
+source = "git+https://github.com/YtvwlD/multiboot2?branch=bootloader#c7ff6a3adce620364f76368432c2e1d462a319ec"
 dependencies = [
  "multiboot2 0.13.3",
 ]
@@ -367,6 +411,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "smbios-lib"
+version = "0.8.0"
+source = "git+https://github.com/alesharik/smbios-lib.git?branch=master#12533dd593c0fc582497b69404236b73446549a8"
+dependencies = [
+ "core-foundation",
+ "core-foundation-sys",
+ "io-kit-sys",
+ "libc",
+ "mach 0.3.2",
+ "serde",
+]
+
+[[package]]
 name = "syn"
 version = "1.0.99"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -420,6 +477,7 @@ dependencies = [
  "multiboot12",
  "scroll",
  "serde",
+ "smbios-lib",
  "toml 0.5.8",
  "uefi",
  "uefi-services",

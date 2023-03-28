@@ -13,6 +13,7 @@ use core::arch::asm;
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::media::file::Directory;
+use uefi::table::cfg::ConfigTableEntry;
 
 use log::{debug, info, error, warn};
 
@@ -28,6 +29,7 @@ use super::config::{Entry, Quirk};
 use super::file::File;
 use super::mem::Allocation;
 
+mod config_tables;
 mod elf;
 mod video;
 
@@ -129,6 +131,7 @@ impl LoadedKernel {
 fn prepare_multiboot_information(
     entry: &Entry, header: Header, modules: &[Allocation],
     symbols: Option<Symbols>, graphics_output: Option<&mut GraphicsOutput>,
+    config_tables: &[ConfigTableEntry],
 ) -> InfoBuilder {
     let mut info_builder = header.info_builder();
     
@@ -184,6 +187,8 @@ fn prepare_multiboot_information(
     } else {
         warn!("don't know how to pass the UEFI System Table on this target");
     }
+
+    config_tables::parse_for_multiboot(config_tables, &mut info_builder);
     
     info_builder
 }
@@ -234,8 +239,8 @@ impl<'a> PreparedEntry<'a> {
         let graphics_output = video::setup_video(&header, systab, &entry.quirks);
         
         let multiboot_information = prepare_multiboot_information(
-            entry, header, &modules_vec,
-            loaded_kernel.symbols_struct(), graphics_output,
+            entry, header, &modules_vec, loaded_kernel.symbols_struct(),
+            graphics_output, systab.config_table(),
         );
         
         Ok(PreparedEntry {
