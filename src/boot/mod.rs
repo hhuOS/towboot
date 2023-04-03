@@ -13,6 +13,7 @@ use core::arch::asm;
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::media::file::Directory;
+use uefi::table::boot::MemoryDescriptor;
 use uefi::table::cfg::ConfigTableEntry;
 
 use log::{debug, info, error, warn};
@@ -269,6 +270,19 @@ impl<'a> PreparedEntry<'a> {
         debug!("expecting {estimated_count} memory areas");
         // these are just placeholders
         mmap_vec.resize(estimated_size, 0);
+        // You may ask yourself why we're not passing map_size.entry_size here.
+        // That's because we're passing a slice of uefi.rs' MemoryDescriptors
+        // (which hopefully are the same as multiboot2's EFIMemoryDescs),
+        // and not the ones the firmware provides us with.
+        // (That's also why we can't set the version.)
+        // In the future, when uefi.rs might allow us to directly access
+        // the returned memory map (including the version!),
+        // we might want to pass that instead.
+        self.multiboot_information.allocate_efi_memory_map_vec(
+            estimated_count.try_into().unwrap()
+        );
+        let mut efi_mmap_vec = Vec::new();
+        efi_mmap_vec.resize(estimated_count, MemoryDescriptor::default());
         let mut mb_mmap_vec = self.multiboot_information
             .allocate_memory_map_vec(estimated_count);
         self.multiboot_information.set_memory_bounds(Some((0, 0)));
@@ -284,18 +298,20 @@ impl<'a> PreparedEntry<'a> {
             
             // Passing the memory map has to happen here,
             // since we can't allocate or deallocate anymore.
-            super::mem::prepare_information(
-                &mut info, update_memory_info,
-                mmap_iter, &mut mb_mmap_vec, true,
+            mmap_iter.zip(efi_mmap_vec.iter_mut()).for_each(
+                |(src, dest)| *dest = *src
             );
         } else {
             let (_key, mmap_iter) = systab.boot_services().memory_map(mmap_vec.as_mut_slice()).unwrap();
             debug!("got {} memory areas", mmap_iter.len());
-            super::mem::prepare_information(
-                &mut info, update_memory_info,
-                mmap_iter, &mut mb_mmap_vec, false,
+            mmap_iter.zip(efi_mmap_vec.iter_mut()).for_each(
+                |(src, dest)| *dest = *src
             );
         }
+        super::mem::prepare_information(
+            &mut info, update_memory_info, &efi_mmap_vec,
+            &mut mb_mmap_vec, true,
+        );
         
         for allocation in &mut self.loaded_kernel.allocations {
             // It could be possible that we failed to allocate memory for the kernel in the correct

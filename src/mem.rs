@@ -7,6 +7,8 @@
 //!
 //! Also, gathering memory map information for the kernel happens here.
 
+use core::mem::size_of;
+
 use alloc::boxed::Box;
 use alloc::collections::btree_set::BTreeSet;
 use alloc::vec::Vec;
@@ -172,20 +174,22 @@ fn dump_memory_map() {
 ///
 /// This needs to have a buffer to write to because we can't allocate memory anymore.
 /// (The buffer may be too large.)
-pub(super) fn prepare_information<'a, I>(
+pub(super) fn prepare_information<'a>(
     info_bytes: &mut [u8],
     mut update_memory_info: Box<dyn FnMut(
         &mut [u8], u32, u32, &[multiboot12::information::MemoryEntry],
+        Option<&[multiboot12::information::EfiMemoryDescriptor]>,
     )>,
-    mmap_iter: I, mb_mmap_vec: &mut Vec<multiboot12::information::MemoryEntry>,
+    efi_mmap_vec: &Vec<MemoryDescriptor>,
+    mb_mmap_vec: &mut Vec<multiboot12::information::MemoryEntry>,
     boot_services_exited: bool,
-) where I: ExactSizeIterator<Item = &'a MemoryDescriptor> {
+) {
     // Descriptors are the ones from UEFI, Entries are the ones from Multiboot.
     let empty_entry = mb_mmap_vec[0].clone();
     let mut count = 0;
     let mut entry_iter = mb_mmap_vec.iter_mut();
     let mut current_entry = entry_iter.next().unwrap();
-    for descriptor in mmap_iter {
+    for descriptor in efi_mmap_vec {
         let next_entry = empty_entry.with(
             descriptor.phys_start, descriptor.page_count * PAGE_SIZE as u64, match descriptor.ty {
                 // after we've started the kernel, no-one needs our code or data
@@ -248,9 +252,24 @@ pub(super) fn prepare_information<'a, I>(
     let lower = 640; // If we had less than 640KB, we wouldn't fit into memory.
     let upper = mb_mmap_vec.iter().find(|e| e.base_address() == 1024 * 1024)
     .unwrap().length() / 1024;
+
+    // When updating either uefi.rs or multiboot2, make sure that the types
+    // still match.
+    // It might be safer to copy the values manually, but this means allocating
+    // the whole vector twice, sadly.
+    // We can at least check whether they have the same size.
+    assert_eq!(
+        size_of::<MemoryDescriptor>(),
+        size_of::<multiboot12::information::EfiMemoryDescriptor>(),
+    );
+    let (head, efi_mmap_slice, tail) = unsafe {
+        efi_mmap_vec.align_to::<multiboot12::information::EfiMemoryDescriptor>()
+    };
+    assert!(head.is_empty());
+    assert!(tail.is_empty());
     
     update_memory_info(
         info_bytes, lower.try_into().unwrap(), upper.try_into().unwrap(),
-        mb_mmap_vec.as_slice(),
+        mb_mmap_vec.as_slice(), Some(efi_mmap_slice),
     );
 }
