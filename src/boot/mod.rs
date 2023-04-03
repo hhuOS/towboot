@@ -132,7 +132,7 @@ impl LoadedKernel {
 fn prepare_multiboot_information(
     entry: &Entry, header: Header, modules: &[Allocation],
     symbols: Option<Symbols>, graphics_output: Option<&mut GraphicsOutput>,
-    config_tables: &[ConfigTableEntry],
+    config_tables: &[ConfigTableEntry], boot_services_exited: bool,
 ) -> InfoBuilder {
     let mut info_builder = header.info_builder();
     
@@ -190,6 +190,10 @@ fn prepare_multiboot_information(
     }
 
     config_tables::parse_for_multiboot(config_tables, &mut info_builder);
+
+    if !boot_services_exited {
+        info_builder.set_boot_services_not_exited();
+    }
     
     info_builder
 }
@@ -242,6 +246,7 @@ impl<'a> PreparedEntry<'a> {
         let multiboot_information = prepare_multiboot_information(
             entry, header, &modules_vec, loaded_kernel.symbols_struct(),
             graphics_output, systab.config_table(),
+            !entry.quirks.contains(&Quirk::DontExitBootServices),
         );
         
         Ok(PreparedEntry {
