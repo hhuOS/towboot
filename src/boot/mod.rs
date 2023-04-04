@@ -10,6 +10,8 @@ use alloc::{
 };
 
 use core::arch::asm;
+use core::ffi::c_void;
+use core::ptr::NonNull;
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::media::file::Directory;
@@ -132,7 +134,8 @@ impl LoadedKernel {
 fn prepare_multiboot_information(
     entry: &Entry, header: Header, modules: &[Allocation],
     symbols: Option<Symbols>, graphics_output: Option<&mut GraphicsOutput>,
-    config_tables: &[ConfigTableEntry], boot_services_exited: bool,
+    image: Handle, config_tables: &[ConfigTableEntry],
+    boot_services_exited: bool,
 ) -> InfoBuilder {
     let mut info_builder = header.info_builder();
     
@@ -177,16 +180,25 @@ fn prepare_multiboot_information(
     // This only has an effect on Multiboot2.
     // TODO: Does this stay valid when we exit Boot Services?
     let systab_ptr = system_table().as_ptr();
+    let image_handle_ptr = (unsafe {
+        core::mem::transmute::<_, NonNull<c_void>>(image)
+    }).as_ptr();
     if cfg!(target_arch = "x86") {
         info_builder.set_system_table_ia32(Some(
             (systab_ptr as usize).try_into().unwrap()
         ));
+        info_builder.set_efi_image_handle32(
+            (image_handle_ptr as usize).try_into().unwrap()
+        );
     } else if cfg!(target_arch = "x86_64") {
         info_builder.set_system_table_x64(Some(
             (systab_ptr as usize).try_into().unwrap()
         ));
+        info_builder.set_efi_image_handle64(
+            (image_handle_ptr as usize).try_into().unwrap()
+        );
     } else {
-        warn!("don't know how to pass the UEFI System Table on this target");
+        warn!("don't know how to pass the UEFI data on this target");
     }
 
     config_tables::parse_for_multiboot(config_tables, &mut info_builder);
@@ -219,7 +231,8 @@ impl<'a> PreparedEntry<'a> {
     /// Return a `PreparedEntry` which can be used to actually boot.
     /// This is non-destructive and will always return.
     pub(crate) fn new(
-        entry: &'a Entry, volume: &mut Directory, systab: &SystemTable<Boot>
+        entry: &'a Entry, image: Handle, volume: &mut Directory,
+        systab: &SystemTable<Boot>,
     ) -> Result<PreparedEntry<'a>, Status> {
         let kernel_vec: Vec<u8> = File::open(&entry.image, volume)?.try_into()?;
         let header = Header::from_slice(kernel_vec.as_slice()).ok_or_else(|| {
@@ -245,7 +258,7 @@ impl<'a> PreparedEntry<'a> {
         
         let multiboot_information = prepare_multiboot_information(
             entry, header, &modules_vec, loaded_kernel.symbols_struct(),
-            graphics_output, systab.config_table(),
+            graphics_output, image, systab.config_table(),
             !entry.quirks.contains(&Quirk::DontExitBootServices),
         );
         
