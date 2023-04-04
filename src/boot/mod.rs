@@ -42,6 +42,7 @@ use elf::OurElfLoader;
 struct LoadedKernel {
     allocations: Vec<Allocation>,
     entry_address: usize,
+    load_base_address: Option<u32>,
     symbols: Option<(Symbols, Vec<u8>)>,
 }
 
@@ -94,6 +95,7 @@ impl LoadedKernel {
             entry_address: header.get_entry_address().expect(
                 "kernels that specify a load address to also specify an entry address"
             ).try_into().unwrap(),
+            load_base_address: Some(addresses.load_addr()),
             symbols: None,
         })
     }
@@ -115,7 +117,8 @@ impl LoadedKernel {
             None => loader.entry_point(),
         };
         Ok(Self {
-            allocations: loader.into(), entry_address, symbols,
+            allocations: loader.into(), entry_address,
+            load_base_address: None, symbols,
         })
     }
     
@@ -132,10 +135,10 @@ impl LoadedKernel {
 
 /// Prepare information for the kernel.
 fn prepare_multiboot_information(
-    entry: &Entry, header: Header, modules: &[Allocation],
-    symbols: Option<Symbols>, graphics_output: Option<&mut GraphicsOutput>,
-    image: Handle, config_tables: &[ConfigTableEntry],
-    boot_services_exited: bool,
+    entry: &Entry, header: Header, load_base_address: Option<u32>,
+    modules: &[Allocation], symbols: Option<Symbols>,
+    graphics_output: Option<&mut GraphicsOutput>, image: Handle,
+    config_tables: &[ConfigTableEntry], boot_services_exited: bool,
 ) -> InfoBuilder {
     let mut info_builder = header.info_builder();
     
@@ -206,6 +209,10 @@ fn prepare_multiboot_information(
     if !boot_services_exited {
         info_builder.set_boot_services_not_exited();
     }
+
+    if let Some(addr) = load_base_address {
+        info_builder.set_image_load_addr(addr);
+    }
     
     info_builder
 }
@@ -257,8 +264,9 @@ impl<'a> PreparedEntry<'a> {
         let graphics_output = video::setup_video(&header, systab, &entry.quirks);
         
         let multiboot_information = prepare_multiboot_information(
-            entry, header, &modules_vec, loaded_kernel.symbols_struct(),
-            graphics_output, image, systab.config_table(),
+            entry, header, loaded_kernel.load_base_address, &modules_vec,
+            loaded_kernel.symbols_struct(), graphics_output, image,
+            systab.config_table(),
             !entry.quirks.contains(&Quirk::DontExitBootServices),
         );
         
