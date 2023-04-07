@@ -41,8 +41,9 @@ use elf::OurElfLoader;
 /// A kernel loaded into memory
 struct LoadedKernel {
     allocations: Vec<Allocation>,
-    entry_address: usize,
+    entry_point: EntryPoint,
     load_base_address: Option<u32>,
+    should_exit_boot_services: bool,
     symbols: Option<(Symbols, Vec<u8>)>,
 }
 
@@ -53,15 +54,15 @@ impl LoadedKernel {
         kernel_vec: Vec<u8>, header: &Header, quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
         if header.get_load_addresses().is_some() && !quirks.contains(&Quirk::ForceElf) {
-            LoadedKernel::new_multiboot(kernel_vec, header)
+            LoadedKernel::new_multiboot(kernel_vec, header, quirks)
         } else {
-            LoadedKernel::new_elf(header, kernel_vec)
+            LoadedKernel::new_elf(header, kernel_vec, quirks)
         }
     }
     
     /// Load a kernel which has its addresses specified inside the Multiboot header.
     fn new_multiboot(
-        kernel_vec: Vec<u8>, header: &Header,
+        kernel_vec: Vec<u8>, header: &Header, quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
         // TODO: Add support for AOut symbols? Do we really know this binary is AOut at this point?
         let addresses = header.get_load_addresses().unwrap();
@@ -89,19 +90,27 @@ impl LoadedKernel {
         .for_each(|(dst,src)| *dst = *src);
         // drop the old vector
         core::mem::drop(kernel_vec);
+
+        let entry_point = get_kernel_uefi_entry(header, &quirks)
+            .or(header.get_entry_address().map(
+                |e| EntryPoint::Multiboot(e as usize)
+            ))
+            .unwrap();
+        let should_exit_boot_services = !quirks.contains(&Quirk::DontExitBootServices) && header.should_exit_boot_services();
         
         Ok(Self {
             allocations: vec![allocation],
-            entry_address: header.get_entry_address().expect(
-                "kernels that specify a load address to also specify an entry address"
-            ).try_into().unwrap(),
+            entry_point,
             load_base_address: Some(addresses.load_addr()),
+            should_exit_boot_services,
             symbols: None,
         })
     }
     
     /// Load a kernel which uses ELF semantics.
-    fn new_elf(header: &Header, kernel_vec: Vec<u8>) -> Result<Self, Status> {
+    fn new_elf(
+        header: &Header, kernel_vec: Vec<u8>, quirks: &BTreeSet<Quirk>,
+    ) -> Result<Self, Status> {
         let mut binary = Elf::parse(kernel_vec.as_slice()).map_err(|msg| {
             error!("failed to parse ELF structure of kernel: {msg}");
             Status::LOAD_ERROR
@@ -112,13 +121,15 @@ impl LoadedKernel {
             Status::LOAD_ERROR
         })?;
         let symbols = Some(elf::symbols(header, &mut binary, kernel_vec.as_slice()));
-        let entry_address = match header.get_entry_address() {
-            Some(a) => a.try_into().unwrap(),
-            None => loader.entry_point(),
-        };
+        let entry_point = get_kernel_uefi_entry(header, &quirks)
+            .or(header.get_entry_address().map(
+                |e| EntryPoint::Multiboot(e as usize)
+            ))
+            .unwrap_or(EntryPoint::Multiboot(loader.entry_point()));
+        let should_exit_boot_services = !quirks.contains(&Quirk::DontExitBootServices) && header.should_exit_boot_services();
         Ok(Self {
-            allocations: loader.into(), entry_address,
-            load_base_address: None, symbols,
+            allocations: loader.into(), entry_point, load_base_address: None,
+            should_exit_boot_services, symbols,
         })
     }
     
@@ -130,6 +141,48 @@ impl LoadedKernel {
             core::mem::forget(v);
             s
         })
+    }
+}
+
+/// Check whether the kernel is compatible to the firmware we are running on.
+#[cfg(target_arch = "x86")]
+fn get_kernel_uefi_entry(
+    header: &Header, quirks: &BTreeSet<Quirk>,
+) -> Option<EntryPoint> {
+    if let Some(uefi_entry) = header.get_efi32_entry_address() {
+        if header.should_exit_boot_services() && !quirks.contains(&Quirk::DontExitBootServices) {
+            warn!("The kernel seems to be UEFI-aware but doesn't want us to exit Boot Services.");
+            debug!("(The Boot Services tag is missing.)");
+            warn!("This is at odds with the Multiboot specification.");
+            warn!("So, let's just pretend it isn't UEFI-aware.");
+            warn!("(Pass the `DontExitBootServices` quirk to override this.)");
+            None
+        } else {
+            Some(EntryPoint::Uefi(uefi_entry as usize))
+        }
+    } else {
+        None
+    }
+}
+
+/// Check whether the kernel is compatible to the firmware we are running on.
+#[cfg(target_arch = "x86_64")]
+fn get_kernel_uefi_entry(
+    header: &Header, quirks: &BTreeSet<Quirk>,
+) -> Option<EntryPoint> {
+    if let Some(uefi_entry) = header.get_efi64_entry_address() {
+        if header.should_exit_boot_services() && !quirks.contains(&Quirk::DontExitBootServices) {
+            warn!("The kernel seems to be UEFI-aware but doesn't want us to exit Boot Services.");
+            debug!("(The Boot Services tag is missing.)");
+            warn!("This is at odds with the Multiboot specification.");
+            warn!("So, let's just pretend it isn't UEFI-aware.");
+            warn!("(Pass the `DontExitBootServices` quirk to override this.)");
+            None
+        } else {
+            Some(EntryPoint::Uefi(uefi_entry as usize))
+        }
+    } else {
+        None
     }
 }
 
@@ -278,10 +331,10 @@ impl<'a> PreparedEntry<'a> {
     /// Actually boot an entry.
     ///
     /// What this means:
-    /// 1. exit `BootServices`
+    /// 1. exit `BootServices` (if needed)
     /// 2. pass the memory map to the kernel
     /// 3. copy the kernel to its desired location (if needed)
-    /// 4. bring the machine in the correct state
+    /// 4. bring the machine in the correct state (if needed)
     /// 5. jump!
     ///
     /// This function won't return.
@@ -316,7 +369,7 @@ impl<'a> PreparedEntry<'a> {
             mut info, signature, update_memory_info,
         ) = self.multiboot_information.build();
         debug!("passing {} to kernel...", signature);
-        if !self.entry.quirks.contains(&Quirk::DontExitBootServices) {
+        if self.loaded_kernel.should_exit_boot_services {
             info!("exiting boot services...");
             let (_systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())
                 .expect("failed to exit boot services");
@@ -354,78 +407,117 @@ impl<'a> PreparedEntry<'a> {
         // The kernel is going to need the section headers and symbols.
         core::mem::forget(self.loaded_kernel.symbols);
         
-        debug!(
-            "preparing machine state and jumping to 0x{:x}",
-            self.loaded_kernel.entry_address,
-        );
+        self.loaded_kernel.entry_point.jump(signature, info)
+    }
+}
 
-        unsafe {
-            asm!(
-                // The jump to the kernel has to happen in protected mode.
-                // If we're built for i686, we already are in protected mode,
-                // so this has no effect.
-                // If we're built for x86_64, this brings us to compatibility mode.
-                ".code32",
+/// How to give execution to the kernel
+/// 
+/// Currently, there are two options: UEFI and Multiboot
+enum EntryPoint {
+    /// Uefi machine state
+    /// 
+    /// This is pretty simple: Keep the current state and just pass the
+    /// information struct.
+    Uefi(usize),
+    /// Multiboot machine state
+    /// This is pretty complicated (see below).
+    Multiboot(usize),
+}
 
-                // copy the signature
-                "mov ebp, eax",
-                // copy the struct address
-                "mov esi, ecx",
+impl EntryPoint {
+    fn jump(self, signature: u32, info: Vec<u8>) {
+        if let Self::Uefi(entry_address) = self {
+            debug!("jumping to 0x{:x}", entry_address);
+            unsafe {
+                // TODO: The spec mentions 32 bit registers, even on 64 bit.
+                // Do we need to zero the beginning?
 
-                // 3.2 Machine state says:
-                
-                // > ‘CS’: Must be a 32-bit read/execute code segment with an offset of ‘0’
-                // > and a limit of ‘0xFFFFFFFF’. The exact value is undefined.
-                // TODO: Maybe set this?
-                // > 'DS’, 'ES’, ‘FS’, ‘GS’, ‘SS’: Must be a 32-bit read/write data segment with an
-                // > offset of ‘0’ and a limit of ‘0xFFFFFFFF’. The exact values are all undefined.
-                // TODO: Maybe set this?
-                
-                // > ‘EFLAGS’: Bit 17 (VM) must be cleared. Bit 9 (IF) must be cleared.
-                // > Other bits are all undefined. 
-                // disable interrupts (should have been enabled)
-                "cli",
-                // virtual 8086 mode can't be set, as we're 32 or 64 bit code
-                // (and changing that flag is rather difficult)
-
-
-                // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
-                // > Other bits are all undefined.
-                "mov ecx, cr0",
-                // disable paging (it should have been enabled)
-                "and ecx, ~(1<<31)",
-                // enable protected mode (it should have already been enabled)
-                "or ecx, 1",
-                "mov cr0, ecx",
-                
-                // The spec doesn't say anything about cr4, but let's do it anyway.
-                "mov ecx, cr4",
-                // disable PAE
-                "and ecx, ~(1<<5)",
-                "mov cr4, ecx",
-                
-                // TODO: Only do this on x86_64?
-                // x86_64: switch from compatibility mode to protected mode
-                // get the EFER
-                "mov ecx, 0xC0000080",
-                "rdmsr",
-                // disable long mode
-                "and eax, ~(1<<8)",
-                "wrmsr",
-                
-                // write the signature to EAX
-                "mov eax, ebp",
-                // write the struct address to EBX
-                "mov ebx, esi",
-                // finally jump to the kernel
-                "jmp edi",
-                
                 // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
-                in("eax") signature,
-                in("ecx") &info.as_slice()[0],
-                in("edi") self.loaded_kernel.entry_address,
-                options(noreturn),
+                asm!(
+                    "mov ebx, ecx",
+                    "jmp {}",
+                    in(reg) entry_address,
+                    in("eax") signature,
+                    in("ecx") &info.as_slice()[0],
+                    options(noreturn),
+                );
+            }
+        } else if let Self::Multiboot(entry_address) = self {
+            debug!(
+                "preparing machine state and jumping to 0x{:x}", entry_address,
             );
+
+            unsafe {
+                asm!(
+                    // The jump to the kernel has to happen in protected mode.
+                    // If we're built for i686, we already are in protected mode,
+                    // so this has no effect.
+                    // If we're built for x86_64, this brings us to compatibility mode.
+                    ".code32",
+
+                    // copy the signature
+                    "mov ebp, eax",
+                    // copy the struct address
+                    "mov esi, ecx",
+
+                    // 3.2 Machine state says:
+                    
+                    // > ‘CS’: Must be a 32-bit read/execute code segment with an offset of ‘0’
+                    // > and a limit of ‘0xFFFFFFFF’. The exact value is undefined.
+                    // TODO: Maybe set this?
+                    // > 'DS’, 'ES’, ‘FS’, ‘GS’, ‘SS’: Must be a 32-bit read/write data segment with an
+                    // > offset of ‘0’ and a limit of ‘0xFFFFFFFF’. The exact values are all undefined.
+                    // TODO: Maybe set this?
+                    
+                    // > ‘EFLAGS’: Bit 17 (VM) must be cleared. Bit 9 (IF) must be cleared.
+                    // > Other bits are all undefined. 
+                    // disable interrupts (should have been enabled)
+                    "cli",
+                    // virtual 8086 mode can't be set, as we're 32 or 64 bit code
+                    // (and changing that flag is rather difficult)
+
+
+                    // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
+                    // > Other bits are all undefined.
+                    "mov ecx, cr0",
+                    // disable paging (it should have been enabled)
+                    "and ecx, ~(1<<31)",
+                    // enable protected mode (it should have already been enabled)
+                    "or ecx, 1",
+                    "mov cr0, ecx",
+                    
+                    // The spec doesn't say anything about cr4, but let's do it anyway.
+                    "mov ecx, cr4",
+                    // disable PAE
+                    "and ecx, ~(1<<5)",
+                    "mov cr4, ecx",
+                    
+                    // TODO: Only do this on x86_64?
+                    // x86_64: switch from compatibility mode to protected mode
+                    // get the EFER
+                    "mov ecx, 0xC0000080",
+                    "rdmsr",
+                    // disable long mode
+                    "and eax, ~(1<<8)",
+                    "wrmsr",
+                    
+                    // write the signature to EAX
+                    "mov eax, ebp",
+                    // write the struct address to EBX
+                    "mov ebx, esi",
+                    // finally jump to the kernel
+                    "jmp edi",
+                    
+                    // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
+                    in("eax") signature,
+                    in("ecx") &info.as_slice()[0],
+                    in("edi") entry_address,
+                    options(noreturn),
+                );
+            }
+        } else {
+            panic!("invalid entry point")
         }
     }
 }
