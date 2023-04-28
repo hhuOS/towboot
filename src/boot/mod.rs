@@ -344,7 +344,7 @@ impl<'a> PreparedEntry<'a> {
         let mut mmap_vec = Vec::<u8>::new();
         // Leave a bit of room at the end, we only have one chance.
         let map_size = systab.boot_services().memory_map_size();
-        let estimated_size = map_size.map_size + 200;
+        let estimated_size = map_size.map_size + 500;
         let estimated_count = estimated_size / map_size.entry_size;
         debug!("expecting {estimated_count} memory areas");
         // these are just placeholders
