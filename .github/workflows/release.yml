@@ -7,12 +7,18 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v2
-            - name: Install Rust
+            - name: Install Rust for i686
               uses: actions-rs/toolchain@v1
               with:
                   toolchain: nightly
                   override: true
-                  components: rust-src
+                  target: i686-unknown-uefi
+            - name: Install Rust for x86_64
+              uses: actions-rs/toolchain@v1
+              with:
+                  toolchain: nightly
+                  override: true
+                  target: x86_64-unknown-uefi
             - name: Build for i686
               uses: actions-rs/cargo@v1
               with:

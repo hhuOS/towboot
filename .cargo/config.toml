@@ -1,5 +1,2 @@
 [build]
 target = "i686-unknown-uefi"
-
-[unstable]
-build-std = ["core", "alloc"]
