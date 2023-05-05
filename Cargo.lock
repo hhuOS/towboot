@@ -80,6 +80,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e7ca8a5221364ef15ce201e8ed2f609fc312682a8f4e0e3d4aa5879764e0fa3b"
 
 [[package]]
+name = "derive_more"
+version = "0.99.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fb810d30a7c1953f91334de7244731fc3f3c10d7fe163338a35b9f640960321"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "form_urlencoded"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -239,10 +250,10 @@ dependencies = [
 [[package]]
 name = "multiboot12"
 version = "0.1.0"
-source = "git+https://github.com/YtvwlD/multiboot12#b0bfbba86595eb618858c95e43b0c1a3b4655372"
+source = "git+https://github.com/YtvwlD/multiboot12#16598d383d39123a7e2147093ef924213d13238b"
 dependencies = [
  "multiboot",
- "multiboot2 0.14.0",
+ "multiboot2 0.15.1",
  "multiboot2-header",
  "ouroboros",
 ]
@@ -258,16 +269,18 @@ dependencies = [
 
 [[package]]
 name = "multiboot2"
-version = "0.14.0"
-source = "git+https://github.com/YtvwlD/multiboot2?branch=bootloader#7847be23d69572c4d3f47927567378c1345899a7"
+version = "0.15.1"
+source = "git+https://github.com/YtvwlD/multiboot2?branch=bootloader#cba6123ad8cb8c13aa3c272e1e98e89c259bac9a"
 dependencies = [
  "bitflags",
+ "derive_more",
+ "log",
 ]
 
 [[package]]
 name = "multiboot2-header"
 version = "0.2.0"
-source = "git+https://github.com/YtvwlD/multiboot2?branch=bootloader#7847be23d69572c4d3f47927567378c1345899a7"
+source = "git+https://github.com/YtvwlD/multiboot2?branch=bootloader#cba6123ad8cb8c13aa3c272e1e98e89c259bac9a"
 dependencies = [
  "multiboot2 0.13.3",
 ]

@@ -272,4 +272,8 @@ pub(super) fn prepare_information<'a>(
         info_bytes, lower.try_into().unwrap(), upper.try_into().unwrap(),
         mb_mmap_vec.as_slice(), Some(efi_mmap_slice),
     );
+    // dropping this box breaks on Multiboot1, when Boot Services have been exited
+    if boot_services_exited {
+        core::mem::forget(update_memory_info);
+    }
 }
