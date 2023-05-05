@@ -5,6 +5,7 @@ use alloc::vec::Vec;
 
 use uefi::prelude::*;
 use uefi::proto::console::gop::{GraphicsOutput, Mode, PixelBitmask, PixelFormat};
+use uefi::table::boot::ScopedProtocol;
 
 use log::{debug, warn, info, error};
 
@@ -19,7 +20,7 @@ use super::super::config::Quirk;
 /// If there is no available mode that matches, just use the one we're already in.
 pub(super) fn setup_video<'a>(
     header: &Header, systab: &'a SystemTable<Boot>, quirks: &BTreeSet<Quirk>
-) -> Option<&'a mut GraphicsOutput<'a>> {
+) -> Option<ScopedProtocol<'a, GraphicsOutput<'a>>> {
     info!("setting up the video...");
     let wanted_resolution = match (
         header.get_preferred_video_mode(), quirks.contains(&Quirk::KeepResolution)
@@ -48,13 +49,15 @@ pub(super) fn setup_video<'a>(
         _ => None,
     };
     // just get the first one
-    let output = systab.boot_services().locate_protocol::<GraphicsOutput>().map_err(|e| {
-        warn!(
-            "Failed to find a graphics output. Do you have a graphics card (and a driver)?: {e:?}"
-        );
-        Status::DEVICE_ERROR
-    }).ok()?;
-    let output = unsafe { &mut *output.get() };
+    let handles = systab
+        .boot_services()
+        .find_handles::<GraphicsOutput>()
+        .expect("failed to list available graphics outputs");
+    let handle = handles.get(0).or_else(|| {
+        warn!("Failed to find a graphics output. Do you have a graphics card (and a driver)?");
+        None
+    })?;
+    let mut output: ScopedProtocol<GraphicsOutput> = systab.boot_services().open_protocol_exclusive(*handle).ok()?;
     let modes: Vec<Mode> = output.modes().collect();
     debug!(
         "available video modes: {:?}",
@@ -86,7 +89,7 @@ pub(super) fn setup_video<'a>(
 
 /// Pass the framebuffer information to the kernel.
 pub(super) fn prepare_information(
-    multiboot: &mut InfoBuilder, graphics_output: &mut GraphicsOutput
+    multiboot: &mut InfoBuilder, mut graphics_output: ScopedProtocol<GraphicsOutput>,
 ) {
     let address = graphics_output.frame_buffer().as_mut_ptr();
     let mode = graphics_output.current_mode_info();

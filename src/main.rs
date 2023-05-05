@@ -11,8 +11,6 @@ use core::str::FromStr;
 use alloc::string::ToString;
 
 use uefi::prelude::*;
-use uefi::table::boot::OpenProtocolAttributes;
-use uefi::table::boot::OpenProtocolParams;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::loaded_image::LoadOptionsError;
 use uefi::proto::media::fs::SimpleFileSystem;
@@ -53,17 +51,10 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
     let (config, mut volume) = {
         // get information about the way we were loaded
         // the interesting thing here is the partition handle
-        let loaded_image = systab.boot_services()
-        .open_protocol::<LoadedImage>(
-            OpenProtocolParams {
-                handle: image,
-                agent: image,
-                controller: None,
-            },
-            OpenProtocolAttributes::Exclusive,
-        )
-        .expect("Failed to open loaded image protocol");
-        let loaded_image = unsafe { &mut *loaded_image.interface.get() };
+        let loaded_image = systab
+            .boot_services()
+            .open_protocol_exclusive::<LoadedImage>(image)
+            .expect("Failed to open loaded image protocol");
         
         // get the load options
         let load_options = match loaded_image.load_options_as_cstr16() {
@@ -83,17 +74,10 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
         };
         
         // open the filesystem
-        let fs = systab.boot_services()
-        .open_protocol::<SimpleFileSystem>(
-            OpenProtocolParams {
-                handle: loaded_image.device(),
-                agent: image,
-                controller: None,
-            },
-            OpenProtocolAttributes::Exclusive,
-        )
-        .expect("Failed to open filesystem");
-        let fs = unsafe { &mut *fs.interface.get() };
+        let mut fs = systab
+            .boot_services()
+            .open_protocol_exclusive::<SimpleFileSystem>(loaded_image.device())
+            .expect("Failed to open filesystem");
         let mut volume = fs.open_volume().expect("Failed to open root directory");
         
         let config = match config::get(

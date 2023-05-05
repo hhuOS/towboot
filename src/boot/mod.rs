@@ -15,7 +15,7 @@ use core::ptr::NonNull;
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::media::file::Directory;
-use uefi::table::boot::MemoryDescriptor;
+use uefi::table::boot::{MemoryDescriptor, ScopedProtocol};
 use uefi::table::cfg::ConfigTableEntry;
 
 use log::{debug, info, error, warn};
@@ -190,7 +190,7 @@ fn get_kernel_uefi_entry(
 fn prepare_multiboot_information(
     entry: &Entry, header: Header, load_base_address: Option<u32>,
     modules: &[Allocation], symbols: Option<Symbols>,
-    graphics_output: Option<&mut GraphicsOutput>, image: Handle,
+    graphics_output: Option<ScopedProtocol<GraphicsOutput>>, image: Handle,
     config_tables: &[ConfigTableEntry], boot_services_exited: bool,
 ) -> InfoBuilder {
     let mut info_builder = header.info_builder();
