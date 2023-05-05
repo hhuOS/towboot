@@ -10,39 +10,41 @@ use alloc::{
 };
 
 use core::arch::asm;
+use core::ffi::c_void;
+use core::ptr::NonNull;
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::media::file::Directory;
+use uefi::table::boot::MemoryDescriptor;
+use uefi::table::cfg::ConfigTableEntry;
 
-use log::{debug, info, error};
+use log::{debug, info, error, warn};
 
-use multiboot::header::{Header, MultibootAddresses};
-use multiboot::information::{
-    MemoryEntry, Module, Multiboot, MultibootInfo, SIGNATURE_EAX, SymbolType
+use multiboot12::header::{Header, Addresses as MultibootAddresses};
+use multiboot12::information::{
+    Module, InfoBuilder, Symbols
 };
 
 use goblin::elf::Elf;
+use uefi_services::system_table;
 
 use super::config::{Entry, Quirk};
 use super::file::File;
-use super::mem::{Allocation, MultibootAllocator};
+use super::mem::Allocation;
 
+mod config_tables;
 mod elf;
 mod video;
 
 use elf::OurElfLoader;
 
-enum Addresses {
-    Multiboot(MultibootAddresses),
-    /// the entry address
-    Elf(usize),
-}
-
 /// A kernel loaded into memory
 struct LoadedKernel {
     allocations: Vec<Allocation>,
-    addresses: Addresses,
-    symbols: Option<(SymbolType, Vec<u8>)>,
+    entry_point: EntryPoint,
+    load_base_address: Option<u32>,
+    should_exit_boot_services: bool,
+    symbols: Option<(Symbols, Vec<u8>)>,
 }
 
 impl LoadedKernel {
@@ -51,52 +53,64 @@ impl LoadedKernel {
     fn new(
         kernel_vec: Vec<u8>, header: &Header, quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
-        match (header.get_addresses(), quirks.contains(&Quirk::ForceElf)) {
-            (Some(addr), false) => LoadedKernel::new_multiboot(kernel_vec, addr, header.header_start),
-            _ => LoadedKernel::new_elf(kernel_vec),
+        if header.get_load_addresses().is_some() && !quirks.contains(&Quirk::ForceElf) {
+            LoadedKernel::new_multiboot(kernel_vec, header, quirks)
+        } else {
+            LoadedKernel::new_elf(header, kernel_vec, quirks)
         }
     }
     
     /// Load a kernel which has its addresses specified inside the Multiboot header.
     fn new_multiboot(
-        kernel_vec: Vec<u8>, addresses: MultibootAddresses, header_start: u32
+        kernel_vec: Vec<u8>, header: &Header, quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
         // TODO: Add support for AOut symbols? Do we really know this binary is AOut at this point?
+        let addresses = header.get_load_addresses().unwrap();
         
         // Try to allocate the memory where to load the kernel and move the kernel there.
         // In the worst case we might have blocked the destination by loading the file there,
         // but `move_to_where_it_should_be` should fix this later.
         info!("moving the kernel to its desired location...");
-        let load_offset = addresses.compute_load_offset(header_start);
+        let load_offset = addresses.compute_load_offset(header.header_start());
         // allocate
-        let kernel_length: usize = {
-            if addresses.bss_end_address == 0 {addresses.load_end_address - addresses.load_address}
-            else {addresses.bss_end_address - addresses.load_address}
-        }.try_into().unwrap();
+        let kernel_length: usize = addresses.compute_kernel_length(
+            kernel_vec.len().try_into().unwrap()
+        ).try_into().unwrap();
         let mut allocation = Allocation::new_at(
-            addresses.load_address.try_into().unwrap(), kernel_length
+            addresses.load_addr().try_into().unwrap(), kernel_length
         )?;
         let kernel_buf = allocation.as_mut_slice();
         // copy from beginning of text to end of data segment and fill the rest with zeroes
         kernel_buf.iter_mut().zip(
             kernel_vec.iter()
             .skip(load_offset.try_into().unwrap())
-            .take((addresses.load_end_address - addresses.load_address).try_into().unwrap())
+            .take(kernel_length)
             .chain(core::iter::repeat(&0))
         )
         .for_each(|(dst,src)| *dst = *src);
         // drop the old vector
         core::mem::drop(kernel_vec);
+
+        let entry_point = get_kernel_uefi_entry(header, &quirks)
+            .or(header.get_entry_address().map(
+                |e| EntryPoint::Multiboot(e as usize)
+            ))
+            .unwrap();
+        let should_exit_boot_services = !quirks.contains(&Quirk::DontExitBootServices) && header.should_exit_boot_services();
         
         Ok(Self {
             allocations: vec![allocation],
-            addresses: Addresses::Multiboot(addresses),
+            entry_point,
+            load_base_address: Some(addresses.load_addr()),
+            should_exit_boot_services,
             symbols: None,
         })
     }
     
     /// Load a kernel which uses ELF semantics.
-    fn new_elf(kernel_vec: Vec<u8>) -> Result<Self, Status> {
+    fn new_elf(
+        header: &Header, kernel_vec: Vec<u8>, quirks: &BTreeSet<Quirk>,
+    ) -> Result<Self, Status> {
         let mut binary = Elf::parse(kernel_vec.as_slice()).map_err(|msg| {
             error!("failed to parse ELF structure of kernel: {msg}");
             Status::LOAD_ERROR
@@ -106,44 +120,96 @@ impl LoadedKernel {
             error!("failed to load kernel: {msg}");
             Status::LOAD_ERROR
         })?;
-        let symbols = Some(elf::symbols(&mut binary, kernel_vec.as_slice()));
-        let entry_point = loader.entry_point();
-        Ok(Self{
-            allocations: loader.into(),
-            addresses: Addresses::Elf(entry_point),
-            symbols,
+        let symbols = Some(elf::symbols(header, &mut binary, kernel_vec.as_slice()));
+        let entry_point = get_kernel_uefi_entry(header, &quirks)
+            .or(header.get_entry_address().map(
+                |e| EntryPoint::Multiboot(e as usize)
+            ))
+            .unwrap_or(EntryPoint::Multiboot(loader.entry_point()));
+        let should_exit_boot_services = !quirks.contains(&Quirk::DontExitBootServices) && header.should_exit_boot_services();
+        Ok(Self {
+            allocations: loader.into(), entry_point, load_base_address: None,
+            should_exit_boot_services, symbols,
         })
     }
     
     /// Get the symbols struct.
     /// This is needed for the Multiboot Information struct.
-    fn symbols_struct(&self) -> Option<&SymbolType> {
-        self.symbols.as_ref().map(|(s, _v)| s)
+    /// This leaks the allocated memory.
+    fn symbols_struct(&mut self) -> Option<Symbols> {
+        self.symbols.take().map(|(s, v)| {
+            core::mem::forget(v);
+            s
+        })
+    }
+}
+
+/// Check whether the kernel is compatible to the firmware we are running on.
+#[cfg(target_arch = "x86")]
+fn get_kernel_uefi_entry(
+    header: &Header, quirks: &BTreeSet<Quirk>,
+) -> Option<EntryPoint> {
+    if let Some(uefi_entry) = header.get_efi32_entry_address() {
+        if header.should_exit_boot_services() && !quirks.contains(&Quirk::DontExitBootServices) {
+            warn!("The kernel seems to be UEFI-aware but doesn't want us to exit Boot Services.");
+            debug!("(The Boot Services tag is missing.)");
+            warn!("This is at odds with the Multiboot specification.");
+            warn!("So, let's just pretend it isn't UEFI-aware.");
+            warn!("(Pass the `DontExitBootServices` quirk to override this.)");
+            None
+        } else {
+            Some(EntryPoint::Uefi(uefi_entry as usize))
+        }
+    } else {
+        None
+    }
+}
+
+/// Check whether the kernel is compatible to the firmware we are running on.
+#[cfg(target_arch = "x86_64")]
+fn get_kernel_uefi_entry(
+    header: &Header, quirks: &BTreeSet<Quirk>,
+) -> Option<EntryPoint> {
+    if let Some(uefi_entry) = header.get_efi64_entry_address() {
+        if header.should_exit_boot_services() && !quirks.contains(&Quirk::DontExitBootServices) {
+            warn!("The kernel seems to be UEFI-aware but doesn't want us to exit Boot Services.");
+            debug!("(The Boot Services tag is missing.)");
+            warn!("This is at odds with the Multiboot specification.");
+            warn!("So, let's just pretend it isn't UEFI-aware.");
+            warn!("(Pass the `DontExitBootServices` quirk to override this.)");
+            None
+        } else {
+            Some(EntryPoint::Uefi(uefi_entry as usize))
+        }
+    } else {
+        None
     }
 }
 
 /// Prepare information for the kernel.
 fn prepare_multiboot_information(
-    entry: &Entry, modules: &[Allocation], symbols: Option<SymbolType>,
-    graphics_output: &mut GraphicsOutput
-) -> (MultibootInfo, MultibootAllocator) {
-    let mut info = MultibootInfo::default();
-    let mut allocator = MultibootAllocator::new();
-    let mut multiboot = Multiboot::from_ref(&mut info, &mut allocator);
+    entry: &Entry, header: Header, load_base_address: Option<u32>,
+    modules: &[Allocation], symbols: Option<Symbols>,
+    graphics_output: Option<&mut GraphicsOutput>, image: Handle,
+    config_tables: &[ConfigTableEntry], boot_services_exited: bool,
+) -> InfoBuilder {
+    let mut info_builder = header.info_builder();
     
     // We don't have much information about the partition we loaded the kernel from.
     // There's the UEFI Handle, but the kernel probably won't understand that.
     
-    multiboot.set_command_line(entry.argv.as_deref());
+    info_builder.set_command_line(entry.argv.as_deref());
     let mb_modules: Vec<Module> = modules.iter().zip(entry.modules.iter()).map(|(module, module_entry)| {
-        Module::new(
-            module.as_ptr() as u64,
-            unsafe { module.as_ptr().offset(module.len.try_into().unwrap()) as u64 },
+        info_builder.new_module(
+            (module.as_ptr() as usize).try_into().unwrap(),
+            (unsafe {
+                module.as_ptr().offset(module.len.try_into().unwrap())
+            } as usize ).try_into().unwrap(),
             module_entry.argv.as_deref()
         )
     }).collect();
-    multiboot.set_modules(Some(&mb_modules));
-    multiboot.set_symbols(symbols);
+    info_builder.set_modules(Some(mb_modules));
+    info_builder.set_symbols(symbols);
     
     // Passing memory information happens after exiting BootServices,
     // so we don't accidentally allocate or deallocate, making the data obsolete.
@@ -155,7 +221,7 @@ fn prepare_multiboot_information(
     
     // There is no BIOS config table.
     
-    multiboot.set_boot_loader_name(Some(&format!(
+    info_builder.set_boot_loader_name(Some(&format!(
         "{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")
     )));
     
@@ -163,16 +229,51 @@ fn prepare_multiboot_information(
     
     // There is no VBE information.
     
-    video::prepare_information(&mut multiboot, graphics_output);
+    if let Some(go) = graphics_output {
+        video::prepare_information(&mut info_builder, go);
+    }
+
+    // This only has an effect on Multiboot2.
+    // TODO: Does this stay valid when we exit Boot Services?
+    let systab_ptr = system_table().as_ptr();
+    let image_handle_ptr = (unsafe {
+        core::mem::transmute::<_, NonNull<c_void>>(image)
+    }).as_ptr();
+    if cfg!(target_arch = "x86") {
+        info_builder.set_system_table_ia32(Some(
+            (systab_ptr as usize).try_into().unwrap()
+        ));
+        info_builder.set_efi_image_handle32(
+            (image_handle_ptr as usize).try_into().unwrap()
+        );
+    } else if cfg!(target_arch = "x86_64") {
+        info_builder.set_system_table_x64(Some(
+            (systab_ptr as usize).try_into().unwrap()
+        ));
+        info_builder.set_efi_image_handle64(
+            (image_handle_ptr as usize).try_into().unwrap()
+        );
+    } else {
+        warn!("don't know how to pass the UEFI data on this target");
+    }
+
+    config_tables::parse_for_multiboot(config_tables, &mut info_builder);
+
+    if !boot_services_exited {
+        info_builder.set_boot_services_not_exited();
+    }
+
+    if let Some(addr) = load_base_address {
+        info_builder.set_image_load_addr(addr);
+    }
     
-    (info, allocator)
+    info_builder
 }
 
 pub(crate) struct PreparedEntry<'a> {
     entry: &'a Entry,
     loaded_kernel: LoadedKernel,
-    multiboot_information: MultibootInfo,
-    multiboot_allocator: MultibootAllocator,
+    multiboot_information: InfoBuilder,
     modules_vec: Vec<Allocation>,
 }
 
@@ -190,7 +291,8 @@ impl<'a> PreparedEntry<'a> {
     /// Return a `PreparedEntry` which can be used to actually boot.
     /// This is non-destructive and will always return.
     pub(crate) fn new(
-        entry: &'a Entry, volume: &mut Directory, systab: &SystemTable<Boot>
+        entry: &'a Entry, image: Handle, volume: &mut Directory,
+        systab: &SystemTable<Boot>,
     ) -> Result<PreparedEntry<'a>, Status> {
         let kernel_vec: Vec<u8> = File::open(&entry.image, volume)?.try_into()?;
         let header = Header::from_slice(kernel_vec.as_slice()).ok_or_else(|| {
@@ -198,7 +300,7 @@ impl<'a> PreparedEntry<'a> {
             Status::LOAD_ERROR
         })?;
         debug!("loaded kernel {:?} to {:?}", header, kernel_vec.as_ptr());
-        let loaded_kernel = LoadedKernel::new(kernel_vec, &header, &entry.quirks)?;
+        let mut loaded_kernel = LoadedKernel::new(kernel_vec, &header, &entry.quirks)?;
         info!("kernel is loaded and bootable");
         
         // Load all modules, fail completely if one fails to load.
@@ -212,57 +314,91 @@ impl<'a> PreparedEntry<'a> {
             debug!("loaded module {} to {:?}", index, module.as_ptr());
         }
         
-        let graphics_output = video::setup_video(&header, systab, &entry.quirks)?;
+        let graphics_output = video::setup_video(&header, systab, &entry.quirks);
         
-        let (multiboot_information, multiboot_allocator) = prepare_multiboot_information(
-            entry, &modules_vec, loaded_kernel.symbols_struct().copied(),
-            graphics_output,
+        let multiboot_information = prepare_multiboot_information(
+            entry, header, loaded_kernel.load_base_address, &modules_vec,
+            loaded_kernel.symbols_struct(), graphics_output, image,
+            systab.config_table(),
+            !entry.quirks.contains(&Quirk::DontExitBootServices),
         );
         
         Ok(PreparedEntry {
-            entry, loaded_kernel, multiboot_information,
-            multiboot_allocator, modules_vec,
+            entry, loaded_kernel, multiboot_information, modules_vec,
         })
     }
     
     /// Actually boot an entry.
     ///
     /// What this means:
-    /// 1. exit `BootServices`
+    /// 1. exit `BootServices` (if needed)
     /// 2. pass the memory map to the kernel
     /// 3. copy the kernel to its desired location (if needed)
-    /// 4. bring the machine in the correct state
+    /// 4. bring the machine in the correct state (if needed)
     /// 5. jump!
     ///
     /// This function won't return.
     pub(crate) fn boot(mut self, image: Handle, systab: SystemTable<Boot>) {
         // allocate memory for the memory map
         // also, keep a bit of room
-        info!("exiting boot services...");
         let mut mmap_vec = Vec::<u8>::new();
-        let mut mb_mmap_vec = Vec::<MemoryEntry>::new();
         // Leave a bit of room at the end, we only have one chance.
-        let estimated_size = systab.boot_services().memory_map_size().map_size + 100;
+        let map_size = systab.boot_services().memory_map_size();
+        let estimated_size = map_size.map_size + 500;
+        let estimated_count = estimated_size / map_size.entry_size;
+        debug!("expecting {estimated_count} memory areas");
+        // these are just placeholders
         mmap_vec.resize(estimated_size, 0);
-        mb_mmap_vec.resize(estimated_size, MemoryEntry::default());
-        let (_systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())
-        .expect("failed to exit boot services");
-        // now, write! won't work anymore. Also, we can't allocate any memory.
-        
-        // Passing the memory map has to happen here,
-        // since we can't allocate or deallocate anymore.
-        let mut multiboot = Multiboot::from_ref(
-            &mut self.multiboot_information, &mut self.multiboot_allocator
+        // You may ask yourself why we're not passing map_size.entry_size here.
+        // That's because we're passing a slice of uefi.rs' MemoryDescriptors
+        // (which hopefully are the same as multiboot2's EFIMemoryDescs),
+        // and not the ones the firmware provides us with.
+        // (That's also why we can't set the version.)
+        // In the future, when uefi.rs might allow us to directly access
+        // the returned memory map (including the version!),
+        // we might want to pass that instead.
+        self.multiboot_information.allocate_efi_memory_map_vec(
+            estimated_count.try_into().unwrap()
         );
-        let mb_mmap = super::mem::prepare_information(
-            &mut multiboot, mmap_iter, mb_mmap_vec.leak()
+        let mut efi_mmap_vec = Vec::new();
+        efi_mmap_vec.resize(estimated_count, MemoryDescriptor::default());
+        let mut mb_mmap_vec = self.multiboot_information
+            .allocate_memory_map_vec(estimated_count);
+        self.multiboot_information.set_memory_bounds(Some((0, 0)));
+        let (
+            mut info, signature, update_memory_info,
+        ) = self.multiboot_information.build();
+        debug!("passing {} to kernel...", signature);
+        if self.loaded_kernel.should_exit_boot_services {
+            info!("exiting boot services...");
+            let (_systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())
+                .expect("failed to exit boot services");
+            // now, write! won't work anymore. Also, we can't allocate any memory.
+            
+            // Passing the memory map has to happen here,
+            // since we can't allocate or deallocate anymore.
+            mmap_iter.zip(efi_mmap_vec.iter_mut()).for_each(
+                |(src, dest)| *dest = *src
+            );
+        } else {
+            let (_key, mmap_iter) = systab.boot_services().memory_map(mmap_vec.as_mut_slice()).unwrap();
+            debug!("got {} memory areas", mmap_iter.len());
+            mmap_iter.zip(efi_mmap_vec.iter_mut()).for_each(
+                |(src, dest)| *dest = *src
+            );
+        }
+        super::mem::prepare_information(
+            &mut info, update_memory_info, &efi_mmap_vec,
+            &mut mb_mmap_vec, self.loaded_kernel.should_exit_boot_services,
         );
         
         for allocation in &mut self.loaded_kernel.allocations {
             // It could be possible that we failed to allocate memory for the kernel in the correct
             // place before. Just copy it now to where is belongs.
             // This is *really* unsafe, please see the documentation comment for details.
-            unsafe { allocation.move_to_where_it_should_be(mb_mmap) };
+            unsafe { allocation.move_to_where_it_should_be(
+                &mb_mmap_vec, &self.entry.quirks,
+            ) };
         }
         // The kernel will need its code and data, so make sure it stays around indefinitely.
         core::mem::forget(self.loaded_kernel.allocations);
@@ -271,75 +407,117 @@ impl<'a> PreparedEntry<'a> {
         // The kernel is going to need the section headers and symbols.
         core::mem::forget(self.loaded_kernel.symbols);
         
-        let entry_address = match &self.loaded_kernel.addresses {
-            Addresses::Multiboot(addr) => addr.entry_address as usize,
-            Addresses::Elf(e) => *e,
-        };
-        
-        unsafe {
-            asm!(
-                // The jump to the kernel has to happen in protected mode.
-                // If we're built for i686, we already are in protected mode,
-                // so this has no effect.
-                // If we're built for x86_64, this brings us to compatibility mode.
-                ".code32",
-                
-                // 3.2 Machine state says:
-                
-                // > ‘CS’: Must be a 32-bit read/execute code segment with an offset of ‘0’
-                // > and a limit of ‘0xFFFFFFFF’. The exact value is undefined.
-                // TODO: Maybe set this?
-                // > 'DS’, 'ES’, ‘FS’, ‘GS’, ‘SS’: Must be a 32-bit read/write data segment with an
-                // > offset of ‘0’ and a limit of ‘0xFFFFFFFF’. The exact values are all undefined.
-                // TODO: Maybe set this?
-                
-                // > ‘EFLAGS’: Bit 17 (VM) must be cleared. Bit 9 (IF) must be cleared.
-                // > Other bits are all undefined. 
-                // disable interrupts (should have been enabled)
-                "cli",
-                // virtual 8086 mode can't be set, as we're 32 or 64 bit code
-                // (and changing that flag is rather difficult)
+        self.loaded_kernel.entry_point.jump(signature, info)
+    }
+}
 
-                // Writing to RBX (and thus EBX) using in("ebx") is forbidden,
-                // since this register is used internally by LLVM.
-                // Thus, we need to write the mulitboot information address to EAX
-                // and copy it into EBX here.
-                "mov ebx, eax",
+/// How to give execution to the kernel
+/// 
+/// Currently, there are two options: UEFI and Multiboot
+enum EntryPoint {
+    /// Uefi machine state
+    /// 
+    /// This is pretty simple: Keep the current state and just pass the
+    /// information struct.
+    Uefi(usize),
+    /// Multiboot machine state
+    /// This is pretty complicated (see below).
+    Multiboot(usize),
+}
 
-                // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
-                // > Other bits are all undefined.
-                "mov ecx, cr0",
-                // disable paging (it should have been enabled)
-                "and ecx, ~(1<<31)",
-                // enable protected mode (it should have already been enabled)
-                "or ecx, 1",
-                "mov cr0, ecx",
-                
-                // The spec doesn't say anything about cr4, but let's do it anyway.
-                "mov ecx, cr4",
-                // disable PAE
-                "and ecx, ~(1<<5)",
-                "mov cr4, ecx",
-                
-                // TODO: Only do this on x86_64?
-                // x86_64: switch from compatibility mode to protected mode
-                // get the EFER
-                "mov ecx, 0xC0000080",
-                "rdmsr",
-                // disable long mode
-                "and eax, ~(1<<8)",
-                "wrmsr",
-                
-                // write the signature to EAX
-                "mov eax, {}",
-                // finally jump to the kernel
-                "jmp edi",
-                
-                const SIGNATURE_EAX,
-                in("eax") &self.multiboot_information,
-                in("edi") entry_address,
-                options(noreturn),
+impl EntryPoint {
+    fn jump(self, signature: u32, info: Vec<u8>) {
+        if let Self::Uefi(entry_address) = self {
+            debug!("jumping to 0x{:x}", entry_address);
+            unsafe {
+                // TODO: The spec mentions 32 bit registers, even on 64 bit.
+                // Do we need to zero the beginning?
+
+                // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
+                asm!(
+                    "mov ebx, ecx",
+                    "jmp {}",
+                    in(reg) entry_address,
+                    in("eax") signature,
+                    in("ecx") &info.as_slice()[0],
+                    options(noreturn),
+                );
+            }
+        } else if let Self::Multiboot(entry_address) = self {
+            debug!(
+                "preparing machine state and jumping to 0x{:x}", entry_address,
             );
+
+            unsafe {
+                asm!(
+                    // The jump to the kernel has to happen in protected mode.
+                    // If we're built for i686, we already are in protected mode,
+                    // so this has no effect.
+                    // If we're built for x86_64, this brings us to compatibility mode.
+                    ".code32",
+
+                    // copy the signature
+                    "mov ebp, eax",
+                    // copy the struct address
+                    "mov esi, ecx",
+
+                    // 3.2 Machine state says:
+                    
+                    // > ‘CS’: Must be a 32-bit read/execute code segment with an offset of ‘0’
+                    // > and a limit of ‘0xFFFFFFFF’. The exact value is undefined.
+                    // TODO: Maybe set this?
+                    // > 'DS’, 'ES’, ‘FS’, ‘GS’, ‘SS’: Must be a 32-bit read/write data segment with an
+                    // > offset of ‘0’ and a limit of ‘0xFFFFFFFF’. The exact values are all undefined.
+                    // TODO: Maybe set this?
+                    
+                    // > ‘EFLAGS’: Bit 17 (VM) must be cleared. Bit 9 (IF) must be cleared.
+                    // > Other bits are all undefined. 
+                    // disable interrupts (should have been enabled)
+                    "cli",
+                    // virtual 8086 mode can't be set, as we're 32 or 64 bit code
+                    // (and changing that flag is rather difficult)
+
+
+                    // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
+                    // > Other bits are all undefined.
+                    "mov ecx, cr0",
+                    // disable paging (it should have been enabled)
+                    "and ecx, ~(1<<31)",
+                    // enable protected mode (it should have already been enabled)
+                    "or ecx, 1",
+                    "mov cr0, ecx",
+                    
+                    // The spec doesn't say anything about cr4, but let's do it anyway.
+                    "mov ecx, cr4",
+                    // disable PAE
+                    "and ecx, ~(1<<5)",
+                    "mov cr4, ecx",
+                    
+                    // TODO: Only do this on x86_64?
+                    // x86_64: switch from compatibility mode to protected mode
+                    // get the EFER
+                    "mov ecx, 0xC0000080",
+                    "rdmsr",
+                    // disable long mode
+                    "and eax, ~(1<<8)",
+                    "wrmsr",
+                    
+                    // write the signature to EAX
+                    "mov eax, ebp",
+                    // write the struct address to EBX
+                    "mov ebx, esi",
+                    // finally jump to the kernel
+                    "jmp edi",
+                    
+                    // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
+                    in("eax") signature,
+                    in("ecx") &info.as_slice()[0],
+                    in("edi") entry_address,
+                    options(noreturn),
+                );
+            }
+        } else {
+            panic!("invalid entry point")
         }
     }
 }

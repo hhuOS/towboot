@@ -121,7 +121,7 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
     debug!("okay, trying to load {entry_to_boot:?}");
     info!("loading {entry_to_boot}...");
     
-    match boot::PreparedEntry::new(entry_to_boot, &mut volume, &systab) {
+    match boot::PreparedEntry::new(entry_to_boot, image, &mut volume, &systab) {
         Ok(e) => {
             info!("booting {entry_to_boot}...");
             e.boot(image, systab);
