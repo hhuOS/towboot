@@ -250,7 +250,7 @@ dependencies = [
 [[package]]
 name = "multiboot12"
 version = "0.1.0"
-source = "git+https://github.com/YtvwlD/multiboot12#16598d383d39123a7e2147093ef924213d13238b"
+source = "git+https://github.com/YtvwlD/multiboot12?tag=towboot-0.5.0#e416cb7fdd1895a49b36114179d040cc7eceb3d1"
 dependencies = [
  "multiboot",
  "multiboot2 0.15.1",
@@ -270,7 +270,7 @@ dependencies = [
 [[package]]
 name = "multiboot2"
 version = "0.15.1"
-source = "git+https://github.com/YtvwlD/multiboot2?branch=bootloader#cba6123ad8cb8c13aa3c272e1e98e89c259bac9a"
+source = "git+https://github.com/YtvwlD/multiboot2?tag=towboot-0.5.0#cba6123ad8cb8c13aa3c272e1e98e89c259bac9a"
 dependencies = [
  "bitflags",
  "derive_more",
@@ -280,7 +280,7 @@ dependencies = [
 [[package]]
 name = "multiboot2-header"
 version = "0.2.0"
-source = "git+https://github.com/YtvwlD/multiboot2?branch=bootloader#cba6123ad8cb8c13aa3c272e1e98e89c259bac9a"
+source = "git+https://github.com/YtvwlD/multiboot2?tag=towboot-0.5.0#cba6123ad8cb8c13aa3c272e1e98e89c259bac9a"
 dependencies = [
  "multiboot2 0.13.3",
 ]
