@@ -61,7 +61,7 @@ impl Allocation {
     pub(crate) fn new_at(address: usize, size: usize) -> Result<Self, Status>{
         let count_pages = Self::calculate_page_count(size);
         match unsafe { system_table().as_ref() }.boot_services().allocate_pages(
-            AllocateType::Address(address),
+            AllocateType::Address(address.try_into().unwrap()),
             MemoryType::LOADER_DATA,
             count_pages
         ) {
@@ -88,7 +88,7 @@ impl Allocation {
             AllocateType::MaxAddress(if quirks.contains(&Quirk::ModulesBelow200Mb) {
                 200 * 1024 * 1024
             } else {
-                u32::MAX as usize
+                u32::MAX.into()
             }),
             MemoryType::LOADER_DATA,
             count_pages
