@@ -389,7 +389,7 @@ impl<'a> PreparedEntry<'a> {
         }
         super::mem::prepare_information(
             &mut info, update_memory_info, &efi_mmap_vec,
-            &mut mb_mmap_vec, true,
+            &mut mb_mmap_vec, self.loaded_kernel.should_exit_boot_services,
         );
         
         for allocation in &mut self.loaded_kernel.allocations {
