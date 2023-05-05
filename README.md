@@ -1,6 +1,6 @@
 # towboot
 
-a bootloader for Multiboot kernels on UEFI systems
+a bootloader for Multiboot kernels (version 1 and version 2) on UEFI systems
 
 ## usage
 
