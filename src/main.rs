@@ -106,7 +106,7 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
     match boot::PreparedEntry::new(entry_to_boot, image, &mut volume, &systab) {
         Ok(e) => {
             info!("booting {entry_to_boot}...");
-            e.boot(image, systab);
+            e.boot(systab);
             unreachable!();
         },
         Err(e) => {

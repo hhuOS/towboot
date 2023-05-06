@@ -20,7 +20,7 @@ use super::super::config::Quirk;
 /// If there is no available mode that matches, just use the one we're already in.
 pub(super) fn setup_video<'a>(
     header: &Header, systab: &'a SystemTable<Boot>, quirks: &BTreeSet<Quirk>
-) -> Option<ScopedProtocol<'a, GraphicsOutput<'a>>> {
+) -> Option<ScopedProtocol<'a, GraphicsOutput>> {
     info!("setting up the video...");
     let wanted_resolution = match (
         header.get_preferred_video_mode(), quirks.contains(&Quirk::KeepResolution)

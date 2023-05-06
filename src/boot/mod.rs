@@ -17,7 +17,7 @@ use core::ptr::NonNull;
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::media::file::Directory;
-use uefi::table::boot::{MemoryDescriptor, ScopedProtocol};
+use uefi::table::boot::ScopedProtocol;
 use uefi::table::cfg::ConfigTableEntry;
 
 use log::{debug, info, error, warn};
@@ -340,30 +340,22 @@ impl<'a> PreparedEntry<'a> {
     /// 5. jump!
     ///
     /// This function won't return.
-    pub(crate) fn boot(mut self, image: Handle, systab: SystemTable<Boot>) {
-        // allocate memory for the memory map
-        // also, keep a bit of room
-        let mut mmap_vec = Vec::<u8>::new();
-        // Leave a bit of room at the end, we only have one chance.
+    pub(crate) fn boot(mut self, systab: SystemTable<Boot>) {
+        // Estimate the number of memory sections.
         let map_size = systab.boot_services().memory_map_size();
         let estimated_size = map_size.map_size + 500;
         let estimated_count = estimated_size / map_size.entry_size;
         debug!("expecting {estimated_count} memory areas");
-        // these are just placeholders
-        mmap_vec.resize(estimated_size, 0);
         // You may ask yourself why we're not passing map_size.entry_size here.
         // That's because we're passing a slice of uefi.rs' MemoryDescriptors
         // (which hopefully are the same as multiboot2's EFIMemoryDescs),
         // and not the ones the firmware provides us with.
         // (That's also why we can't set the version.)
-        // In the future, when uefi.rs might allow us to directly access
+        // In the future, if uefi.rs might allow us to directly access
         // the returned memory map (including the version!),
         // we might want to pass that instead.
-        self.multiboot_information.allocate_efi_memory_map_vec(
-            estimated_count.try_into().unwrap()
-        );
-        let mut efi_mmap_vec = Vec::new();
-        efi_mmap_vec.resize(estimated_count, MemoryDescriptor::default());
+        let mut mb_efi_mmap_vec = self.multiboot_information
+            .allocate_efi_memory_map_vec(estimated_count.try_into().unwrap());
         let mut mb_mmap_vec = self.multiboot_information
             .allocate_memory_map_vec(estimated_count);
         self.multiboot_information.set_memory_bounds(Some((0, 0)));
@@ -371,27 +363,23 @@ impl<'a> PreparedEntry<'a> {
             mut info, signature, update_memory_info,
         ) = self.multiboot_information.build();
         debug!("passing {} to kernel...", signature);
-        if self.loaded_kernel.should_exit_boot_services {
+        let mut mmap_vec = Vec::<u8>::new();
+        let memory_map = if self.loaded_kernel.should_exit_boot_services {
             info!("exiting boot services...");
-            let (_systab, mmap_iter) = systab.exit_boot_services(image, mmap_vec.as_mut_slice())
-                .expect("failed to exit boot services");
+            let (_systab, mut memory_map) = systab.exit_boot_services();
+            memory_map.sort();
             // now, write! won't work anymore. Also, we can't allocate any memory.
-            
-            // Passing the memory map has to happen here,
-            // since we can't allocate or deallocate anymore.
-            mmap_iter.zip(efi_mmap_vec.iter_mut()).for_each(
-                |(src, dest)| *dest = *src
-            );
+            memory_map
         } else {
-            let (_key, mmap_iter) = systab.boot_services().memory_map(mmap_vec.as_mut_slice()).unwrap();
-            debug!("got {} memory areas", mmap_iter.len());
-            mmap_iter.zip(efi_mmap_vec.iter_mut()).for_each(
-                |(src, dest)| *dest = *src
-            );
-        }
+            mmap_vec.resize(estimated_size, 0);
+            let memory_map = systab.boot_services().memory_map(mmap_vec.as_mut_slice()).unwrap();
+            debug!("got {} memory areas", memory_map.entries().len());
+            memory_map
+        };
         super::mem::prepare_information(
-            &mut info, update_memory_info, &efi_mmap_vec,
-            &mut mb_mmap_vec, self.loaded_kernel.should_exit_boot_services,
+            &mut info, update_memory_info, &memory_map,
+            &mut mb_mmap_vec, &mut mb_efi_mmap_vec,
+            self.loaded_kernel.should_exit_boot_services,
         );
         
         for allocation in &mut self.loaded_kernel.allocations {

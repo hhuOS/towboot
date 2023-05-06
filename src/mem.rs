@@ -162,9 +162,10 @@ fn dump_memory_map() {
         .memory_map_size().map_size + 100,
         0
     );
-    let (_key, iterator) = unsafe { system_table().as_ref() }.boot_services()
-    .memory_map(buf.as_mut_slice()).expect("failed to get memory map");
-    for descriptor in iterator {
+    let mut memory_map = unsafe { system_table().as_ref() }.boot_services()
+        .memory_map(buf.as_mut_slice()).expect("failed to get memory map");
+    memory_map.sort();
+    for descriptor in memory_map.entries() {
         debug!("{descriptor:?}");
     }
 }
@@ -180,8 +181,9 @@ pub(super) fn prepare_information<'a>(
         &mut [u8], u32, u32, &[multiboot12::information::MemoryEntry],
         Option<&[multiboot12::information::EfiMemoryDescriptor]>,
     )>,
-    efi_mmap_vec: &Vec<MemoryDescriptor>,
+    efi_mmap: &uefi::table::boot::MemoryMap,
     mb_mmap_vec: &mut Vec<multiboot12::information::MemoryEntry>,
+    mb_efi_mmap_vec: &mut Vec<multiboot12::information::EfiMemoryDescriptor>,
     boot_services_exited: bool,
 ) {
     // Descriptors are the ones from UEFI, Entries are the ones from Multiboot.
@@ -189,7 +191,7 @@ pub(super) fn prepare_information<'a>(
     let mut count = 0;
     let mut entry_iter = mb_mmap_vec.iter_mut();
     let mut current_entry = entry_iter.next().unwrap();
-    for descriptor in efi_mmap_vec {
+    for descriptor in efi_mmap.entries() {
         let next_entry = empty_entry.with(
             descriptor.phys_start, descriptor.page_count * PAGE_SIZE as u64, match descriptor.ty {
                 // after we've started the kernel, no-one needs our code or data
@@ -255,22 +257,22 @@ pub(super) fn prepare_information<'a>(
 
     // When updating either uefi.rs or multiboot2, make sure that the types
     // still match.
-    // It might be safer to copy the values manually, but this means allocating
-    // the whole vector twice, sadly.
     // We can at least check whether they have the same size.
     assert_eq!(
         size_of::<MemoryDescriptor>(),
         size_of::<multiboot12::information::EfiMemoryDescriptor>(),
     );
-    let (head, efi_mmap_slice, tail) = unsafe {
-        efi_mmap_vec.align_to::<multiboot12::information::EfiMemoryDescriptor>()
-    };
-    assert!(head.is_empty());
-    assert!(tail.is_empty());
+    // We need to copy all entries, because we can't access `efi_mmap.buf`.
+    // It might be safer to create new `EFIMemoryDesc`s instead of transmuting.
+    efi_mmap.entries().zip(mb_efi_mmap_vec.iter_mut())
+        .for_each(
+            |(src, dst)|
+            *dst = unsafe { core::mem::transmute(*src) }
+        );
     
     update_memory_info(
         info_bytes, lower.try_into().unwrap(), upper.try_into().unwrap(),
-        mb_mmap_vec.as_slice(), Some(efi_mmap_slice),
+        mb_mmap_vec.as_slice(), Some(mb_efi_mmap_vec.as_slice()),
     );
     // dropping this box breaks on Multiboot1, when Boot Services have been exited
     if boot_services_exited {
