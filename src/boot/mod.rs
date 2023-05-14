@@ -8,6 +8,8 @@ use alloc::{
     vec,
     vec::Vec,
 };
+use x86::dtables::DescriptorTablePointer;
+use x86::segmentation::{SegmentDescriptorBuilder, CodeSegmentType, DescriptorBuilder, BuildDescriptor, Descriptor, DataSegmentType};
 
 use core::arch::asm;
 use core::ffi::c_void;
@@ -448,35 +450,68 @@ impl EntryPoint {
                 "preparing machine state and jumping to 0x{:x}", entry_address,
             );
 
-            unsafe {
-                asm!(
-                    // The jump to the kernel has to happen in protected mode.
-                    // If we're built for i686, we already are in protected mode,
-                    // so this has no effect.
-                    // If we're built for x86_64, this brings us to compatibility mode.
-                    ".code32",
+            // 3.2 Machine state says:
+            // > ‘EFLAGS’: Bit 17 (VM) must be cleared. Bit 9 (IF) must be cleared.
+            // > Other bits are all undefined. 
+            // disable interrupts (should have been enabled)
+            unsafe { x86::irq::disable() };
+            // virtual 8086 mode can't be set, as we're 32 or 64 bit code
+            // (and changing that flag is rather difficult)
 
+            // > ‘CS’: Must be a 32-bit read/execute code segment with an offset of ‘0’
+            // > and a limit of ‘0xFFFFFFFF’. The exact value is undefined.
+            // To archieve that, we'll have to set a new GDT and reload
+            // the code segment.
+            let code_segment_builder: DescriptorBuilder = SegmentDescriptorBuilder::code_descriptor(
+                0, u32::MAX, CodeSegmentType::ExecuteRead,
+            );
+            let code_segment: Descriptor = code_segment_builder
+                .present()
+                .limit_granularity_4kb()
+                .db() // 32 bit
+                .finish();
+            let data_segment_builder: DescriptorBuilder = SegmentDescriptorBuilder::data_descriptor(
+                0, u32::MAX, DataSegmentType::ReadWrite,
+            );
+            let data_segment: Descriptor = data_segment_builder
+                .present()
+                .limit_granularity_4kb()
+                .db() // 32bit
+                .finish();
+            let gdt = DescriptorTablePointer::new_from_slice(
+                &[Descriptor::NULL, code_segment, data_segment]
+            );
+
+            unsafe {
+                x86::dtables::lgdt(&gdt);
+                // This IDT is invalid (but that's no problem as we already
+                // disabled interrupts).
+                x86::dtables::lidt::<u32>(&DescriptorTablePointer::default());
+
+                asm!(
                     // copy the signature
                     "mov ebp, eax",
                     // copy the struct address
                     "mov esi, ecx",
-
-                    // 3.2 Machine state says:
                     
-                    // > ‘CS’: Must be a 32-bit read/execute code segment with an offset of ‘0’
-                    // > and a limit of ‘0xFFFFFFFF’. The exact value is undefined.
-                    // TODO: Maybe set this?
+                    "push 0x08", // code segment
+                    "lea rbx, [2f]",
+                    "push rbx",
+                    // This "return" allows us to overwrite CS.
+                    "retfq",
+
+                    // We're now in compatibility mode, yay.
+                    "2:",
+                    ".code32",
+                    
                     // > 'DS’, 'ES’, ‘FS’, ‘GS’, ‘SS’: Must be a 32-bit read/write data segment with an
                     // > offset of ‘0’ and a limit of ‘0xFFFFFFFF’. The exact values are all undefined.
-                    // TODO: Maybe set this?
-                    
-                    // > ‘EFLAGS’: Bit 17 (VM) must be cleared. Bit 9 (IF) must be cleared.
-                    // > Other bits are all undefined. 
-                    // disable interrupts (should have been enabled)
-                    "cli",
-                    // virtual 8086 mode can't be set, as we're 32 or 64 bit code
-                    // (and changing that flag is rather difficult)
-
+                    "mov eax, 0x10", // data segment
+                    "mov ds, eax",
+                    "mov es, eax",
+                    "mov fs, eax",
+                    "mov gs, eax",
+                    "mov ss, eax",
 
                     // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
                     // > Other bits are all undefined.
@@ -493,7 +528,6 @@ impl EntryPoint {
                     "and ecx, ~(1<<5)",
                     "mov cr4, ecx",
                     
-                    // TODO: Only do this on x86_64?
                     // x86_64: switch from compatibility mode to protected mode
                     // get the EFER
                     "mov ecx, 0xC0000080",

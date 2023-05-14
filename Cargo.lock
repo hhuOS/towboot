@@ -395,6 +395,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "raw-cpuid"
+version = "10.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c297679cb867470fa8c9f67dbba74a78d78e3e98d7cf2b08d6d71540f797332"
+dependencies = [
+ "bitflags",
+]
+
+[[package]]
 name = "rsdp"
 version = "2.0.0"
 source = "git+https://github.com/YtvwlD/acpi.git?branch=rsdp#b9d25ab4e9bc6c4dc97f81712e7e5c9e23b12a16"
@@ -523,6 +532,7 @@ dependencies = [
  "toml 0.5.8",
  "uefi",
  "uefi-services",
+ "x86",
 ]
 
 [[package]]
@@ -613,3 +623,14 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+
+[[package]]
+name = "x86"
+version = "0.52.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2781db97787217ad2a2845c396a5efe286f87467a5810836db6d74926e94a385"
+dependencies = [
+ "bit_field",
+ "bitflags",
+ "raw-cpuid",
+]
