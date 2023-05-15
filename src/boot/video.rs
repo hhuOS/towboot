@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 
 use uefi::prelude::*;
 use uefi::proto::console::gop::{GraphicsOutput, Mode, PixelBitmask, PixelFormat};
-use uefi::table::boot::ScopedProtocol;
+use uefi::table::boot::{ScopedProtocol, OpenProtocolParams, OpenProtocolAttributes};
 
 use log::{debug, warn, info, error};
 
@@ -57,7 +57,16 @@ pub(super) fn setup_video<'a>(
         warn!("Failed to find a graphics output. Do you have a graphics card (and a driver)?");
         None
     })?;
-    let mut output: ScopedProtocol<GraphicsOutput> = systab.boot_services().open_protocol_exclusive(*handle).ok()?;
+    // Opening a protocol non-exclusively is unsafe, but otherwise we won't get
+    // to see any new log messages.
+    let mut output: ScopedProtocol<GraphicsOutput> = unsafe { systab.boot_services().open_protocol(
+        OpenProtocolParams {
+            handle: *handle,
+            agent: systab.boot_services().image_handle(),
+            controller: None,
+        },
+        OpenProtocolAttributes::GetProtocol,
+    ).ok() }?;
     let modes: Vec<Mode> = output.modes().collect();
     debug!(
         "available video modes: {:?}",
