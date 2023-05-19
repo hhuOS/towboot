@@ -430,128 +430,197 @@ enum EntryPoint {
 impl EntryPoint {
     fn jump(self, signature: u32, info: Vec<u8>) {
         if let Self::Uefi(entry_address) = self {
-            debug!("jumping to 0x{:x}", entry_address);
-            unsafe {
-                // TODO: The spec mentions 32 bit registers, even on 64 bit.
-                // Do we need to zero the beginning?
-
-                // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
-                asm!(
-                    "mov ebx, ecx",
-                    "jmp {}",
-                    in(reg) entry_address,
-                    in("eax") signature,
-                    in("ecx") &info.as_slice()[0],
-                    options(noreturn),
-                );
-            }
+            self.jump_uefi(entry_address, signature, info)
         } else if let Self::Multiboot(entry_address) = self {
-            debug!(
-                "preparing machine state and jumping to 0x{:x}", entry_address,
-            );
-
-            // 3.2 Machine state says:
-            // > ‘EFLAGS’: Bit 17 (VM) must be cleared. Bit 9 (IF) must be cleared.
-            // > Other bits are all undefined. 
-            // disable interrupts (should have been enabled)
-            unsafe { x86::irq::disable() };
-            // virtual 8086 mode can't be set, as we're 32 or 64 bit code
-            // (and changing that flag is rather difficult)
-
-            // > ‘CS’: Must be a 32-bit read/execute code segment with an offset of ‘0’
-            // > and a limit of ‘0xFFFFFFFF’. The exact value is undefined.
-            // To archieve that, we'll have to set a new GDT and reload
-            // the code segment.
-            let code_segment_builder: DescriptorBuilder = SegmentDescriptorBuilder::code_descriptor(
-                0, u32::MAX, CodeSegmentType::ExecuteRead,
-            );
-            let code_segment: Descriptor = code_segment_builder
-                .present()
-                .limit_granularity_4kb()
-                .db() // 32 bit
-                .finish();
-            let data_segment_builder: DescriptorBuilder = SegmentDescriptorBuilder::data_descriptor(
-                0, u32::MAX, DataSegmentType::ReadWrite,
-            );
-            let data_segment: Descriptor = data_segment_builder
-                .present()
-                .limit_granularity_4kb()
-                .db() // 32bit
-                .finish();
-            let gdt = DescriptorTablePointer::new_from_slice(
-                &[Descriptor::NULL, code_segment, data_segment]
-            );
-
-            unsafe {
-                x86::dtables::lgdt(&gdt);
-                // This IDT is invalid (but that's no problem as we already
-                // disabled interrupts).
-                x86::dtables::lidt::<u32>(&DescriptorTablePointer::default());
-
-                asm!(
-                    // copy the signature
-                    "mov ebp, eax",
-                    // copy the struct address
-                    "mov esi, ecx",
-                    
-                    "push 0x08", // code segment
-                    "lea rbx, [2f]",
-                    "push rbx",
-                    // This "return" allows us to overwrite CS.
-                    "retfq",
-
-                    // We're now in compatibility mode, yay.
-                    "2:",
-                    ".code32",
-                    
-                    // > 'DS’, 'ES’, ‘FS’, ‘GS’, ‘SS’: Must be a 32-bit read/write data segment with an
-                    // > offset of ‘0’ and a limit of ‘0xFFFFFFFF’. The exact values are all undefined.
-                    "mov eax, 0x10", // data segment
-                    "mov ds, eax",
-                    "mov es, eax",
-                    "mov fs, eax",
-                    "mov gs, eax",
-                    "mov ss, eax",
-
-                    // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
-                    // > Other bits are all undefined.
-                    "mov ecx, cr0",
-                    // disable paging (it should have been enabled)
-                    "and ecx, ~(1<<31)",
-                    // enable protected mode (it should have already been enabled)
-                    "or ecx, 1",
-                    "mov cr0, ecx",
-                    
-                    // The spec doesn't say anything about cr4, but let's do it anyway.
-                    "mov ecx, cr4",
-                    // disable PAE
-                    "and ecx, ~(1<<5)",
-                    "mov cr4, ecx",
-                    
-                    // x86_64: switch from compatibility mode to protected mode
-                    // get the EFER
-                    "mov ecx, 0xC0000080",
-                    "rdmsr",
-                    // disable long mode
-                    "and eax, ~(1<<8)",
-                    "wrmsr",
-                    
-                    // write the signature to EAX
-                    "mov eax, ebp",
-                    // write the struct address to EBX
-                    "mov ebx, esi",
-                    // finally jump to the kernel
-                    "jmp edi",
-                    
-                    // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
-                    in("eax") signature,
-                    in("ecx") &info.as_slice()[0],
-                    in("edi") entry_address,
-                    options(noreturn),
-                );
-            }
+            self.jump_multiboot(entry_address, signature, info)
         } else {
             panic!("invalid entry point")
+        }
+    }
+
+    fn jump_uefi(self, entry_address: usize, signature: u32, info: Vec<u8>) {
+        debug!("jumping to 0x{:x}", entry_address);
+        unsafe {
+            // TODO: The spec mentions 32 bit registers, even on 64 bit.
+            // Do we need to zero the beginning?
+
+            // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
+            asm!(
+                "mov ebx, ecx",
+                "jmp {}",
+                in(reg) entry_address,
+                in("eax") signature,
+                in("ecx") &info.as_slice()[0],
+                options(noreturn),
+            );
+        }
+    }
+
+    #[cfg(target_arch = "x86")]
+    fn jump_multiboot(self, entry_address: usize, signature: u32, info: Vec<u8>) {
+        debug!(
+            "preparing machine state and jumping to 0x{:x}", entry_address,
+        );
+
+        // 3.2 Machine state says:
+        // > ‘EFLAGS’: Bit 17 (VM) must be cleared. Bit 9 (IF) must be cleared.
+        // > Other bits are all undefined. 
+        // disable interrupts (should have been enabled)
+        unsafe { x86::irq::disable() };
+        // virtual 8086 mode can't be set, as we're 32 or 64 bit code
+        // (and changing that flag is rather difficult)
+
+        // > ‘CS’: Must be a 32-bit read/execute code segment with an offset of ‘0’
+        // > and a limit of ‘0xFFFFFFFF’. The exact value is undefined.
+        // > 'DS’, 'ES’, ‘FS’, ‘GS’, ‘SS’: Must be a 32-bit read/write data segment with an
+        // > offset of ‘0’ and a limit of ‘0xFFFFFFFF’. The exact values are all undefined.
+        // We don't set them here as we should already be in the correct state
+        // (as opposed to x86_64).
+
+
+        unsafe {
+            asm!(
+                // copy the signature
+                "mov ebp, eax",
+                // copy the struct address
+                "mov esi, ecx",
+
+                // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
+                // > Other bits are all undefined.
+                "mov ecx, cr0",
+                // disable paging (it should have been enabled)
+                "and ecx, ~(1<<31)",
+                // enable protected mode (it should have already been enabled)
+                "or ecx, 1",
+                "mov cr0, ecx",
+                
+                // The spec doesn't say anything about cr4, but let's do it anyway.
+                "mov ecx, cr4",
+                // disable PAE
+                "and ecx, ~(1<<5)",
+                "mov cr4, ecx",
+                
+                // write the signature to EAX
+                "mov eax, ebp",
+                // write the struct address to EBX
+                "mov ebx, esi",
+                // finally jump to the kernel
+                "jmp edi",
+                
+                // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
+                in("eax") signature,
+                in("ecx") &info.as_slice()[0],
+                in("edi") entry_address,
+                options(noreturn),
+            );
+        }
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    fn jump_multiboot(self, entry_address: usize, signature: u32, info: Vec<u8>) {
+        debug!(
+            "preparing machine state and jumping to 0x{:x}", entry_address,
+        );
+
+        // 3.2 Machine state says:
+        // > ‘EFLAGS’: Bit 17 (VM) must be cleared. Bit 9 (IF) must be cleared.
+        // > Other bits are all undefined. 
+        // disable interrupts (should have been enabled)
+        unsafe { x86::irq::disable() };
+        // virtual 8086 mode can't be set, as we're 32 or 64 bit code
+        // (and changing that flag is rather difficult)
+
+        // > ‘CS’: Must be a 32-bit read/execute code segment with an offset of ‘0’
+        // > and a limit of ‘0xFFFFFFFF’. The exact value is undefined.
+        // To archieve that, we'll have to set a new GDT and reload
+        // the code segment.
+        let code_segment_builder: DescriptorBuilder = SegmentDescriptorBuilder::code_descriptor(
+            0, u32::MAX, CodeSegmentType::ExecuteRead,
+        );
+        let code_segment: Descriptor = code_segment_builder
+            .present()
+            .limit_granularity_4kb()
+            .db() // 32 bit
+            .finish();
+        let data_segment_builder: DescriptorBuilder = SegmentDescriptorBuilder::data_descriptor(
+            0, u32::MAX, DataSegmentType::ReadWrite,
+        );
+        let data_segment: Descriptor = data_segment_builder
+            .present()
+            .limit_granularity_4kb()
+            .db() // 32bit
+            .finish();
+        let gdt = DescriptorTablePointer::new_from_slice(
+            &[Descriptor::NULL, code_segment, data_segment]
+        );
+
+        unsafe {
+            x86::dtables::lgdt(&gdt);
+            // This IDT is invalid (but that's no problem as we already
+            // disabled interrupts).
+            x86::dtables::lidt::<u32>(&DescriptorTablePointer::default());
+
+            asm!(
+                // copy the signature
+                "mov ebp, eax",
+                // copy the struct address
+                "mov esi, ecx",
+                
+                "push 0x08", // code segment
+                "lea rbx, [2f]",
+                "push rbx",
+                // This "return" allows us to overwrite CS.
+                "retfq",
+
+                // We're now in compatibility mode, yay.
+                "2:",
+                ".code32",
+                
+                // > 'DS’, 'ES’, ‘FS’, ‘GS’, ‘SS’: Must be a 32-bit read/write data segment with an
+                // > offset of ‘0’ and a limit of ‘0xFFFFFFFF’. The exact values are all undefined.
+                "mov eax, 0x10", // data segment
+                "mov ds, eax",
+                "mov es, eax",
+                "mov fs, eax",
+                "mov gs, eax",
+                "mov ss, eax",
+
+                // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
+                // > Other bits are all undefined.
+                "mov ecx, cr0",
+                // disable paging (it should have been enabled)
+                "and ecx, ~(1<<31)",
+                // enable protected mode (it should have already been enabled)
+                "or ecx, 1",
+                "mov cr0, ecx",
+                
+                // The spec doesn't say anything about cr4, but let's do it anyway.
+                "mov ecx, cr4",
+                // disable PAE
+                "and ecx, ~(1<<5)",
+                "mov cr4, ecx",
+                
+                // x86_64: switch from compatibility mode to protected mode
+                // get the EFER
+                "mov ecx, 0xC0000080",
+                "rdmsr",
+                // disable long mode
+                "and eax, ~(1<<8)",
+                "wrmsr",
+                
+                // write the signature to EAX
+                "mov eax, ebp",
+                // write the struct address to EBX
+                "mov ebx, esi",
+                // finally jump to the kernel
+                "jmp edi",
+                
+                // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
+                in("eax") signature,
+                in("ecx") &info.as_slice()[0],
+                in("edi") entry_address,
+                options(noreturn),
+            );
         }
     }
 }
