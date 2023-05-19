@@ -456,6 +456,7 @@ impl EntryPoint {
         }
     }
 
+    /// i686-specific part of the Multiboot machine state.
     #[cfg(target_arch = "x86")]
     fn jump_multiboot(self, entry_address: usize, signature: u32, info: Vec<u8>) {
         debug!(
@@ -484,29 +485,9 @@ impl EntryPoint {
                 "mov ebp, eax",
                 // copy the struct address
                 "mov esi, ecx",
-
-                // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
-                // > Other bits are all undefined.
-                "mov ecx, cr0",
-                // disable paging (it should have been enabled)
-                "and ecx, ~(1<<31)",
-                // enable protected mode (it should have already been enabled)
-                "or ecx, 1",
-                "mov cr0, ecx",
+                "jmp {}",
                 
-                // The spec doesn't say anything about cr4, but let's do it anyway.
-                "mov ecx, cr4",
-                // disable PAE
-                "and ecx, ~(1<<5)",
-                "mov cr4, ecx",
-                
-                // write the signature to EAX
-                "mov eax, ebp",
-                // write the struct address to EBX
-                "mov ebx, esi",
-                // finally jump to the kernel
-                "jmp edi",
-                
+                sym Self::jump_multiboot_common,
                 // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
                 in("eax") signature,
                 in("ecx") &info.as_slice()[0],
@@ -516,6 +497,7 @@ impl EntryPoint {
         }
     }
 
+    /// x86_64-specific part of the Multiboot machine state.
     #[cfg(target_arch = "x86_64")]
     fn jump_multiboot(self, entry_address: usize, signature: u32, info: Vec<u8>) {
         debug!(
@@ -585,6 +567,24 @@ impl EntryPoint {
                 "mov gs, eax",
                 "mov ss, eax",
 
+                "jmp {}",
+                
+                sym Self::jump_multiboot_common,
+                // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
+                in("eax") signature,
+                in("ecx") &info.as_slice()[0],
+                in("edi") entry_address,
+                options(noreturn),
+            );
+        }
+    }
+
+    /// This last part is common for i686 and x86_64.
+    #[naked]
+    extern "stdcall" fn jump_multiboot_common() {
+        unsafe {
+            asm!(
+                ".code32",
                 // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
                 // > Other bits are all undefined.
                 "mov ecx, cr0",
@@ -614,11 +614,6 @@ impl EntryPoint {
                 "mov ebx, esi",
                 // finally jump to the kernel
                 "jmp edi",
-                
-                // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
-                in("eax") signature,
-                in("ecx") &info.as_slice()[0],
-                in("edi") entry_address,
                 options(noreturn),
             );
         }
