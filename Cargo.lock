@@ -3,12 +3,6 @@
 version = 3
 
 [[package]]
-name = "Inflector"
-version = "0.11.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
-
-[[package]]
 name = "aliasable"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -25,6 +19,12 @@ name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
+
+[[package]]
+name = "bitflags"
+version = "2.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "630be753d4e58660abd17930c71b647fe46c27ea6b63cc59e1e3851406972e42"
 
 [[package]]
 name = "built"
@@ -87,7 +87,7 @@ checksum = "4fb810d30a7c1953f91334de7244731fc3f3c10d7fe163338a35b9f640960321"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 1.0.99",
 ]
 
 [[package]]
@@ -106,7 +106,7 @@ version = "0.13.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f29229cc1b24c0e6062f6e742aa3e256492a5323365e5ed3413599f8a5eff7d6"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "libc",
  "libgit2-sys",
  "log",
@@ -123,6 +123,12 @@ dependencies = [
  "plain",
  "scroll",
 ]
+
+[[package]]
+name = "heck"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
 name = "idna"
@@ -235,7 +241,7 @@ checksum = "bff1450fc9050d51d91a84392ef913b90165f1c6e60b2f1f360a8538164ed0e9"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 1.0.99",
 ]
 
 [[package]]
@@ -250,62 +256,70 @@ dependencies = [
 [[package]]
 name = "multiboot12"
 version = "0.1.0"
-source = "git+https://github.com/YtvwlD/multiboot12?tag=towboot-0.5.0#e416cb7fdd1895a49b36114179d040cc7eceb3d1"
+source = "git+https://github.com/YtvwlD/multiboot12?tag=towboot-0.6.0#aca0bc8c6a8de2afaa4d91a2e75f2c892cad2aef"
 dependencies = [
  "multiboot",
- "multiboot2 0.15.1",
+ "multiboot2 0.18.1",
  "multiboot2-header",
  "ouroboros",
 ]
 
 [[package]]
 name = "multiboot2"
-version = "0.13.3"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d408e10189a4b0e1d488a24a19c5c8c9786f011b30c824c8ab02d3ebf5f62ca2"
+checksum = "4b624a7b3f704734d98d21455b617607eb7043d4509d1c34bf9e7ff7dd47b31a"
 dependencies = [
- "bitflags",
+ "bitflags 2.3.3",
+ "derive_more",
+ "log",
+ "ptr_meta",
+ "uefi-raw",
 ]
 
 [[package]]
 name = "multiboot2"
-version = "0.15.1"
-source = "git+https://github.com/YtvwlD/multiboot2?tag=towboot-0.5.0#cba6123ad8cb8c13aa3c272e1e98e89c259bac9a"
+version = "0.18.1"
+source = "git+https://github.com/YtvwlD/multiboot2?tag=towboot-0.6.0#be9207d1988cfa7a54479550600f12d5848f9488"
 dependencies = [
- "bitflags",
+ "bitflags 2.3.3",
  "derive_more",
  "log",
+ "ptr_meta",
+ "uefi-raw",
 ]
 
 [[package]]
 name = "multiboot2-header"
-version = "0.2.0"
-source = "git+https://github.com/YtvwlD/multiboot2?tag=towboot-0.5.0#cba6123ad8cb8c13aa3c272e1e98e89c259bac9a"
+version = "0.3.1"
+source = "git+https://github.com/YtvwlD/multiboot2?tag=towboot-0.6.0#be9207d1988cfa7a54479550600f12d5848f9488"
 dependencies = [
- "multiboot2 0.13.3",
+ "derive_more",
+ "multiboot2 0.16.0",
 ]
 
 [[package]]
 name = "ouroboros"
-version = "0.15.6"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1358bd1558bd2a083fed428ffeda486fbfb323e698cdda7794259d592ca72db"
+checksum = "b4361ddfdd108bddc19367ba805a3a43773d8bc3e407ac30e6c364cd264dd52e"
 dependencies = [
  "aliasable",
  "ouroboros_macro",
+ "static_assertions",
 ]
 
 [[package]]
 name = "ouroboros_macro"
-version = "0.15.6"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f7d21ccd03305a674437ee1248f3ab5d4b1db095cf1caf49f1713ddf61956b7"
+checksum = "2b81e113ed913910f05ef45c9344f67588fe6395f92d906eedf9ee5d54279922"
 dependencies = [
- "Inflector",
+ "heck",
  "proc-macro-error",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.26",
 ]
 
 [[package]]
@@ -341,7 +355,7 @@ dependencies = [
  "proc-macro-error-attr",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 1.0.99",
  "version_check",
 ]
 
@@ -358,9 +372,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.43"
+version = "1.0.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a2ca2c61bc9f3d74d2886294ab7b9853abd9c1ad903a3ac7815c58989bb7bab"
+checksum = "18fb31db3f9bddb2ea821cde30a9f70117e3f119938b5ee630b7403aa6e2ead9"
 dependencies = [
  "unicode-ident",
 ]
@@ -382,14 +396,14 @@ checksum = "bca9224df2e20e7c5548aeb5f110a0f3b77ef05f8585139b7148b59056168ed2"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 1.0.99",
 ]
 
 [[package]]
 name = "quote"
-version = "1.0.21"
+version = "1.0.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbe448f377a7d6961e30f5955f9b8d106c3f5e449d493ee1b125c1d43c2b5179"
+checksum = "5fe8a65d69dd0808184ebb5f836ab526bb259db23c657efa38711b1072ee47f0"
 dependencies = [
  "proc-macro2",
 ]
@@ -428,7 +442,7 @@ checksum = "bdbda6ac5cd1321e724fa9cee216f3a61885889b896f073b8f82322789c5250e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 1.0.99",
 ]
 
 [[package]]
@@ -457,7 +471,7 @@ checksum = "d3d8e8de557aee63c26b85b947f5e59b690d0454c753f3adeb5cd7835ab88391"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 1.0.99",
 ]
 
 [[package]]
@@ -474,10 +488,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "static_assertions"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
 name = "syn"
 version = "1.0.99"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "58dbef6ec655055e20b86b15a8cc6d439cca19b667537ac6a1369572d151ab13"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
+name = "syn"
+version = "2.0.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "45c3457aacde3c65315de5031ec191ce46604304d2446e803d71ade03308d970"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -550,7 +581,7 @@ version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab39d5e7740f21ed4c46d6659f31038bbe3fe7a8be1f702d8a984348837c43b1"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
  "log",
  "ptr_meta",
  "ucs2",
@@ -565,7 +596,18 @@ checksum = "e0caeb0e7b31b9f1f347e541106be10aa8c66c76fa722a3298a4cd21433fabd4"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 1.0.99",
+]
+
+[[package]]
+name = "uefi-raw"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62642516099c6441a5f41b0da8486d5fc3515a0603b0fdaea67b31600e22082e"
+dependencies = [
+ "bitflags 2.3.3",
+ "ptr_meta",
+ "uguid",
 ]
 
 [[package]]
@@ -578,6 +620,12 @@ dependencies = [
  "log",
  "uefi",
 ]
+
+[[package]]
+name = "uguid"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16dfbd255defbd727b3a30e8950695d2e6d045841ee250ff0f1f7ced17917f8d"
 
 [[package]]
 name = "unicode-bidi"
