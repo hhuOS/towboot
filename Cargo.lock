@@ -414,13 +414,13 @@ version = "10.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c297679cb867470fa8c9f67dbba74a78d78e3e98d7cf2b08d6d71540f797332"
 dependencies = [
- "bitflags",
+ "bitflags 1.3.2",
 ]
 
 [[package]]
 name = "rsdp"
 version = "2.0.0"
-source = "git+https://github.com/YtvwlD/acpi.git?branch=rsdp#b9d25ab4e9bc6c4dc97f81712e7e5c9e23b12a16"
+source = "git+https://github.com/rust-osdev/acpi.git#301302efd5c34b59fbfd4c99d8cdaecd1b500f1d"
 dependencies = [
  "log",
 ]
@@ -679,6 +679,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2781db97787217ad2a2845c396a5efe286f87467a5810836db6d74926e94a385"
 dependencies = [
  "bit_field",
- "bitflags",
+ "bitflags 1.3.2",
  "raw-cpuid",
 ]
