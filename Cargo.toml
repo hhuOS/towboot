@@ -8,8 +8,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-uefi = { version = "0.20", features = ["alloc", "global_allocator", "logger"] }
-uefi-services = "0.17"
+uefi = { version = "0.21", features = ["alloc", "global_allocator", "logger"] }
+uefi-services = "0.18"
 rsdp = { git = "https://github.com/rust-osdev/acpi.git" }
 smbios-lib = { git = "https://github.com/alesharik/smbios-lib.git", branch = "master", default-features = false, features = ["no_std"] }
 x86 =  "0.52"
