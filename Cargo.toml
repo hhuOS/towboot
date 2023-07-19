@@ -26,4 +26,4 @@ scroll = { version = "0.11", default-features = false }
 miniarg = { version = "0.3", default-features = false, features = ["alloc", "derive"] }
 
 [build-dependencies]
-built = { version = "0.5", features = ["git2"] }
+built = { version = "0.6", features = ["git2"] }
