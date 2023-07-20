@@ -22,7 +22,7 @@ use uefi::table::cfg::ConfigTableEntry;
 
 use log::{debug, info, error, warn};
 
-use multiboot12::header::{Header, Addresses as MultibootAddresses};
+use multiboot12::header::Header;
 use multiboot12::information::{
     Module, InfoBuilder, Symbols
 };
@@ -93,7 +93,7 @@ impl LoadedKernel {
         // drop the old vector
         core::mem::drop(kernel_vec);
 
-        let entry_point = get_kernel_uefi_entry(header, &quirks)
+        let entry_point = get_kernel_uefi_entry(header, quirks)
             .or(header.get_entry_address().map(
                 |e| EntryPoint::Multiboot(e as usize)
             ))
@@ -123,7 +123,7 @@ impl LoadedKernel {
             Status::LOAD_ERROR
         })?;
         let symbols = Some(elf::symbols(header, &mut binary, kernel_vec.as_slice()));
-        let entry_point = get_kernel_uefi_entry(header, &quirks)
+        let entry_point = get_kernel_uefi_entry(header, quirks)
             .or(header.get_entry_address().map(
                 |e| EntryPoint::Multiboot(e as usize)
             ))
@@ -355,7 +355,7 @@ impl<'a> PreparedEntry<'a> {
         // the returned memory map (including the version!),
         // we might want to pass that instead.
         let mut mb_efi_mmap_vec = self.multiboot_information
-            .allocate_efi_memory_map_vec(estimated_count.try_into().unwrap());
+            .allocate_efi_memory_map_vec(estimated_count);
         let mut mb_mmap_vec = self.multiboot_information
             .allocate_memory_map_vec(estimated_count);
         self.multiboot_information.set_memory_bounds(Some((0, 0)));

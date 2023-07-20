@@ -175,7 +175,7 @@ fn dump_memory_map() {
 ///
 /// This needs to have a buffer to write to because we can't allocate memory anymore.
 /// (The buffer may be too large.)
-pub(super) fn prepare_information<'a>(
+pub(super) fn prepare_information(
     info_bytes: &mut [u8],
     mut update_memory_info: Box<dyn FnMut(
         &mut [u8], u32, u32, &[multiboot12::information::MemoryEntry],

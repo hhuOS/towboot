@@ -108,7 +108,7 @@ impl From<OurElfLoader> for Vec<Allocation> {
     // Gets the allocated memory.
     fn from(loader: OurElfLoader) -> Vec<Allocation> {
         // using .values() would just borrow the values from the hash map
-        loader.allocations.into_iter().map(|(_k, v)| v).collect()
+        loader.allocations.into_values().collect()
     }
 }
 
@@ -133,7 +133,7 @@ pub(super) fn symbols(
     
     // copy the symbols
     // only copy sections that are not already loaded
-    for mut section in binary.section_headers.iter_mut().filter(
+    for section in binary.section_headers.iter_mut().filter(
         |s| s.sh_addr == 0 && s.file_range().is_some()
     ) {
         let index = memory.len();
