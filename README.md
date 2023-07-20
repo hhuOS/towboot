@@ -61,8 +61,7 @@ The latter one is automatically being downloaded and compiled,
 you'll need git, automake, make and a C compiler for that.
 
 To boot the disk image in a virtual machine, QEMU is recommended.
-You'll need OVMF for that, too. You can either install it via your distribution's
-package manager or (for `i686`) let the build script download it.
+You'll need OVMF for that, too, but the build script downloads it by itself.
 
 ### building
 
