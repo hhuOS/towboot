@@ -362,7 +362,7 @@ impl<'a> PreparedEntry<'a> {
         let (
             mut info, signature, update_memory_info,
         ) = self.multiboot_information.build();
-        debug!("passing {} to kernel...", signature);
+        debug!("passing signature {signature:x} to kernel...");
         let mut mmap_vec = Vec::<u8>::new();
         let memory_map = if self.loaded_kernel.should_exit_boot_services {
             info!("exiting boot services...");
