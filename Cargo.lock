@@ -600,7 +600,7 @@ dependencies = [
 
 [[package]]
 name = "towboot"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "built",
  "goblin",
