@@ -1,6 +1,6 @@
 [package]
 name = "towboot"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Niklas Sombert <niklas.sombert@uni-duesseldorf.de>"]
 license = "MPL-2.0"
 edition = "2021"
