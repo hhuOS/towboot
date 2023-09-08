@@ -11,7 +11,7 @@ edition = "2021"
 uefi = { version = "0.24", features = ["alloc", "global_allocator", "logger"] }
 uefi-services = "0.21"
 rsdp = { git = "https://github.com/rust-osdev/acpi.git" }
-smbios-lib = { git = "https://github.com/alesharik/smbios-lib.git", branch = "master", default-features = false, features = ["no_std"] }
+smbios-lib = { git = "https://github.com/hhuOS/smbios-lib.git", branch = "main", default-features = false, features = ["no_std"] }
 x86 =  "0.52"
 
 log = { version = "0.4", default-features = false }
