@@ -17,7 +17,7 @@ use core::ptr::NonNull;
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::proto::media::file::Directory;
-use uefi::table::boot::ScopedProtocol;
+use uefi::table::boot::{ScopedProtocol, MemoryType};
 use uefi::table::cfg::ConfigTableEntry;
 
 use log::{debug, info, error, warn};
@@ -366,7 +366,7 @@ impl<'a> PreparedEntry<'a> {
         let mut mmap_vec = Vec::<u8>::new();
         let memory_map = if self.loaded_kernel.should_exit_boot_services {
             info!("exiting boot services...");
-            let (_systab, mut memory_map) = systab.exit_boot_services();
+            let (_systab, mut memory_map) = systab.exit_boot_services(MemoryType::LOADER_DATA);
             memory_map.sort();
             // now, write! won't work anymore. Also, we can't allocate any memory.
             memory_map

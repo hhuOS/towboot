@@ -76,7 +76,9 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
         // open the filesystem
         let mut fs = systab
             .boot_services()
-            .open_protocol_exclusive::<SimpleFileSystem>(loaded_image.device())
+            .open_protocol_exclusive::<SimpleFileSystem>(
+                loaded_image.device().expect("the image to be loaded from a device")
+            )
             .expect("Failed to open filesystem");
         let mut volume = fs.open_volume().expect("Failed to open root directory");
         

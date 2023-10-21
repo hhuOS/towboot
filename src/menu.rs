@@ -56,8 +56,8 @@ fn display_menu<'a>(
         systab.boot_services().set_timer(
             &timer, TimerTrigger::Relative(u64::from(timeout) * 10_000_000)
         )?;
-        // this is safe because we're never calling close_event
-        let key_event = unsafe { systab.stdin().wait_for_key_event().unsafe_clone() };
+        let key_event = systab.stdin().wait_for_key_event()
+            .expect("to be able to wait for key events");
         loop {
             match systab.boot_services().wait_for_event(
                 // this is safe because we're never calling close_event
@@ -99,8 +99,8 @@ fn select_entry<'a>(
     entries: &'a BTreeMap<String, Entry>, systab: &mut SystemTable<Boot>
 ) -> uefi::Result<&'a Entry> {
     let mut value = String::new();
-    // this is safe because we're never calling close_event
-    let key_event = unsafe { systab.stdin().wait_for_key_event().unsafe_clone() };
+    let key_event = systab.stdin().wait_for_key_event()
+        .expect("to be able to wait for key events");
     loop {
         write!(systab.stdout(), "\rplease select an entry to boot: {value} ").unwrap();
         systab.boot_services().wait_for_event(
