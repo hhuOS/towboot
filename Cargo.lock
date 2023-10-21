@@ -436,8 +436,9 @@ dependencies = [
 
 [[package]]
 name = "rsdp"
-version = "2.0.0"
-source = "git+https://github.com/rust-osdev/acpi.git#301302efd5c34b59fbfd4c99d8cdaecd1b500f1d"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ed5f33bb98eace335c13cdd159fbfc73ce203b597981a76832dfbb9cbd8101b"
 dependencies = [
  "log",
 ]
@@ -600,7 +601,7 @@ dependencies = [
 
 [[package]]
 name = "towboot"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "built",
  "goblin",
