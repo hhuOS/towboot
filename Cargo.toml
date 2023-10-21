@@ -10,7 +10,7 @@ edition = "2021"
 [dependencies]
 uefi = { version = "0.24", features = ["alloc", "global_allocator", "logger"] }
 uefi-services = "0.21"
-rsdp = "2.0"
+acpi = "5.0"
 smbios-lib = { git = "https://github.com/hhuOS/smbios-lib.git", branch = "main", default-features = false, features = ["no_std"] }
 x86 =  "0.52"
 

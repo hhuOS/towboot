@@ -2,7 +2,7 @@
 use alloc::slice;
 use log::{debug, warn};
 use multiboot12::information::InfoBuilder;
-use rsdp::Rsdp;
+use acpi::rsdp::Rsdp;
 use smbioslib::{SMBiosEntryPoint32, SMBiosEntryPoint64};
 use uefi::table::cfg::{
     ConfigTableEntry, ACPI_GUID, ACPI2_GUID, DEBUG_IMAGE_INFO_GUID,
