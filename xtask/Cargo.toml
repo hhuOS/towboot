@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 cli-xtask = { version = "0.6.1", features = ["main"] }
+fatfs = "0.3"

@@ -1,9 +1,15 @@
+use std::path::PathBuf;
 use std::process;
 
 use cli_xtask::clap;
 use cli_xtask::config::Config;
 use cli_xtask::tracing::info;
 use cli_xtask::{Result, Run, Xtask};
+
+mod image;
+use image::Image;
+
+const DEFAULT_IMAGE_SIZE: u64 = 50*1024*1024;
 
 fn main() -> Result<()> {
     Xtask::<Command>::main()
@@ -22,12 +28,12 @@ enum Command {
         #[arg( long, default_value = "towboot.toml" )]
         config: String,
         #[arg( long, default_value = "disk.img" )]
-        target: String,
+        target: PathBuf,
     },
     Run,
 }
 impl Command {
-    fn build(&self, release: &bool, no_i686: &bool, no_x86_64: &bool, config: &str, target: &str) -> Result<()> {
+    fn build(&self, release: &bool, no_i686: &bool, no_x86_64: &bool, config: &str, target: &PathBuf) -> Result<()> {
         let mut cargo_command = process::Command::new("cargo");
         let mut build_command = cargo_command.arg("build");
         if *release {
@@ -47,6 +53,9 @@ impl Command {
                 .arg("x86_64-unknown-uefi")
                 .spawn()?.wait()?;
         }
+        info!("creating image at {}", target.display());
+        let image = Image::new(target, DEFAULT_IMAGE_SIZE)?;
+        // TODO: actually add the files
         Ok(())
     }
 }
