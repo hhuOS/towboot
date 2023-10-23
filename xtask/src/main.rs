@@ -17,6 +17,11 @@ fn main() -> Result<()> {
     Xtask::<Command>::main()
 }
 
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+enum Arch {
+    I686, X86_64,
+}
+
 #[derive(Debug, clap::Subcommand)]
 enum Command {
     /// Build a bootable image, containing towboot, a kernel and modules
@@ -32,10 +37,22 @@ enum Command {
         #[arg( long, default_value = "disk.img" )]
         target: PathBuf,
     },
-    Run,
+    Run {
+        #[arg( long, default_value = "disk.img" )]
+        image: PathBuf,
+        #[arg( long, default_value = "i686" )]
+        arch: Arch,
+        #[arg( long )]
+        kvm: bool,
+        #[arg( long )]
+        gdb: bool,
+        #[arg( long )]
+        /// use the specified firmware instead of OVMF
+        firmware: Option<PathBuf>,
+    },
 }
 impl Command {
-    fn build(&self, release: &bool, no_i686: &bool, no_x86_64: &bool, config: &PathBuf, target: &PathBuf) -> Result<()> {
+    fn do_build(&self, release: &bool, no_i686: &bool, no_x86_64: &bool, config: &PathBuf, target: &PathBuf) -> Result<()> {
         let mut cargo_command = process::Command::new("cargo");
         let mut build_command = cargo_command.arg("build");
         if *release {
@@ -63,7 +80,7 @@ impl Command {
         };
         if !no_i686 {
             let source: PathBuf = ["target", "i686-unknown-uefi", build, "towboot.efi"].into_iter().collect();
-            image.add_file(&source, &PathBuf::from("EFI/Boot/bootx64.efi"))?;
+            image.add_file(&source, &PathBuf::from("EFI/Boot/bootia32.efi"))?;
         }
         if !no_x86_64 {
             let source: PathBuf = ["target", "x86_64-unknown-uefi", build, "towboot.efi"].into_iter().collect();
@@ -75,6 +92,40 @@ impl Command {
         }
         Ok(())
     }
+
+    fn do_run(&self, image:&PathBuf, arch: &Arch, kvm: &bool, gdb: &bool, firmware: &Option<PathBuf>) -> Result<()> {
+        info!("spawning QEMU");
+        let firmware_path: PathBuf = if let Some(path) = firmware {
+            assert!(path.exists());
+            path.clone()
+        } else {
+            // TODO: replace this script
+            process::Command::new("bash").arg("download.sh")
+                .current_dir("ovmf").spawn()?.wait()?;
+            ["ovmf", match arch {
+                Arch::I686 => "ia32",
+                Arch::X86_64 => "x64",
+            }, "OVMF.fd"].into_iter().collect()
+        };
+        let mut qemu_base = process::Command::new(match arch {
+            Arch::I686 => "qemu-system-i386",
+            Arch::X86_64 => "qemu-system-x86_64",
+        });
+        let mut qemu = qemu_base
+            .arg("-m").arg("256")
+            .arg("-hda").arg(image)
+            .arg("-serial").arg("stdio")
+            .arg("-bios").arg(firmware_path);
+        if *kvm {
+            qemu = qemu.arg("-machine").arg("pc,accel=kvm,kernel-irqchip=off");
+        }
+        if *gdb {
+            info!("The machine starts paused, waiting for GDB to attach to localhost:1234.");
+            qemu = qemu.arg("-s").arg("-S");
+        }
+        qemu.spawn()?.wait()?;
+        Ok(())
+    }
 }
 
 impl Run for Command {
@@ -82,8 +133,10 @@ impl Run for Command {
         match self {
             Self::Build {
                 release, no_i686, no_x86_64, config, target,
-            } => self.build(release, no_i686, no_x86_64, config, target),
-            Self::Run => { println!("run!"); Ok(()) },
+            } => self.do_build(release, no_i686, no_x86_64, config, target),
+            Self::Run {
+                image, arch, kvm, gdb, firmware,
+            } => self.do_run(image, arch, kvm, gdb, firmware),
         }
     }
 
