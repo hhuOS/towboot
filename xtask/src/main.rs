@@ -39,8 +39,8 @@ enum Command {
         no_x86_64: bool,
         #[arg( long, default_value = "image.img" )]
         target: PathBuf,
-        #[arg( default_value = "-config towboot.toml" )]
-        runtime_args: String,
+        #[arg( last = true, default_value = "-config towboot.toml" )]
+        runtime_args: Vec<String>,
     },
     Run {
         #[arg( long, default_value = "image.img" )]
@@ -57,7 +57,7 @@ enum Command {
     },
 }
 impl Command {
-    fn do_build(&self, release: &bool, no_i686: &bool, no_x86_64: &bool, target: &PathBuf, runtime_args: &str) -> Result<()> {
+    fn do_build(&self, release: &bool, no_i686: &bool, no_x86_64: &bool, target: &PathBuf, runtime_args: &Vec<String>) -> Result<()> {
         let mut cargo_command = process::Command::new("cargo");
         let mut build_command = cargo_command.arg("build");
         if *release {
@@ -93,8 +93,17 @@ impl Command {
         }
 
         // generate a configuration file from the load options
-        let mut load_options = "towboot.efi ".to_owned();
-        load_options.push_str(runtime_args);
+        let mut load_options = "towboot.efi".to_owned();
+        for string in runtime_args.iter() {
+            load_options.push(' ');
+            if string.contains(" ") {
+                load_options.push('"');
+            }
+            load_options.push_str(string);
+            if string.contains(" ") {
+                load_options.push('"');
+            }
+        }
         if let Some(config) = config::get(&mut PathBuf::from(""), Some(&load_options))
             .map_err(|status| eyre!("{:?}", status))? {
             // write it (and all files referenced inside) to the image
