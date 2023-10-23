@@ -26,14 +26,14 @@ enum Command {
         #[arg( long )]
         no_x86_64: bool,
         #[arg( long, default_value = "towboot.toml" )]
-        config: String,
+        config: PathBuf,
         #[arg( long, default_value = "disk.img" )]
         target: PathBuf,
     },
     Run,
 }
 impl Command {
-    fn build(&self, release: &bool, no_i686: &bool, no_x86_64: &bool, config: &str, target: &PathBuf) -> Result<()> {
+    fn build(&self, release: &bool, no_i686: &bool, no_x86_64: &bool, config: &PathBuf, target: &PathBuf) -> Result<()> {
         let mut cargo_command = process::Command::new("cargo");
         let mut build_command = cargo_command.arg("build");
         if *release {
@@ -54,8 +54,21 @@ impl Command {
                 .spawn()?.wait()?;
         }
         info!("creating image at {}", target.display());
-        let image = Image::new(target, DEFAULT_IMAGE_SIZE)?;
-        // TODO: actually add the files
+        let mut image = Image::new(target, DEFAULT_IMAGE_SIZE)?;
+        let build = match release {
+            true => "release",
+            false => "debug",
+        };
+        if !no_i686 {
+            let source: PathBuf = ["target", "i686-unknown-uefi", build, "towboot.efi"].into_iter().collect();
+            image.add_file(&source, &PathBuf::from("EFI/Boot/bootx64.efi"))?;
+        }
+        if !no_x86_64 {
+            let source: PathBuf = ["target", "x86_64-unknown-uefi", build, "towboot.efi"].into_iter().collect();
+            image.add_file(&source, &PathBuf::from("EFI/Boot/bootx64.efi"))?;
+        }
+        image.add_file(&config, &PathBuf::from("towboot.toml"))?;
+        // TODO: add kernel and modules
         Ok(())
     }
 }
