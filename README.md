@@ -12,8 +12,8 @@ place towboot and its configuration:
 
 This is the easiest one: It works for all architectures and requires no
 configuration of the system.
-Simply place the 32-bit build at `\EFI\bootia32.efi`, the 64-bit build at
-`\EFI\bootx64.efi` and a configuration file at `\towboot.toml` on the ESP.
+Simply place the 32-bit build at `\EFI\boot\bootia32.efi`, the 64-bit build at
+`\EFI\boot\bootx64.efi` and a configuration file at `\towboot.toml` on the ESP.
 
 ### installed system
 
@@ -56,10 +56,6 @@ rustup target add i686-unknown-uefi
 rustup target add x86_64-unknown-uefi
 ```
 
-To build a disk image, you'll also need mtools and mkgpt.
-The latter one is automatically being downloaded and compiled,
-you'll need git, automake, make and a C compiler for that.
-
 To boot the disk image in a virtual machine, QEMU is recommended.
 You'll need OVMF for that, too, but the build script downloads it by itself.
 
@@ -70,16 +66,13 @@ By default, this is a debug build for `i686-unknown-uefi`.
 You can change this by appending `--release`
 or by setting `--target x86_64_unknown_uefi` (for example).
 
-Running `./build.sh` will do that and also create a disk image
-and boot that with QEMU, so just may just want to run this.
+Running `cargo xtask build` will do that and also create a disk image,
+so just may just want to run this. To boot the resulting image with QEMU,
+you can use `cargo xtask run`.
 
 You can configure whether to create a `debug` or `release` build for
 either `i686` or `x86_64`, whether to enable KVM or wait for a GDB to attach
-by setting the environment variables `BUILD`, `ARCH`, `KVM` or `GDB`.
-(The defaults are `debug`, `i686`, `no` and `no`.)
-
-This script expects the kernel in `../../kernels/multiboot1.elf`,
-you can override this by setting `KERNEL`.
+by specifying command line options.
 
 ## documentation
 

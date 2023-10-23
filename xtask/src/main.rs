@@ -34,11 +34,11 @@ enum Command {
         no_x86_64: bool,
         #[arg( long, default_value = "towboot.toml" )]
         config: PathBuf,
-        #[arg( long, default_value = "disk.img" )]
+        #[arg( long, default_value = "image.img" )]
         target: PathBuf,
     },
     Run {
-        #[arg( long, default_value = "disk.img" )]
+        #[arg( long, default_value = "image.img" )]
         image: PathBuf,
         #[arg( long, default_value = "i686" )]
         arch: Arch,
