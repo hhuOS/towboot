@@ -6,7 +6,9 @@ use cli_xtask::config::Config;
 use cli_xtask::tracing::info;
 use cli_xtask::{Result, Run, Xtask};
 
+mod config;
 mod image;
+use config::get_files_for_config;
 use image::Image;
 
 const DEFAULT_IMAGE_SIZE: u64 = 50*1024*1024;
@@ -68,7 +70,9 @@ impl Command {
             image.add_file(&source, &PathBuf::from("EFI/Boot/bootx64.efi"))?;
         }
         image.add_file(&config, &PathBuf::from("towboot.toml"))?;
-        // TODO: add kernel and modules
+        for file in get_files_for_config(&config)? {
+            image.add_file(&file, &file)?;
+        }
         Ok(())
     }
 }
