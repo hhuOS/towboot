@@ -1,5 +1,6 @@
 use std::{fs::{File, OpenOptions}, path::Path, io::{Error, Write, Read}};
 
+use cli_xtask::tracing::debug;
 use fatfs::{FileSystem, format_volume, FormatVolumeOptions, FsOptions};
 
 pub (super) struct Image {
@@ -19,6 +20,7 @@ impl Image {
     }
 
     pub(super) fn add_file(&mut self, source: &Path, dest: &Path) -> Result<(), Error> {
+        debug!("adding {} as {}", source.display(), dest.display());
         let mut source_file = File::open(source)?;
         let mut dir = self.fs.root_dir();
         let components: Vec<_> = dest.components().collect();

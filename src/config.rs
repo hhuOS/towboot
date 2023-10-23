@@ -2,7 +2,11 @@
 //!
 //! The configuration can come from a file or from the command line.
 //! The command line options take precedence if they are specified.
+//! 
+//! Be aware that is module is also used by `xtask build` to generate a
+//! configuration file from the runtime args.
 
+#[cfg(target_os = "uefi")]
 use core::fmt::Write;
 
 use alloc::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
@@ -10,19 +14,31 @@ use alloc::fmt;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
+#[cfg(target_os = "uefi")]
 use log::{trace, error};
+#[cfg(not(target_os = "uefi"))]
+use cli_xtask::tracing::{trace, error};
 
-use uefi::prelude::*;
-use uefi::proto::media::file::Directory;
-use uefi_services::system_table;
+#[cfg(target_os = "uefi")]
+use {
+    uefi::prelude::*,
+    uefi::proto::media::file::Directory,
+    uefi_services::system_table
+};
+
+#[cfg(not(target_os = "uefi"))]
+use std::path::PathBuf as Directory;
+#[cfg(not(target_os = "uefi"))]
+use super::file::Status;
 
 use miniarg::{ArgumentIterator, Key};
 
-use serde::{Deserialize, de::{IntoDeserializer, value}};
+use serde::{Deserialize, de::{IntoDeserializer, value}, Serialize};
 
 use super::file::File;
 
 #[allow(dead_code)]
+#[cfg(target_os = "uefi")]
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
@@ -98,6 +114,7 @@ fn parse_load_options(
                             return Err(Status::INVALID_PARAMETER);
                         }
                     },
+                    #[cfg(target_os = "uefi")]
                     LoadOptionKey::Help => {
                         writeln!(
                             unsafe { system_table().as_mut() }.stdout(),
@@ -105,6 +122,12 @@ fn parse_load_options(
                         ).unwrap();
                         return Ok(None)
                     },
+                    #[cfg(not(target_os = "uefi"))]
+                    LoadOptionKey::Help => {
+                        println!("Usage:\n{}", LoadOptionKey::help_text());
+                        return Ok(None)
+                    }
+                    #[cfg(target_os = "uefi")]
                     LoadOptionKey::Version => {
                         writeln!(
                             unsafe { system_table().as_mut() }.stdout(),
@@ -182,10 +205,11 @@ enum LoadOptionKey {
     /// Displays all available options and how to use them.
     Help,
     /// Displays the version of towboot
+    #[cfg(target_os = "uefi")]
     Version,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Serialize)]
 pub struct Config {
     pub default: String,
     pub timeout: Option<u8>,
@@ -193,7 +217,21 @@ pub struct Config {
     pub entries: BTreeMap<String, Entry>,
 }
 
-#[derive(Deserialize, Debug)]
+impl Config {
+    /// Determine which files are referenced in the configuration.
+    pub(super) fn needed_files(self: &Config) -> Result<Vec<&String>, &str> {
+        let mut files = Vec::new();
+        for (_name, entry) in self.entries.iter() {
+            files.push(&entry.image);
+            for module in &entry.modules {
+                files.push(&module.image);
+            }
+        }
+        Ok(files)
+    }
+}
+
+#[derive(Deserialize, Debug, Serialize)]
 pub struct Entry {
     pub argv: Option<String>,
     pub image: String,
@@ -210,14 +248,14 @@ impl fmt::Display for Entry {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Serialize)]
 pub struct Module {
     pub argv: Option<String>,
     pub image: String,
 }
 
 /// Runtime options to override information in kernel images.
-#[derive(Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum Quirk {
     /// Do not exit Boot Services.
     /// This starts the kernel with more privileges and less available memory.
