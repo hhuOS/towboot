@@ -1,6 +1,6 @@
 use std::{fs::{File, OpenOptions}, path::Path, io::{Error, Write, Read}};
 
-use cli_xtask::tracing::debug;
+use log::debug;
 use fatfs::{FileSystem, format_volume, FormatVolumeOptions, FsOptions};
 
 pub (super) struct Image {

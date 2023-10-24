@@ -1,14 +1,13 @@
 extern crate alloc;
 
 use std::io::Write;
+use std::env;
 use std::path::PathBuf;
 use std::process;
 
-use cli_xtask::clap;
-use cli_xtask::eyre::eyre;
-use cli_xtask::config::Config;
-use cli_xtask::tracing::info;
-use cli_xtask::{Result, Run, Xtask};
+use anyhow::{Result, anyhow};
+use clap::{Subcommand, Parser, command, ValueEnum};
+use log::info;
 use tempfile::NamedTempFile;
 
 mod config;
@@ -18,16 +17,19 @@ use image::Image;
 
 const DEFAULT_IMAGE_SIZE: u64 = 50*1024*1024;
 
-fn main() -> Result<()> {
-    Xtask::<Command>::main()
+#[derive(Debug, Parser)]
+#[command(name = "cargo xtask")]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
 }
 
-#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, ValueEnum)]
 enum Arch {
     I686, X86_64,
 }
 
-#[derive(Debug, clap::Subcommand)]
+#[derive(Debug, Subcommand)]
 enum Command {
     /// Build a bootable image, containing towboot, a kernel and modules
     Build {
@@ -57,10 +59,10 @@ enum Command {
     },
 }
 impl Command {
-    fn do_build(&self, release: &bool, no_i686: &bool, no_x86_64: &bool, target: &PathBuf, runtime_args: &Vec<String>) -> Result<()> {
+    fn do_build(release: bool, no_i686: bool, no_x86_64: bool, target: PathBuf, runtime_args: Vec<String>) -> Result<()> {
         let mut cargo_command = process::Command::new("cargo");
         let mut build_command = cargo_command.arg("build");
-        if *release {
+        if release {
             build_command = cargo_command.arg("--release");
         }
         if !no_i686 {
@@ -78,7 +80,7 @@ impl Command {
                 .spawn()?.wait()?;
         }
         info!("creating image at {}", target.display());
-        let mut image = Image::new(target, DEFAULT_IMAGE_SIZE)?;
+        let mut image = Image::new(&target, DEFAULT_IMAGE_SIZE)?;
         let build = match release {
             true => "release",
             false => "debug",
@@ -104,8 +106,7 @@ impl Command {
                 load_options.push('"');
             }
         }
-        if let Some(config) = config::get(&mut PathBuf::from(""), Some(&load_options))
-            .map_err(|status| eyre!("{:?}", status))? {
+        if let Some(config) = config::get(&mut PathBuf::from(""), Some(&load_options))? {
             // write it (and all files referenced inside) to the image
             let mut config_file = NamedTempFile::new()?;
             config_file.as_file_mut().write_all(
@@ -113,7 +114,7 @@ impl Command {
             )?;
             image.add_file(&config_file.into_temp_path().to_path_buf(), &PathBuf::from("towboot.toml"))?;
             for file in config.needed_files()
-                .map_err(|status| eyre!("{:?}", status))? {
+                .map_err(|msg| anyhow!("{}", msg))? {
                 let path = PathBuf::from(file);
                 image.add_file(&path, &path)?;
             }
@@ -121,7 +122,7 @@ impl Command {
         Ok(())
     }
 
-    fn do_run(&self, image:&PathBuf, arch: &Arch, kvm: &bool, gdb: &bool, firmware: &Option<PathBuf>) -> Result<()> {
+    fn do_run(image: PathBuf, arch: Arch, kvm: bool, gdb: bool, firmware: Option<PathBuf>) -> Result<()> {
         info!("spawning QEMU");
         let firmware_path: PathBuf = if let Some(path) = firmware {
             assert!(path.exists());
@@ -144,10 +145,10 @@ impl Command {
             .arg("-hda").arg(image)
             .arg("-serial").arg("stdio")
             .arg("-bios").arg(firmware_path);
-        if *kvm {
+        if kvm {
             qemu = qemu.arg("-machine").arg("pc,accel=kvm,kernel-irqchip=off");
         }
-        if *gdb {
+        if gdb {
             info!("The machine starts paused, waiting for GDB to attach to localhost:1234.");
             qemu = qemu.arg("-s").arg("-S");
         }
@@ -156,27 +157,18 @@ impl Command {
     }
 }
 
-impl Run for Command {
-    fn run(&self, _config: &Config) -> Result<()> {
-        match self {
-            Self::Build {
-                release, no_i686, no_x86_64, target, runtime_args,
-            } => self.do_build(release, no_i686, no_x86_64, target, runtime_args),
-            Self::Run {
-                image, arch, kvm, gdb, firmware,
-            } => self.do_run(image, arch, kvm, gdb, firmware),
-        }
+fn main() -> Result<()> {
+    if env::var("RUST_LOG").is_err() {
+        env::set_var("RUST_LOG", "info");
     }
-
-    fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
-        self
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
+    pretty_env_logger::init();
+    let args = Cli::parse();
+    match args.command {
+        Command::Build {
+            release, no_i686, no_x86_64, target, runtime_args,
+        } => Command::do_build(release, no_i686, no_x86_64, target, runtime_args),
+        Command::Run {
+            image, arch, kvm, gdb, firmware,
+        } => Command::do_run(image, arch, kvm, gdb, firmware),
     }
 }

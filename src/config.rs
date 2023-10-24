@@ -14,10 +14,7 @@ use alloc::fmt;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
-#[cfg(target_os = "uefi")]
 use log::{trace, error};
-#[cfg(not(target_os = "uefi"))]
-use cli_xtask::tracing::{trace, error};
 
 #[cfg(target_os = "uefi")]
 use {

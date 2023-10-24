@@ -2,10 +2,17 @@
 
 use std::{path::PathBuf, io::Read};
 
+use thiserror::Error;
+
 #[allow(non_camel_case_types)]
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub(crate) enum Status {
-    NOT_FOUND, INVALID_PARAMETER, LOAD_ERROR,
+    #[error("the file wasn't found")]
+    NOT_FOUND,
+    #[error("the parameter was invalid")]
+    INVALID_PARAMETER,
+    #[error("the file could not be read")]
+    LOAD_ERROR,
 }
 
 pub(crate) struct File {

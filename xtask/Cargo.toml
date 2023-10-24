@@ -6,9 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cli-xtask = { version = "0.6.1", features = ["main"] }
+clap = { version = "4.4", features = ["derive"] }
+log = "0.4"
+pretty_env_logger = "0.5"
+anyhow = "1.0"
+thiserror = "1.0"
 fatfs = "0.3"
 toml = "0.4"
-serde = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 miniarg = { version = "0.3", features = ["alloc", "derive"] }
 tempfile = "3.8"
