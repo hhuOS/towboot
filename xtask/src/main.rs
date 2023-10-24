@@ -195,7 +195,7 @@ fn main() -> Result<()> {
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info");
     }
-    pretty_env_logger::init();
+    env_logger::init();
     let args: Cli = from_env();
     match args.command {
         Command::Build(build) => build.r#do(),
