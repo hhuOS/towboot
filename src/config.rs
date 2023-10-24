@@ -67,7 +67,9 @@ pub fn get(
 /// Try to read and parse the configuration from the given file.
 fn read_file(volume: &mut Directory, file_name: &str) -> Result<Config, Status> {
     let text: Vec<u8> = File::open(file_name, volume)?.try_into()?;
-    Ok(toml::from_slice(text.as_slice()).expect("failed to parse config file"))
+    let mut config: Config = toml::from_slice(text.as_slice()).expect("failed to parse config file");
+    config.src = file_name.to_string();
+    Ok(config)
 }
 
 /// Parse the command line options.
@@ -172,7 +174,8 @@ fn parse_load_options(
             default: "cli".to_string(),
             timeout: Some(0),
             log_level: log_level.map(ToString::to_string),
-            entries
+            entries,
+            src: ".".to_string(), // TODO: put the CWD here
         })))
     } else if let Some(c) = config_file {
         Ok(Some(ConfigSource::File(c.to_string())))
@@ -212,16 +215,19 @@ pub struct Config {
     pub timeout: Option<u8>,
     pub log_level: Option<String>,
     pub entries: BTreeMap<String, Entry>,
+    #[serde(skip)]
+    /// the path of the configuration file itself
+    pub src: String,
 }
 
 impl Config {
     /// Determine which files are referenced in the configuration.
-    pub(super) fn needed_files(self: &Config) -> Result<Vec<&String>, &str> {
+    pub(super) fn needed_files(self: &mut Config) -> Result<Vec<&mut String>, &str> {
         let mut files = Vec::new();
-        for (_name, entry) in self.entries.iter() {
-            files.push(&entry.image);
-            for module in &entry.modules {
-                files.push(&module.image);
+        for (_name, entry) in self.entries.iter_mut() {
+            files.push(&mut entry.image);
+            for module in &mut entry.modules {
+                files.push(&mut module.image);
             }
         }
         Ok(files)

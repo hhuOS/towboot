@@ -112,18 +112,26 @@ impl Build {
                 load_options.push('"');
             }
         }
-        if let Some(config) = config::get(&mut PathBuf::from(""), Some(&load_options))? {
-            // write it (and all files referenced inside) to the image
+        if let Some(mut config) = config::get(&mut PathBuf::from(""), Some(&load_options))? {
+            let mut config_path = PathBuf::from(config.src.clone());
+            config_path.pop();
+            // go through all needed files; including them (but without the original path)
+            for src_file in config.needed_files()
+                .map_err(|msg| anyhow!("{}", msg))? {
+                let src_path = config_path.join(PathBuf::from(&src_file));
+                let dst_file = src_path.file_name().unwrap();
+                let dst_path = PathBuf::from(&dst_file);
+                src_file.clear();
+                src_file.push_str(dst_file.to_str().unwrap());
+                image.add_file(&src_path, &dst_path)?;
+            }
+
+            // write itself to the image
             let mut config_file = NamedTempFile::new()?;
             config_file.as_file_mut().write_all(
                 toml::to_string(&config)?.as_bytes()
             )?;
             image.add_file(&config_file.into_temp_path().to_path_buf(), &PathBuf::from("towboot.toml"))?;
-            for file in config.needed_files()
-                .map_err(|msg| anyhow!("{}", msg))? {
-                let path = PathBuf::from(file);
-                image.add_file(&path, &path)?;
-            }
         }
         Ok(())
     }
