@@ -9,6 +9,8 @@ extern crate alloc;
 use core::str::FromStr;
 use alloc::string::ToString;
 
+use uefi::fs::PathBuf;
+use uefi::data_types::CString16;
 use uefi::prelude::*;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::loaded_image::LoadOptionsError;
@@ -82,7 +84,7 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
             .expect("Failed to open filesystem");
         let mut volume = fs.open_volume().expect("Failed to open root directory");
         
-        let config = match config::get(
+        let mut config = match config::get(
             &mut volume, load_options.as_deref(),
         ) {
             Ok(Some(c)) => c,
@@ -97,6 +99,22 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
                 log::set_max_level(level);
             } else {
                 warn!("'{level}' is not a valid log level, using default");
+            }
+        }
+        // resolve paths relative to the config file itself
+        if let Some(config_parent) = PathBuf::from(
+            CString16::try_from(config.src.as_str())
+                .expect("paths to be valid strings")
+        ).parent() {
+            for path in config.needed_files() {
+                if path.starts_with("\\") {
+                    continue
+                }
+                let mut buf = config_parent.clone();
+                buf.push(PathBuf::from(CString16::try_from(path.as_str())
+                    .expect("paths to be valid strings")
+                ));
+                *path = buf.to_string();
             }
         }
         debug!("config: {config:?}");

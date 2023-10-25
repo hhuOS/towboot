@@ -116,8 +116,7 @@ impl Build {
             let mut config_path = PathBuf::from(config.src.clone());
             config_path.pop();
             // go through all needed files; including them (but without the original path)
-            for src_file in config.needed_files()
-                .map_err(|msg| anyhow!("{}", msg))? {
+            for src_file in config.needed_files() {
                 let src_path = config_path.join(PathBuf::from(&src_file));
                 let dst_file = src_path.file_name().unwrap();
                 let dst_path = PathBuf::from(&dst_file);

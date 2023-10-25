@@ -222,7 +222,7 @@ pub struct Config {
 
 impl Config {
     /// Determine which files are referenced in the configuration.
-    pub(super) fn needed_files(self: &mut Config) -> Result<Vec<&mut String>, &str> {
+    pub(super) fn needed_files(self: &mut Config) -> Vec<&mut String> {
         let mut files = Vec::new();
         for (_name, entry) in self.entries.iter_mut() {
             files.push(&mut entry.image);
@@ -230,7 +230,7 @@ impl Config {
                 files.push(&mut module.image);
             }
         }
-        Ok(files)
+        files
     }
 }
 
