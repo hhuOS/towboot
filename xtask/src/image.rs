@@ -1,22 +1,45 @@
-use std::{fs::{File, OpenOptions}, path::Path, io::{Error, Write, Read}};
+use std::{fs::{File, OpenOptions}, path::Path, io::{Error, Write, Read}, collections::BTreeMap};
 
+use fscommon::StreamSlice;
+use gpt::{GptConfig, disk::LogicalBlockSize, partition_types, DiskDevice, mbr::ProtectiveMBR};
 use log::debug;
 use fatfs::{FileSystem, format_volume, FormatVolumeOptions, FsOptions};
 
 pub (super) struct Image {
-    fs: FileSystem<File>,
+    fs: FileSystem<StreamSlice<Box<dyn DiskDevice>>>,
 }
 
 impl Image {
     pub(super) fn new(path: &Path, size: u64) -> Result<Self, Error> {
-        let file = OpenOptions::new()
+        debug!("creating disk image");
+        let mut file = Box::new(OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
-            .open(&path)?;
+            .open(&path)?);
         file.set_len(size)?;
-        format_volume(&file, FormatVolumeOptions::new())?;
-        Ok(Self { fs: FileSystem::new(file, FsOptions::new())? })
+        // protective MBR
+        let mbr = ProtectiveMBR::with_lb_size(
+            u32::try_from((size / 512) - 1).unwrap_or(0xFF_FF_FF_FF)
+        );
+        mbr.overwrite_lba0(&mut file)?;
+        let mut disk = GptConfig::new()
+            .writable(true)
+            .initialized(false)
+            .logical_block_size(LogicalBlockSize::Lb512)
+            .create_from_device(file, None)?;
+        disk.update_partitions(BTreeMap::new())?;
+        debug!("creating partition");
+        disk.add_partition("towboot", size - 1024 * 1024, partition_types::EFI, 0, None)?;
+        let partitions = disk.partitions().clone();
+        let (_, partition) = partitions.iter().next().unwrap();
+        let file = disk.write()?;
+        let mut part = StreamSlice::new(
+            file, partition.first_lba * 512, partition.last_lba * 512,
+        )?;
+        debug!("formatting {}", partition);
+        format_volume(&mut part, FormatVolumeOptions::new())?;
+        Ok(Self { fs: FileSystem::new(part, FsOptions::new())? })
     }
 
     pub(super) fn add_file(&mut self, source: &Path, dest: &Path) -> Result<(), Error> {
