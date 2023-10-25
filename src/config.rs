@@ -2,7 +2,11 @@
 //!
 //! The configuration can come from a file or from the command line.
 //! The command line options take precedence if they are specified.
+//! 
+//! Be aware that is module is also used by `xtask build` to generate a
+//! configuration file from the runtime args.
 
+#[cfg(target_os = "uefi")]
 use core::fmt::Write;
 
 use alloc::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
@@ -12,17 +16,26 @@ use alloc::vec::Vec;
 
 use log::{trace, error};
 
-use uefi::prelude::*;
-use uefi::proto::media::file::Directory;
-use uefi_services::system_table;
+#[cfg(target_os = "uefi")]
+use {
+    uefi::prelude::*,
+    uefi::proto::media::file::Directory,
+    uefi_services::system_table
+};
+
+#[cfg(not(target_os = "uefi"))]
+use std::path::PathBuf as Directory;
+#[cfg(not(target_os = "uefi"))]
+use super::file::Status;
 
 use miniarg::{ArgumentIterator, Key};
 
-use serde::{Deserialize, de::{IntoDeserializer, value}};
+use serde::{Deserialize, de::{IntoDeserializer, value}, Serialize};
 
 use super::file::File;
 
 #[allow(dead_code)]
+#[cfg(target_os = "uefi")]
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
@@ -54,7 +67,9 @@ pub fn get(
 /// Try to read and parse the configuration from the given file.
 fn read_file(volume: &mut Directory, file_name: &str) -> Result<Config, Status> {
     let text: Vec<u8> = File::open(file_name, volume)?.try_into()?;
-    Ok(toml::from_slice(text.as_slice()).expect("failed to parse config file"))
+    let mut config: Config = toml::from_slice(text.as_slice()).expect("failed to parse config file");
+    config.src = file_name.to_string();
+    Ok(config)
 }
 
 /// Parse the command line options.
@@ -98,6 +113,7 @@ fn parse_load_options(
                             return Err(Status::INVALID_PARAMETER);
                         }
                     },
+                    #[cfg(target_os = "uefi")]
                     LoadOptionKey::Help => {
                         writeln!(
                             unsafe { system_table().as_mut() }.stdout(),
@@ -105,6 +121,12 @@ fn parse_load_options(
                         ).unwrap();
                         return Ok(None)
                     },
+                    #[cfg(not(target_os = "uefi"))]
+                    LoadOptionKey::Help => {
+                        println!("Usage:\n{}", LoadOptionKey::help_text());
+                        return Ok(None)
+                    }
+                    #[cfg(target_os = "uefi")]
                     LoadOptionKey::Version => {
                         writeln!(
                             unsafe { system_table().as_mut() }.stdout(),
@@ -152,7 +174,8 @@ fn parse_load_options(
             default: "cli".to_string(),
             timeout: Some(0),
             log_level: log_level.map(ToString::to_string),
-            entries
+            entries,
+            src: ".".to_string(), // TODO: put the CWD here
         })))
     } else if let Some(c) = config_file {
         Ok(Some(ConfigSource::File(c.to_string())))
@@ -182,18 +205,36 @@ enum LoadOptionKey {
     /// Displays all available options and how to use them.
     Help,
     /// Displays the version of towboot
+    #[cfg(target_os = "uefi")]
     Version,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Serialize)]
 pub struct Config {
     pub default: String,
     pub timeout: Option<u8>,
     pub log_level: Option<String>,
     pub entries: BTreeMap<String, Entry>,
+    #[serde(skip)]
+    /// the path of the configuration file itself
+    pub src: String,
 }
 
-#[derive(Deserialize, Debug)]
+impl Config {
+    /// Determine which files are referenced in the configuration.
+    pub(super) fn needed_files(self: &mut Config) -> Result<Vec<&mut String>, &str> {
+        let mut files = Vec::new();
+        for (_name, entry) in self.entries.iter_mut() {
+            files.push(&mut entry.image);
+            for module in &mut entry.modules {
+                files.push(&mut module.image);
+            }
+        }
+        Ok(files)
+    }
+}
+
+#[derive(Deserialize, Debug, Serialize)]
 pub struct Entry {
     pub argv: Option<String>,
     pub image: String,
@@ -210,14 +251,14 @@ impl fmt::Display for Entry {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Serialize)]
 pub struct Module {
     pub argv: Option<String>,
     pub image: String,
 }
 
 /// Runtime options to override information in kernel images.
-#[derive(Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum Quirk {
     /// Do not exit Boot Services.
     /// This starts the kernel with more privileges and less available memory.
