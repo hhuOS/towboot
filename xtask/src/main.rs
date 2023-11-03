@@ -12,9 +12,11 @@ use argh::{FromArgs, from_env};
 use log::info;
 use tempfile::NamedTempFile;
 
+mod bochs;
 mod config;
 mod file;
 mod image;
+use bochs::bochsrc;
 use image::Image;
 
 const DEFAULT_IMAGE_SIZE: u64 = 50*1024*1024;
@@ -154,6 +156,10 @@ struct Run {
     #[argh(switch)]
     kvm: bool,
 
+    /// use Bochs instead of QEMU
+    #[argh(switch)]
+    bochs: bool,
+
     /// wait for GDB to attach
     #[argh(switch)]
     gdb: bool,
@@ -166,7 +172,7 @@ struct Run {
 
 impl Run {
     fn r#do(self) -> Result<()> {
-        info!("spawning QEMU");
+        info!("getting firmware");
         let firmware_path: PathBuf = if let Some(path) = self.firmware {
             assert!(path.exists());
             path.clone()
@@ -179,23 +185,35 @@ impl Run {
                 Arch::X86_64 => "x64",
             }, "OVMF.fd"].into_iter().collect()
         };
-        let mut qemu_base = process::Command::new(match self.arch {
-            Arch::I686 => "qemu-system-i386",
-            Arch::X86_64 => "qemu-system-x86_64",
-        });
-        let mut qemu = qemu_base
-            .arg("-m").arg("256")
-            .arg("-hda").arg(self.image)
-            .arg("-serial").arg("stdio")
-            .arg("-bios").arg(firmware_path);
-        if self.kvm {
-            qemu = qemu.arg("-machine").arg("pc,accel=kvm,kernel-irqchip=off");
+        if self.bochs {
+            info!("spawning Bochs");
+            if self.kvm {
+                return Err(anyhow!("can't do KVM in Bochs"));
+            }
+            let config = bochsrc(&firmware_path, &self.image, self.gdb)?;
+            process::Command::new("bochs")
+                .arg("-qf").arg(config.into_temp_path().as_os_str())
+                .status()?.exit_ok()?;
+        } else {
+            info!("spawning QEMU");
+            let mut qemu_base = process::Command::new(match self.arch {
+                Arch::I686 => "qemu-system-i386",
+                Arch::X86_64 => "qemu-system-x86_64",
+            });
+            let mut qemu = qemu_base
+                .arg("-m").arg("256")
+                .arg("-hda").arg(self.image)
+                .arg("-serial").arg("stdio")
+                .arg("-bios").arg(firmware_path);
+            if self.kvm {
+                qemu = qemu.arg("-machine").arg("pc,accel=kvm,kernel-irqchip=off");
+            }
+            if self.gdb {
+                info!("The machine starts paused, waiting for GDB to attach to localhost:1234.");
+                qemu = qemu.arg("-s").arg("-S");
+            }
+            qemu.status()?.exit_ok()?;
         }
-        if self.gdb {
-            info!("The machine starts paused, waiting for GDB to attach to localhost:1234.");
-            qemu = qemu.arg("-s").arg("-S");
-        }
-        qemu.status()?.exit_ok()?;
         Ok(())
     }
 }
