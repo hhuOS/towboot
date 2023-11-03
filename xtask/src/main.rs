@@ -1,3 +1,5 @@
+#![feature(exit_status_error)]
+
 extern crate alloc;
 
 use std::io::Write;
@@ -73,14 +75,14 @@ impl Build {
             build_command
                 .arg("--target")
                 .arg("i686-unknown-uefi")
-                .spawn()?.wait()?;
+                .status()?.exit_ok()?;
         }
         if !self.no_x86_64 {
             info!("building for x86_64, pass --no-x86-64 to skip this");
             build_command
                 .arg("--target")
                 .arg("x86_64-unknown-uefi")
-                .spawn()?.wait()?;
+                .status()?.exit_ok()?;
         }
         info!("creating image at {}", self.target.display());
         let mut image = Image::new(&self.target, DEFAULT_IMAGE_SIZE)?;
@@ -171,7 +173,7 @@ impl Run {
         } else {
             // TODO: replace this script
             process::Command::new("bash").arg("download.sh")
-                .current_dir("ovmf").spawn()?.wait()?;
+                .current_dir("ovmf").status()?.exit_ok()?;
             ["ovmf", match self.arch {
                 Arch::I686 => "ia32",
                 Arch::X86_64 => "x64",
@@ -193,7 +195,7 @@ impl Run {
             info!("The machine starts paused, waiting for GDB to attach to localhost:1234.");
             qemu = qemu.arg("-s").arg("-S");
         }
-        qemu.spawn()?.wait()?;
+        qemu.status()?.exit_ok()?;
         Ok(())
     }
 }
