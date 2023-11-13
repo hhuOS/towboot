@@ -28,11 +28,6 @@ struct Cli {
     command: Command,
 }
 
-#[derive(Debug, Clone, Copy, strum::EnumString, strum::Display)]
-enum Arch {
-    I686, X86_64,
-}
-
 #[derive(Debug, FromArgs)]
 #[argh(subcommand)]
 enum Command {
@@ -148,9 +143,9 @@ struct Run {
     #[argh(option, default = "PathBuf::from(\"image.img\")")]
     image: PathBuf,
 
-    /// what architecture to use for the VM
-    #[argh(option, default = "Arch::I686")]
-    arch: Arch,
+    /// use x86_64 instead of i686
+    #[argh(switch)]
+    x86_64: bool,
 
     /// enable KVM
     #[argh(switch)]
@@ -180,9 +175,9 @@ impl Run {
             // TODO: replace this script
             process::Command::new("bash").arg("download.sh")
                 .current_dir("ovmf").status()?.exit_ok()?;
-            ["ovmf", match self.arch {
-                Arch::I686 => "ia32",
-                Arch::X86_64 => "x64",
+            ["ovmf", match self.x86_64 {
+                false => "ia32",
+                true => "x64",
             }, "OVMF.fd"].into_iter().collect()
         };
         if self.bochs {
@@ -196,9 +191,9 @@ impl Run {
                 .status()?.exit_ok()?;
         } else {
             info!("spawning QEMU");
-            let mut qemu_base = process::Command::new(match self.arch {
-                Arch::I686 => "qemu-system-i386",
-                Arch::X86_64 => "qemu-system-x86_64",
+            let mut qemu_base = process::Command::new(match self.x86_64 {
+                false => "qemu-system-i386",
+                true => "qemu-system-x86_64",
             });
             let mut qemu = qemu_base
                 .arg("-m").arg("256")
