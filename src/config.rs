@@ -6,9 +6,6 @@
 //! Be aware that is module is also used by `xtask build` to generate a
 //! configuration file from the runtime args.
 
-#[cfg(target_os = "uefi")]
-use core::fmt::Write;
-
 use alloc::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 use alloc::fmt;
 use alloc::string::{String, ToString};
@@ -20,7 +17,7 @@ use log::{trace, error};
 use {
     uefi::prelude::*,
     uefi::proto::media::file::Directory,
-    uefi_services::system_table
+    uefi_services::println,
 };
 
 #[cfg(not(target_os = "uefi"))]
@@ -113,23 +110,13 @@ fn parse_load_options(
                             return Err(Status::INVALID_PARAMETER);
                         }
                     },
-                    #[cfg(target_os = "uefi")]
-                    LoadOptionKey::Help => {
-                        writeln!(
-                            system_table().stdout(),
-                            "Usage:\n{}", LoadOptionKey::help_text(),
-                        ).unwrap();
-                        return Ok(None)
-                    },
-                    #[cfg(not(target_os = "uefi"))]
                     LoadOptionKey::Help => {
                         println!("Usage:\n{}", LoadOptionKey::help_text());
                         return Ok(None)
                     }
                     #[cfg(target_os = "uefi")]
                     LoadOptionKey::Version => {
-                        writeln!(
-                            system_table().stdout(),
+                        println!(
                             "This is {} {}{}, built as {} for {} on {}. It is licensed under the {}.",
                             built_info::PKG_NAME,
                             built_info::GIT_VERSION.unwrap(),
@@ -142,7 +129,7 @@ fn parse_load_options(
                             built_info::TARGET,
                             built_info::HOST,
                             built_info::PKG_LICENSE,
-                        ).unwrap();
+                        );
                         return Ok(None)
                     }
                 }
