@@ -67,7 +67,7 @@ pub(super) fn setup_video<'a>(
         },
         OpenProtocolAttributes::GetProtocol,
     ).ok() }?;
-    let modes: Vec<Mode> = output.modes().collect();
+    let modes: Vec<Mode> = output.modes(systab.boot_services()).collect();
     debug!(
         "available video modes: {:?}",
         modes.iter().map(Mode::info).map(|i| (i.resolution(), i.pixel_format()))

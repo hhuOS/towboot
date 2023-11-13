@@ -11,8 +11,8 @@ default-target = "i686-unknown-uefi"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-uefi = { version = "0.25", features = ["alloc", "global_allocator", "logger"] }
-uefi-services = "0.22"
+uefi = { version = "0.26", features = ["alloc", "global_allocator", "logger"] }
+uefi-services = "0.23"
 acpi = "5.0"
 smbios-lib = { git = "https://github.com/hhuOS/smbios-lib.git", branch = "main", default-features = false, features = ["no_std"] }
 x86 =  "0.52"

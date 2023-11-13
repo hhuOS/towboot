@@ -116,7 +116,7 @@ fn parse_load_options(
                     #[cfg(target_os = "uefi")]
                     LoadOptionKey::Help => {
                         writeln!(
-                            unsafe { system_table().as_mut() }.stdout(),
+                            system_table().stdout(),
                             "Usage:\n{}", LoadOptionKey::help_text(),
                         ).unwrap();
                         return Ok(None)
@@ -129,7 +129,7 @@ fn parse_load_options(
                     #[cfg(target_os = "uefi")]
                     LoadOptionKey::Version => {
                         writeln!(
-                            unsafe { system_table().as_mut() }.stdout(),
+                            system_table().stdout(),
                             "This is {} {}{}, built as {} for {} on {}. It is licensed under the {}.",
                             built_info::PKG_NAME,
                             built_info::GIT_VERSION.unwrap(),

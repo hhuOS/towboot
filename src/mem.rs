@@ -41,7 +41,7 @@ impl Drop for Allocation {
     fn drop(&mut self) {
         // We can't free memory after we've exited boot services.
         // But this only happens in `PreparedEntry::boot` and this function doesn't return.
-        unsafe { system_table().as_ref() }.boot_services().free_pages(self.ptr, self.pages)
+        unsafe { system_table().boot_services().free_pages(self.ptr, self.pages) }
         // let's just panic if we can't free
         .expect("failed to free the allocated memory");
     }
@@ -60,7 +60,7 @@ impl Allocation {
     /// [`move_to_where_it_should_be`]: struct.Allocation.html#method.move_to_where_it_should_be
     pub(crate) fn new_at(address: usize, size: usize) -> Result<Self, Status>{
         let count_pages = Self::calculate_page_count(size);
-        match unsafe { system_table().as_ref() }.boot_services().allocate_pages(
+        match system_table().boot_services().allocate_pages(
             AllocateType::Address(address.try_into().unwrap()),
             MemoryType::LOADER_DATA,
             count_pages
@@ -84,7 +84,7 @@ impl Allocation {
     /// Note: This will round up to whole pages.
     pub(crate) fn new_under_4gb(size: usize, quirks: &BTreeSet<Quirk>) -> Result<Self, Status> {
         let count_pages = Self::calculate_page_count(size);
-        let ptr = unsafe { system_table().as_ref() }.boot_services().allocate_pages(
+        let ptr = system_table().boot_services().allocate_pages(
             AllocateType::MaxAddress(if quirks.contains(&Quirk::ModulesBelow200Mb) {
                 200 * 1024 * 1024
             } else {
@@ -157,12 +157,12 @@ fn dump_memory_map() {
     let mut buf = Vec::new();
     // The docs say that we should allocate a little bit more memory than needed.
     buf.resize(
-        unsafe { system_table().as_ref() }
+        system_table()
         .boot_services()
         .memory_map_size().map_size + 100,
         0
     );
-    let mut memory_map = unsafe { system_table().as_ref() }.boot_services()
+    let mut memory_map = system_table().boot_services()
         .memory_map(buf.as_mut_slice()).expect("failed to get memory map");
     memory_map.sort();
     for descriptor in memory_map.entries() {
