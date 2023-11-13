@@ -8,8 +8,14 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use x86::dtables::DescriptorTablePointer;
-use x86::segmentation::{SegmentDescriptorBuilder, CodeSegmentType, DescriptorBuilder, BuildDescriptor, Descriptor, DataSegmentType};
+#[cfg(target_arch = "x86_64")]
+use x86::{
+    dtables::DescriptorTablePointer,
+    segmentation::{
+        BuildDescriptor, CodeSegmentType, DataSegmentType, Descriptor,
+        DescriptorBuilder, SegmentDescriptorBuilder,
+    },
+};
 
 use core::arch::asm;
 use core::ffi::c_void;
