@@ -108,11 +108,11 @@ impl Build {
         }
         for string in self.runtime_args.iter() {
             load_options.push(' ');
-            if string.contains(" ") {
+            if string.contains(' ') {
                 load_options.push('"');
             }
             load_options.push_str(string);
-            if string.contains(" ") {
+            if string.contains(' ') {
                 load_options.push('"');
             }
         }
@@ -134,7 +134,7 @@ impl Build {
             config_file.as_file_mut().write_all(
                 toml::to_string(&config)?.as_bytes()
             )?;
-            image.add_file(&config_file.into_temp_path().to_path_buf(), &PathBuf::from("towboot.toml"))?;
+            image.add_file(&config_file.into_temp_path(), &PathBuf::from("towboot.toml"))?;
         }
         Ok(())
     }

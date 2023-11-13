@@ -2,7 +2,7 @@
 
 use alloc::collections::btree_set::BTreeSet;
 use alloc::format;
-use alloc::vec::Vec;
+use alloc::{vec::Vec, vec};
 
 use log::{info, error};
 
@@ -101,8 +101,7 @@ impl<'a> TryFrom<File<'a>> for Vec<u8> {
     fn try_from(mut file: File) -> Result<Self, Self::Error> {
         // Vec::with_size would allocate enough space, but won't fill it with zeros.
         // file.read seems to need this.
-        let mut content_vec = Vec::<u8>::new();
-        content_vec.resize(file.size, 0);
+        let mut content_vec = vec![0; file.size];
         let read_size = file.file.read(content_vec.as_mut_slice())
         .map_err(|e| {
             error!("Failed to read from file '{}': {:?}", file.name, e);

@@ -1,10 +1,10 @@
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::Path;
 
 use anyhow::Result;
 use tempfile::NamedTempFile;
 
-pub(super) fn bochsrc(ovmf: &PathBuf, image: &PathBuf, gdb: bool) -> Result<NamedTempFile> {
+pub(super) fn bochsrc(ovmf: &Path, image: &Path, gdb: bool) -> Result<NamedTempFile> {
     let ovmf = ovmf.display();
     let image = image.display();
     let gdb: u8 = gdb.into();

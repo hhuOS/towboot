@@ -16,7 +16,7 @@ impl Image {
             .read(true)
             .write(true)
             .create(true)
-            .open(&path)?);
+            .open(path)?);
         file.set_len(size)?;
         // protective MBR
         let mbr = ProtectiveMBR::with_lb_size(

@@ -123,9 +123,7 @@ pub(super) fn symbols(
     let size: u32 = binary.header.e_shentsize.try_into().unwrap();
     
     // allocate memory to place the section headers and sections
-    let mut memory = Vec::new();
-    // reserve memory so that we don't have to re-allocate
-    memory.reserve((
+    let mut memory = Vec::with_capacity((
         u64::from(size * num)
         + binary.section_headers.iter().filter(|s| s.sh_addr == 0).map(|s| s.sh_size).sum::<u64>()
     ).try_into().unwrap());

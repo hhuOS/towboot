@@ -107,7 +107,7 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
                 .expect("paths to be valid strings")
         ).parent() {
             for path in config.needed_files() {
-                if path.starts_with("\\") {
+                if path.starts_with('\\') {
                     continue
                 }
                 let mut buf = config_parent.clone();
@@ -132,8 +132,8 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
         },
         Err(e) => {
             error!("failed to prepare the entry: {e:?}");
-            return e // give up
+            e // give up
             // TODO: perhaps redisplay the menu or something like that
         },
-    };
+    }
 }

@@ -1,6 +1,6 @@
 //! This emulates towboot/src/file.rs and a bit of uefi-rs.
 
-use std::{path::PathBuf, io::Read};
+use std::{path::Path, io::Read};
 
 use thiserror::Error;
 
@@ -20,7 +20,7 @@ pub(crate) struct File {
 }
 
 impl File {
-    pub(crate) fn open(file_name: &str, _volume: &PathBuf) -> Result<Self, Status> {
+    pub(crate) fn open(file_name: &str, _volume: &Path) -> Result<Self, Status> {
         match std::fs::File::open(file_name) {
             Ok(file) => Ok(Self { file }),
             Err(_) => Err(Status::NOT_FOUND),
@@ -28,7 +28,7 @@ impl File {
     }
 }
 
-impl<'a> TryFrom<File> for Vec<u8> {
+impl TryFrom<File> for Vec<u8> {
     type Error = Status;
 
     fn try_from(mut file: File) -> Result<Self, Self::Error> {

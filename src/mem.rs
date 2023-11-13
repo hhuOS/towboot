@@ -11,7 +11,7 @@ use core::mem::size_of;
 
 use alloc::boxed::Box;
 use alloc::collections::btree_set::BTreeSet;
-use alloc::vec::Vec;
+use alloc::{vec::Vec, vec};
 
 use uefi::prelude::*;
 use uefi::table::boot::{AllocateType, MemoryDescriptor, MemoryType};
@@ -111,11 +111,6 @@ impl Allocation {
         unsafe { core::slice::from_raw_parts_mut(self.ptr as *mut u8, self.pages * PAGE_SIZE) }
     }
     
-    /// Checks whether a part of memory is allocated.
-    pub(crate) fn contains(&self, begin: u64, length: usize) -> bool {
-        self.ptr <= begin && self.ptr as usize + self.pages * PAGE_SIZE >= begin as usize + length
-    }
-    
     /// Get the pointer inside.
     pub(crate) fn as_ptr(&self) -> *const u8 {
         self.ptr as *const u8
@@ -154,14 +149,10 @@ impl Allocation {
 /// Show the current memory map.
 fn dump_memory_map() {
     debug!("memory map:");
-    let mut buf = Vec::new();
     // The docs say that we should allocate a little bit more memory than needed.
-    buf.resize(
-        system_table()
-        .boot_services()
-        .memory_map_size().map_size + 100,
-        0
-    );
+    let mut buf = vec![0; system_table().boot_services()
+        .memory_map_size().map_size + 100
+    ];
     let mut memory_map = system_table().boot_services()
         .memory_map(buf.as_mut_slice()).expect("failed to get memory map");
     memory_map.sort();
