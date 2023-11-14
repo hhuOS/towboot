@@ -16,14 +16,13 @@ use log::{trace, error};
 #[cfg(target_os = "uefi")]
 use {
     uefi::prelude::*,
-    uefi::proto::media::file::Directory,
     uefi_services::println,
 };
 
 #[cfg(not(target_os = "uefi"))]
-use std::path::PathBuf as Directory;
-#[cfg(not(target_os = "uefi"))]
-use super::file::Status;
+use super::file::{
+    Boot, Handle, SystemTable, Status
+};
 
 use miniarg::{ArgumentIterator, Key};
 
@@ -45,7 +44,7 @@ const CONFIG_FILE: &str = "\\towboot.toml";
 ///
 /// Returns None if just a help text has been displayed.
 pub fn get(
-    volume: &mut Directory, load_options: Option<&str>,
+    image_fs_handle: Handle, load_options: Option<&str>, systab: &SystemTable<Boot>
 ) -> Result<Option<Config>, Status> {
     let config_source: ConfigSource = match load_options {
         Some(lo) => match parse_load_options(lo)? {
@@ -56,14 +55,14 @@ pub fn get(
         None => ConfigSource::File(CONFIG_FILE.to_string()),
     };
     Ok(Some(match config_source {
-        ConfigSource::File(s) => read_file(volume, &s)?,
+        ConfigSource::File(s) => read_file(image_fs_handle, &s, systab)?,
         ConfigSource::Given(c) => c,
     }))
 }
 
 /// Try to read and parse the configuration from the given file.
-fn read_file(volume: &mut Directory, file_name: &str) -> Result<Config, Status> {
-    let text: Vec<u8> = File::open(file_name, volume)?.try_into()?;
+fn read_file(image_fs_handle: Handle, file_name: &str, systab: &SystemTable<Boot>) -> Result<Config, Status> {
+    let text: Vec<u8> = File::open(file_name, image_fs_handle, systab)?.try_into()?;
     let mut config: Config = toml::from_slice(text.as_slice()).expect("failed to parse config file");
     config.src = file_name.to_string();
     Ok(config)

@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![feature(let_chains)]
 #![feature(naked_functions)]
 
 //! towboot – a bootloader for Multiboot kernels on UEFI systems
@@ -14,7 +15,6 @@ use uefi::data_types::CString16;
 use uefi::prelude::*;
 use uefi::proto::loaded_image::LoadedImage;
 use uefi::proto::loaded_image::LoadOptionsError;
-use uefi::proto::media::fs::SimpleFileSystem;
 
 use log::{debug, info, warn, error};
 
@@ -44,13 +44,11 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
     // This closure exists so that we can use protocols inside and they're all
     // gone after.
     //
-    // This seems safe and sound but it's not, since we can (and do!) get the
-    // opened root volume outside of this. (And I'm pretty sure we are not
-    // allowed to use it after exiting Boot Services.)
+    // This may seem safe and sound but I'm not sure whether it actually is.
     // There's also the global singleton `uefi_services::system_table`,
     // but this panics at least if we've exited the Boot Services.
     // (That's why we must never hold a reference to its return value!)
-    let (config, mut volume) = {
+    let (config, image_fs_handle) = {
         // get information about the way we were loaded
         // the interesting thing here is the partition handle
         let loaded_image = systab
@@ -75,17 +73,11 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
             },
         };
         
-        // open the filesystem
-        let mut fs = systab
-            .boot_services()
-            .open_protocol_exclusive::<SimpleFileSystem>(
-                loaded_image.device().expect("the image to be loaded from a device")
-            )
-            .expect("Failed to open filesystem");
-        let mut volume = fs.open_volume().expect("Failed to open root directory");
+        // get the filesystem
+        let image_fs_handle = loaded_image.device().expect("the image to be loaded from a device");
         
         let mut config = match config::get(
-            &mut volume, load_options.as_deref(),
+            image_fs_handle, load_options.as_deref(), &systab,
         ) {
             Ok(Some(c)) => c,
             Ok(None) => return Status::SUCCESS,
@@ -118,13 +110,13 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
             }
         }
         debug!("config: {config:?}");
-        (config, volume)
+        (config, image_fs_handle)
     };
     let entry_to_boot = menu::choose(&config, &mut systab);
     debug!("okay, trying to load {entry_to_boot:?}");
     info!("loading {entry_to_boot}...");
     
-    match boot::PreparedEntry::new(entry_to_boot, image, &mut volume, &systab) {
+    match boot::PreparedEntry::new(entry_to_boot, image, image_fs_handle, &systab) {
         Ok(e) => {
             info!("booting {entry_to_boot}...");
             e.boot(systab);

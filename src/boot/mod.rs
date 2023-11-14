@@ -22,7 +22,6 @@ use core::ffi::c_void;
 use core::ptr::NonNull;
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
-use uefi::proto::media::file::Directory;
 use uefi::table::boot::{ScopedProtocol, MemoryType};
 use uefi::table::cfg::ConfigTableEntry;
 
@@ -299,10 +298,10 @@ impl<'a> PreparedEntry<'a> {
     /// Return a `PreparedEntry` which can be used to actually boot.
     /// This is non-destructive and will always return.
     pub(crate) fn new(
-        entry: &'a Entry, image: Handle, volume: &mut Directory,
+        entry: &'a Entry, image: Handle, image_fs_handle: Handle,
         systab: &SystemTable<Boot>,
     ) -> Result<PreparedEntry<'a>, Status> {
-        let kernel_vec: Vec<u8> = File::open(&entry.image, volume)?.try_into()?;
+        let kernel_vec: Vec<u8> = File::open(&entry.image, image_fs_handle, systab)?.try_into()?;
         let header = Header::from_slice(kernel_vec.as_slice()).ok_or_else(|| {
             error!("invalid Multiboot header");
             Status::LOAD_ERROR
@@ -314,7 +313,7 @@ impl<'a> PreparedEntry<'a> {
         // Load all modules, fail completely if one fails to load.
         // just always use whole pages, that's easier for us
         let modules_vec: Vec<Allocation> = entry.modules.iter().map(|module|
-            File::open(&module.image, volume)
+            File::open(&module.image, image_fs_handle, systab)
             .and_then(|f| f.try_into_allocation(&entry.quirks))
         ).collect::<Result<Vec<_>, _>>()?;
         info!("loaded {} modules", modules_vec.len());

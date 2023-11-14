@@ -1,6 +1,6 @@
 //! This emulates towboot/src/file.rs and a bit of uefi-rs.
 
-use std::{path::Path, io::Read};
+use std::{io::Read, marker::PhantomData};
 
 use thiserror::Error;
 
@@ -20,7 +20,9 @@ pub(crate) struct File {
 }
 
 impl File {
-    pub(crate) fn open(file_name: &str, _volume: &Path) -> Result<Self, Status> {
+    pub(crate) fn open(
+        file_name: &str, _image_fs_handle: Handle, _systab: &SystemTable<Boot>,
+    ) -> Result<Self, Status> {
         match std::fs::File::open(file_name) {
             Ok(file) => Ok(Self { file }),
             Err(_) => Err(Status::NOT_FOUND),
@@ -37,3 +39,7 @@ impl TryFrom<File> for Vec<u8> {
         Ok(buf)
     }
 }
+
+pub(super) type Boot = ();
+pub(super) type Handle = ();
+pub(super) type SystemTable<T> = PhantomData<T>;

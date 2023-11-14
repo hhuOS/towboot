@@ -1,15 +1,19 @@
 //! File handling
 
+use alloc::borrow::ToOwned;
 use alloc::collections::btree_set::BTreeSet;
 use alloc::format;
 use alloc::{vec::Vec, vec};
+use alloc::string::ToString;
 
 use log::{info, error};
 
 use uefi::prelude::*;
-use uefi::CStr16;
+use uefi::fs::{Path, PathBuf};
+use uefi::data_types::CString16;
+use uefi::proto::media::fs::SimpleFileSystem;
 use uefi::proto::media::file::{
-    Directory, File as UefiFile, FileAttribute, FileInfo, FileMode, FileType, RegularFile
+    File as UefiFile, FileAttribute, FileInfo, FileMode, FileType, RegularFile
 };
 
 use super::config::Quirk;
@@ -25,20 +29,61 @@ pub(crate) struct File<'a> {
 impl<'a> File<'a> {
     /// Opens a file.
     ///
-    /// The path is relative to the volume we're loaded from.
+    /// The path can be:
+    /// * relative to the volume we're loaded from
+    /// * on a different volume (if it starts with `fs?:`)
     ///
     /// Possible errors:
+    /// * `Status::INVALID_PARAMETER`: the volume identifier is invalid
     /// * `Status::NOT_FOUND`: the file does not exist
+    /// * `Status::PROTOCOL_ERROR`: the file name is not a valid string
     /// * `Status::UNSUPPORTED`: the given path does exist, but it's a directory
-    pub(crate) fn open(name: &'a str, volume: &mut Directory) -> Result<Self, Status> {
+    pub(crate) fn open(name: &'a str, image_fs_handle: Handle, systab: &SystemTable<Boot>) -> Result<Self, Status> {
         info!("loading file '{name}'...");
-        let mut filename_buf = [0; 1024];
-        let file_handle = match volume.open(
-            CStr16::from_str_with_buf(name, &mut filename_buf)
+        let file_name = CString16::try_from(name)
             .map_err(|e| {
                 error!("filename is invalid because of {e:?}");
                 Status::PROTOCOL_ERROR
-            })?,
+            })?;
+        let file_path = Path::new(&file_name);
+        let mut file_path_components = file_path.components();
+        let (
+            fs_handle, file_name,
+        ) = if let Some(root) = file_path_components.next() && root.to_string().ends_with(':') {
+            if let Some(idx) = root
+                .to_string()
+                .to_lowercase()
+                .strip_suffix(':')
+                .unwrap()
+                .strip_prefix("fs") {
+                let filesystems = systab
+                    .boot_services()
+                    .find_handles::<SimpleFileSystem>()
+                    .map_err(|e| e.status())?;
+                let fs = filesystems.into_iter().nth(
+                    idx.parse::<usize>().map_err(|_| {
+                        error!("{idx} is not a number");
+                        Status::INVALID_PARAMETER
+                    })?
+                ).ok_or(Status::NOT_FOUND)?;
+                let mut file_path = PathBuf::new();
+                for c in file_path_components {
+                    file_path.push(c.as_ref());
+                }
+                Ok((fs, file_path.to_cstr16().to_owned()))
+            } else {
+                error!("don't know how to open {root}");
+                Err(Status::INVALID_PARAMETER)
+            }?
+        } else {
+            (image_fs_handle, file_name)
+        };
+        let mut fs = systab
+            .boot_services()
+            .open_protocol_exclusive::<SimpleFileSystem>(fs_handle)
+            .map_err(|e| e.status())?;
+        let file_handle = match fs.open_volume().map_err(|e| e.status())?.open(
+            &file_name,
             FileMode::Read,
             FileAttribute::READ_ONLY,
         ) {

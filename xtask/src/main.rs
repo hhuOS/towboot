@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-use std::io::Write;
+use std::{io::Write, marker::PhantomData};
 use std::env;
 use std::path::PathBuf;
 use std::process;
@@ -111,7 +111,9 @@ impl Build {
                 load_options.push('"');
             }
         }
-        if let Some(mut config) = config::get(&mut PathBuf::from(""), Some(&load_options))? {
+        if let Some(mut config) = config::get(
+            (), Some(&load_options), &PhantomData::default(),
+        )? {
             let mut config_path = PathBuf::from(config.src.clone());
             config_path.pop();
             // go through all needed files; including them (but without the original path)
