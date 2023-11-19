@@ -34,6 +34,19 @@ without support for Multiboot, you can add an entry like
 on the command line; see above. Please note that towboot and its configuration
 file currently have to be on the same partition.)
 
+### paths
+
+Paths given in a configuration file or on the command line are interpreted as
+follows:
+ * absolute if they start with a volume identifier (`fs?:`)
+ * relative to the volume towboot itself is on if they start with a backslash (`\`)
+ * relative to the configuration file
+
+Paths relative to the UEFI shell's current working directory are not supported, yet.
+
+Paths for kernel and modules given on the commandline can't contain spaces,
+use a configuration file for this.
+
 ## development
 
 If you want to compile towboot yourself, here are the instructions:
