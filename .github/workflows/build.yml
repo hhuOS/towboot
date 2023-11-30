@@ -22,7 +22,7 @@ jobs:
                   command: build
                   args: --target i686-unknown-uefi
             - name: Upload i686 artifact
-              uses: actions/upload-artifact@v2
+              uses: actions/upload-artifact@v3
               with:
                   name: towboot-debug-i686.efi
                   path: target/i686-unknown-uefi/debug/towboot.efi
