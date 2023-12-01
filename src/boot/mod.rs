@@ -525,9 +525,8 @@ impl EntryPoint {
             .limit_granularity_4kb()
             .db() // 32bit
             .finish();
-        let gdt = DescriptorTablePointer::new_from_slice(
-            &[Descriptor::NULL, code_segment, data_segment]
-        );
+        let gdt_array = [Descriptor::NULL, code_segment, data_segment];
+        let gdt = DescriptorTablePointer::new_from_slice(&gdt_array);
 
         unsafe {
             x86::dtables::lgdt(&gdt);
