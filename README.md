@@ -58,16 +58,6 @@ The version doesn't really matter,
 though `1.76.0-nightly (9fad68599 2023-12-03)` definitely works.
 If you don't know how to install one,
 please take a look at [rustup.rs](https://rustup.rs/).
-(You can configure rustup to use a nightly toolchain just for the current folder
-by running `rustup override set nightly`.)
-
-You'll also need the appropriate targets. If you're using rustup,
-you can add them like this:
-
-```sh
-rustup target add i686-unknown-uefi
-rustup target add x86_64-unknown-uefi
-```
 
 To boot the disk image in a virtual machine, QEMU is recommended.
 You'll need OVMF for that, too, but the build script downloads it by itself.
