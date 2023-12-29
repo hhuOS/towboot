@@ -64,8 +64,8 @@ You'll need OVMF for that, too, but the build script downloads it by itself.
 
 ### building
 
-`cargo build` creates a `towboot.efi` file inside the `target` folder.
-By default, this is a debug build for `i686-unknown-uefi`.
+`cargo build --package towboot` creates a `towboot.efi` file inside the `target`
+folder. By default, this is a debug build for `i686-unknown-uefi`.
 You can change this by appending `--release`
 or by setting `--target x86_64_unknown_uefi` (for example).
 

@@ -23,12 +23,12 @@ jobs:
               uses: actions-rs/cargo@v1
               with:
                   command: build
-                  args: --target i686-unknown-uefi --release
+                  args: --package towboot --target i686-unknown-uefi --release
             - name: Build for x86_64
               uses: actions-rs/cargo@v1
               with:
                   command: build
-                  args: --target x86_64-unknown-uefi --release
+                  args: --package towboot --target x86_64-unknown-uefi --release
             - name: Rename files (1)
               run: cp target/i686-unknown-uefi/release/towboot.efi towboot-$(git describe --always --tags)-i686.efi
             - name: Rename files (2)

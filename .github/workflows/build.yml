@@ -20,7 +20,7 @@ jobs:
               uses: actions-rs/cargo@v1
               with:
                   command: build
-                  args: --target i686-unknown-uefi
+                  args: --package towboot --target i686-unknown-uefi
             - name: Upload i686 artifact
               uses: actions/upload-artifact@v3
               with:
@@ -30,7 +30,7 @@ jobs:
               uses: actions-rs/cargo@v1
               with:
                   command: build
-                  args: --target x86_64-unknown-uefi
+                  args: --package towboot --target x86_64-unknown-uefi
             - name: Upload x86_64 artifact
               uses: actions/upload-artifact@v3
               with:

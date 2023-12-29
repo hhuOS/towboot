@@ -63,7 +63,10 @@ struct Build {
 impl Build {
     fn r#do(self) -> Result<()> {
         let mut cargo_command = process::Command::new("cargo");
-        let mut build_command = cargo_command.arg("build");
+        let mut build_command = cargo_command
+            .arg("build")
+            .arg("--package")
+            .arg("towboot");
         if self.release {
             build_command = cargo_command.arg("--release");
         }

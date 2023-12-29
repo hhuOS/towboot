@@ -1,1 +1,1 @@
-../../src/config.rs
+../../towboot/src/config.rs
