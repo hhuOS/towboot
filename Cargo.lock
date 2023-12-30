@@ -841,9 +841,17 @@ dependencies = [
  "serde",
  "smbios-lib",
  "toml 0.5.8",
+ "towboot_config",
  "uefi",
  "uefi-services",
  "x86",
+]
+
+[[package]]
+name = "towboot_config"
+version = "0.0.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -1223,4 +1231,5 @@ dependencies = [
  "tempfile",
  "thiserror",
  "toml 0.5.11",
+ "towboot_config",
 ]

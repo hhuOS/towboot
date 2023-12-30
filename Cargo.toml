@@ -3,4 +3,5 @@ resolver = "2"
 members = [
     "towboot",
     "xtask",
+    "towboot_config",
 ]
