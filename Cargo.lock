@@ -851,6 +851,7 @@ dependencies = [
 name = "towboot_config"
 version = "0.0.0"
 dependencies = [
+ "miniarg",
  "serde",
 ]
 

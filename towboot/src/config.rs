@@ -7,8 +7,7 @@
 //! configuration file from the runtime args.
 
 use alloc::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
-use alloc::fmt;
-use alloc::string::{String, ToString};
+use alloc::string::ToString;
 use alloc::vec::Vec;
 
 use log::{trace, error};
@@ -24,12 +23,13 @@ use super::file::{
     Boot, Handle, SystemTable, Status
 };
 
-use miniarg::{ArgumentIterator, Key};
+use miniarg::Key;
 
 use serde::Deserialize;
 use serde::de::{IntoDeserializer, value};
 
 pub(super) use towboot_config::{Config, Entry, Module, Quirk};
+use towboot_config::{ConfigSource, LoadOptionKey};
 
 use super::file::File;
 
@@ -171,29 +171,4 @@ fn parse_load_options(
     } else {
         Ok(Some(ConfigSource::File(CONFIG_FILE.to_string())))
     }
-}
-
-enum ConfigSource {
-    File(String),
-    Given(Config),
-}
-
-/// Available options.
-#[derive(Debug, Key)]
-enum LoadOptionKey {
-    /// Load the specified configuration file instead of the default one.
-    Config,
-    /// Don't load a configuration file, instead boot the specified kernel.
-    Kernel,
-    /// Set the log level. (This only applies if `-kernel` is specified.)
-    LogLevel,
-    /// Load a module with the given args. Can be specified multiple times.
-    Module,
-    /// Enable a specific quirk. (Only applies when loading a kernel.)
-    Quirk,
-    /// Displays all available options and how to use them.
-    Help,
-    /// Displays the version of towboot
-    #[cfg(target_os = "uefi")]
-    Version,
 }
