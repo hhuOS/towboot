@@ -11,4 +11,4 @@ pub use config::{Config, Entry, Module, Quirk};
 #[cfg(feature = "options")]
 mod options;
 #[cfg(feature = "options")]
-pub use options::{CONFIG_FILE, ConfigSource, LoadOptionKey};
+pub use options::{CONFIG_FILE, ConfigSource, LoadOptionKey, parse_load_options};

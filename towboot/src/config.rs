@@ -5,38 +5,47 @@
 //! 
 //! Be aware that is module is also used by `xtask build` to generate a
 //! configuration file from the runtime args.
-
-use alloc::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
-use log::{trace, error};
-
 #[cfg(target_os = "uefi")]
-use {
-    uefi::prelude::*,
-    uefi_services::println,
-};
+use uefi::prelude::*;
 
 #[cfg(not(target_os = "uefi"))]
 use super::file::{
     Boot, Handle, SystemTable, Status
 };
 
-use miniarg::Key;
-
-use serde::Deserialize;
-use serde::de::{IntoDeserializer, value};
-
-pub(super) use towboot_config::{Config, Entry, Module, Quirk};
-use towboot_config::{CONFIG_FILE, ConfigSource, LoadOptionKey};
+pub(super) use towboot_config::Config;
+use towboot_config::{CONFIG_FILE, ConfigSource, parse_load_options};
 
 use super::file::File;
 
-#[allow(dead_code)]
 #[cfg(target_os = "uefi")]
-mod built_info {
-    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+fn version_info() -> String {
+    use alloc::format;
+    #[allow(dead_code)]
+    mod built_info {
+        include!(concat!(env!("OUT_DIR"), "/built.rs"));
+    }
+    format!(
+        "This is {} {}{}, built as {} for {} on {}. It is licensed under the {}.",
+        built_info::PKG_NAME,
+        built_info::GIT_VERSION.unwrap(),
+        if built_info::GIT_DIRTY.unwrap() {
+            " (dirty)"
+        } else {
+            ""
+        },
+        built_info::PROFILE,
+        built_info::TARGET,
+        built_info::HOST,
+        built_info::PKG_LICENSE,
+    )
+}
+#[cfg(not(target_os = "uefi"))]
+fn version_info() -> String {
+    "(unknown)".to_string()
 }
 
 /// Get the config.
@@ -48,9 +57,10 @@ pub fn get(
     image_fs_handle: Handle, load_options: Option<&str>, systab: &SystemTable<Boot>
 ) -> Result<Option<Config>, Status> {
     let config_source: ConfigSource = match load_options {
-        Some(lo) => match parse_load_options(lo)? {
-            Some(cs) => cs,
-            None => return Ok(None),
+        Some(lo) => match parse_load_options(lo, &version_info()) {
+            Ok(Some(cs)) => cs,
+            Ok(None) => return Ok(None),
+            Err(()) => return Err(Status::INVALID_PARAMETER),
         },
         // fall back to the hardcoded config file
         None => ConfigSource::File(CONFIG_FILE.to_string()),
@@ -67,106 +77,4 @@ fn read_file(image_fs_handle: Handle, file_name: &str, systab: &SystemTable<Boot
     let mut config: Config = toml::from_slice(text.as_slice()).expect("failed to parse config file");
     config.src = file_name.to_string();
     Ok(config)
-}
-
-/// Parse the command line options.
-///
-/// See [`LoadOptionKey`] for available options.
-///
-/// This function errors, if the command line options are not valid.
-/// That is:
-/// * general reasons
-/// * keys without values
-/// * values without keys
-/// * invalid keys
-///
-/// [`LoadOptionKey`]: enum.LoadOptionKey.html
-fn parse_load_options(
-    load_options: &str,
-) -> Result<Option<ConfigSource>, Status> {
-    let options = LoadOptionKey::parse(load_options);
-    let mut config_file = None;
-    let mut kernel = None;
-    let mut log_level = None;
-    let mut modules = Vec::<&str>::new();
-    let mut quirks = BTreeSet::<Quirk>::new();
-    for option in options {
-        match option {
-            Ok((key, value)) => {
-                trace!("option: {key} => {value}");
-                match key {
-                    LoadOptionKey::Config => config_file = Some(value),
-                    LoadOptionKey::Kernel => kernel = Some(value),
-                    LoadOptionKey::LogLevel => log_level = Some(value),
-                    LoadOptionKey::Module => modules.push(value),
-                    LoadOptionKey::Quirk => {
-                        let parsed: Result<Quirk, value::Error> = Quirk::deserialize(
-                            value.into_deserializer()
-                        );
-                        if let Ok(parsed) = parsed {
-                            quirks.insert(parsed);
-                        } else {
-                            error!("invalid value for quirk: {value}");
-                            return Err(Status::INVALID_PARAMETER);
-                        }
-                    },
-                    LoadOptionKey::Help => {
-                        println!("Usage:\n{}", LoadOptionKey::help_text());
-                        return Ok(None)
-                    }
-                    #[cfg(target_os = "uefi")]
-                    LoadOptionKey::Version => {
-                        println!(
-                            "This is {} {}{}, built as {} for {} on {}. It is licensed under the {}.",
-                            built_info::PKG_NAME,
-                            built_info::GIT_VERSION.unwrap(),
-                            if built_info::GIT_DIRTY.unwrap() {
-                                " (dirty)"
-                            } else {
-                                ""
-                            },
-                            built_info::PROFILE,
-                            built_info::TARGET,
-                            built_info::HOST,
-                            built_info::PKG_LICENSE,
-                        );
-                        return Ok(None)
-                    }
-                }
-            },
-            Err(e) => {
-                error!("failed parsing load options: {e:?}");
-                return Err(Status::INVALID_PARAMETER)
-            },
-        }
-    }
-    if let Some(kernel) = kernel {
-        let modules = modules.iter().map(|m| {
-            let (image, argv) = m.split_once(' ').unwrap_or((m, ""));
-            Module {
-                image: image.to_string(),
-                argv: Some(argv.to_string()),
-            }
-        }).collect();
-        let (kernel_image, kernel_argv) = kernel.split_once(' ').unwrap_or((kernel, ""));
-        let mut entries = BTreeMap::new();
-        entries.insert("cli".to_string(), Entry {
-            argv: Some(kernel_argv.to_string()),
-            image: kernel_image.to_string(),
-            name: None,
-            quirks,
-            modules,
-        });
-        Ok(Some(ConfigSource::Given(Config {
-            default: "cli".to_string(),
-            timeout: Some(0),
-            log_level: log_level.map(ToString::to_string),
-            entries,
-            src: ".".to_string(), // TODO: put the CWD here
-        })))
-    } else if let Some(c) = config_file {
-        Ok(Some(ConfigSource::File(c.to_string())))
-    } else {
-        Ok(Some(ConfigSource::File(CONFIG_FILE.to_string())))
-    }
 }

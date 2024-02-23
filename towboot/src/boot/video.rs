@@ -12,7 +12,7 @@ use log::{debug, warn, info, error};
 use multiboot12::header::Header;
 use multiboot12::information::{InfoBuilder, ColorInfo};
 
-use super::super::config::Quirk;
+use towboot_config::Quirk;
 
 /// Try to get the video in a mode the kernel wants.
 ///

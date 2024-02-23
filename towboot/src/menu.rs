@@ -9,7 +9,7 @@ use uefi::table::boot::{EventType, TimerTrigger, Tpl};
 
 use log::{error, warn};
 
-use crate::config::{Config, Entry};
+use towboot_config::{Config, Entry};
 
 /// Choose an entry to boot.
 ///

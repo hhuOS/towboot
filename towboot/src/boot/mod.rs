@@ -35,7 +35,7 @@ use multiboot12::information::{
 use goblin::elf::Elf;
 use uefi_services::system_table;
 
-use super::config::{Entry, Quirk};
+use towboot_config::{Entry, Quirk};
 use super::file::File;
 use super::mem::Allocation;
 

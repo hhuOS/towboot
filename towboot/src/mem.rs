@@ -19,7 +19,7 @@ use uefi_services::system_table;
 
 use log::{debug, warn, error};
 
-use super::config::Quirk;
+use towboot_config::Quirk;
 
 // no multiboot import here as some of the types have the same name as the UEFI ones
 

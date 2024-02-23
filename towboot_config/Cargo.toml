@@ -11,4 +11,5 @@ options = ["miniarg"]
 
 [dependencies]
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
+log = "0.4.4"
 miniarg = { version = "0.3", default-features = false, features = ["alloc", "derive"], optional = true }

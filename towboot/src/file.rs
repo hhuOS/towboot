@@ -16,7 +16,7 @@ use uefi::proto::media::file::{
     File as UefiFile, FileAttribute, FileInfo, FileMode, FileType, RegularFile
 };
 
-use super::config::Quirk;
+use towboot_config::Quirk;
 use super::mem::Allocation;
 
 /// An opened file.
