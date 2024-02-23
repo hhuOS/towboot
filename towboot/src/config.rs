@@ -29,7 +29,7 @@ use serde::Deserialize;
 use serde::de::{IntoDeserializer, value};
 
 pub(super) use towboot_config::{Config, Entry, Module, Quirk};
-use towboot_config::{ConfigSource, LoadOptionKey};
+use towboot_config::{CONFIG_FILE, ConfigSource, LoadOptionKey};
 
 use super::file::File;
 
@@ -38,8 +38,6 @@ use super::file::File;
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
-
-const CONFIG_FILE: &str = "\\towboot.toml";
 
 /// Get the config.
 /// If we were called with command line options, try them first.

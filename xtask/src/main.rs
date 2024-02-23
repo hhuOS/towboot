@@ -101,9 +101,6 @@ impl Build {
 
         // generate a configuration file from the load options
         let mut load_options = "towboot.efi".to_owned();
-        if self.runtime_args.is_empty() {
-            load_options.push_str(" -config towboot.toml");
-        }
         for string in self.runtime_args.iter() {
             load_options.push(' ');
             if string.contains(' ') {

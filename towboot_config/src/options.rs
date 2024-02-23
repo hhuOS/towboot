@@ -4,6 +4,9 @@ use miniarg::{ArgumentIterator, Key};
 
 use super::Config;
 
+/// The default path to the configuration file.
+pub const CONFIG_FILE: &str = "towboot.toml";
+
 /// Where to load the configuration from
 pub enum ConfigSource {
     File(String),
