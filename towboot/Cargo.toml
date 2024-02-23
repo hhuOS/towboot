@@ -20,13 +20,9 @@ x86 =  "0.52"
 log = { version = "0.4", default-features = false }
 
 toml = { git = "https://github.com/thomcc/toml-rs.git", branch = "nostd", default-features = false }
-serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
-# libm = "0.2"
-
 multiboot12 = { git = "https://github.com/YtvwlD/multiboot12", tag = "towboot-0.6.0" }
 goblin = { version = "0.7", default-features = false, features = ["elf32", "elf64", "endian_fd"] }
 scroll = { version = "0.11", default-features = false }
-miniarg = { version = "0.3", default-features = false, features = ["alloc", "derive"] }
 
 towboot_config = { path = "../towboot_config" }
 
