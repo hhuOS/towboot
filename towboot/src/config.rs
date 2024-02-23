@@ -1,29 +1,21 @@
-//! This module contains structs and functions to load the configuration.
+//! This module contains functions to load the configuration.
 //!
 //! The configuration can come from a file or from the command line.
 //! The command line options take precedence if they are specified.
 //! 
-//! Be aware that is module is also used by `xtask build` to generate a
-//! configuration file from the runtime args.
+//! Most of the actual structs can be found in the `towboot_config` crate.
+//! The xtask package has its own config.rs.
+use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
-#[cfg(target_os = "uefi")]
 use uefi::prelude::*;
 
-#[cfg(not(target_os = "uefi"))]
-use super::file::{
-    Boot, Handle, SystemTable, Status
-};
-
-pub(super) use towboot_config::Config;
-use towboot_config::{CONFIG_FILE, ConfigSource, parse_load_options};
+use towboot_config::{CONFIG_FILE, Config, ConfigSource, parse_load_options};
 
 use super::file::File;
 
-#[cfg(target_os = "uefi")]
 fn version_info() -> String {
-    use alloc::format;
     #[allow(dead_code)]
     mod built_info {
         include!(concat!(env!("OUT_DIR"), "/built.rs"));
@@ -42,10 +34,6 @@ fn version_info() -> String {
         built_info::HOST,
         built_info::PKG_LICENSE,
     )
-}
-#[cfg(not(target_os = "uefi"))]
-fn version_info() -> String {
-    "(unknown)".to_string()
 }
 
 /// Get the config.

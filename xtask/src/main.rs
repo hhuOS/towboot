@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-use std::{io::Write, marker::PhantomData};
+use std::io::Write;
 use std::env;
 use std::path::PathBuf;
 use std::process;
@@ -14,7 +14,6 @@ use tempfile::NamedTempFile;
 
 mod bochs;
 mod config;
-mod file;
 mod image;
 use bochs::bochsrc;
 use image::Image;
@@ -111,9 +110,7 @@ impl Build {
                 load_options.push('"');
             }
         }
-        if let Some(mut config) = config::get(
-            (), Some(&load_options), &PhantomData::default(),
-        )? {
+        if let Some(mut config) = config::get(&load_options)? {
             let mut config_path = PathBuf::from(config.src.clone());
             config_path.pop();
             // go through all needed files; including them (but without the original path)
