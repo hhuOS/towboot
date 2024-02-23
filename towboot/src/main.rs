@@ -75,7 +75,7 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
         let image_fs_handle = loaded_image.device().expect("the image to be loaded from a device");
         
         let mut config = match config::get(
-            image_fs_handle, load_options.as_deref(), &systab,
+            image_fs_handle, load_options.as_deref().unwrap_or_default(), &systab,
         ) {
             Ok(Some(c)) => c,
             Ok(None) => return Status::SUCCESS,

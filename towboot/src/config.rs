@@ -11,7 +11,7 @@ use alloc::vec::Vec;
 
 use uefi::prelude::*;
 
-use towboot_config::{CONFIG_FILE, Config, ConfigSource, parse_load_options};
+use towboot_config::{Config, ConfigSource, parse_load_options};
 
 use super::file::File;
 
@@ -42,21 +42,14 @@ fn version_info() -> String {
 ///
 /// Returns None if just a help text has been displayed.
 pub fn get(
-    image_fs_handle: Handle, load_options: Option<&str>, systab: &SystemTable<Boot>
+    image_fs_handle: Handle, load_options: &str, systab: &SystemTable<Boot>
 ) -> Result<Option<Config>, Status> {
-    let config_source: ConfigSource = match load_options {
-        Some(lo) => match parse_load_options(lo, &version_info()) {
-            Ok(Some(cs)) => cs,
-            Ok(None) => return Ok(None),
-            Err(()) => return Err(Status::INVALID_PARAMETER),
-        },
-        // fall back to the hardcoded config file
-        None => ConfigSource::File(CONFIG_FILE.to_string()),
-    };
-    Ok(Some(match config_source {
-        ConfigSource::File(s) => read_file(image_fs_handle, &s, systab)?,
-        ConfigSource::Given(c) => c,
-    }))
+    match parse_load_options(load_options, &version_info()) {
+        Ok(Some(ConfigSource::File(s))) => Ok(Some(read_file(image_fs_handle, &s, systab)?)),
+        Ok(Some(ConfigSource::Given(c))) => Ok(Some(c)),
+        Ok(None) => return Ok(None),
+        Err(()) => return Err(Status::INVALID_PARAMETER),
+    }
 }
 
 /// Try to read and parse the configuration from the given file.
