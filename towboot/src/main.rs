@@ -30,7 +30,7 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
     //! This is the main function.
     //! Startup happens here.
     uefi_services::init(&mut systab).expect("Failed to initialize utilities");
-    log::set_max_level(log::LevelFilter::Warn);
+    log::set_max_level(log::LevelFilter::Info);
     
     // blocks are so cool, I wish the borrow checker was real
     //

@@ -1,5 +1,5 @@
 use alloc::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
-use alloc::fmt;
+use alloc::{fmt, format};
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
@@ -84,7 +84,7 @@ pub fn parse_load_options(
                         }
                     },
                     LoadOptionKey::Help => {
-                        info!("Usage:\n{}", LoadOptionKey::help_text());
+                        info!("{}", format!("Usage:\n{}", LoadOptionKey::help_text()));
                         return Ok(None)
                     }
                     #[cfg(target_os = "uefi")]
