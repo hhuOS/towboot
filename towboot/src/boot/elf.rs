@@ -120,7 +120,7 @@ pub(super) fn symbols(
 ) -> (Symbols, Vec<u8>) {
     // Let's just hope they fit into u32s.
     let num: u32 = binary.header.e_shnum.into();
-    let size: u32 = binary.header.e_shentsize.try_into().unwrap();
+    let size: u32 = binary.header.e_shentsize.into();
     
     // allocate memory to place the section headers and sections
     let mut memory = Vec::with_capacity((
@@ -155,7 +155,7 @@ pub(super) fn symbols(
         section.clone().into_ctx(&mut memory[begin_idx..begin_idx+size as usize], ctx);
         begin_idx += size as usize;
     }
-    let shndx = binary.header.e_shstrndx.try_into().unwrap();
+    let shndx = binary.header.e_shstrndx.into();
     (
         header.new_elf_symbols(
             num, size, ptr as usize + shdr_begin, shndx

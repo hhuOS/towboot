@@ -47,8 +47,8 @@ pub fn get(
     match parse_load_options(load_options, &version_info()) {
         Ok(Some(ConfigSource::File(s))) => Ok(Some(read_file(image_fs_handle, &s, systab)?)),
         Ok(Some(ConfigSource::Given(c))) => Ok(Some(c)),
-        Ok(None) => return Ok(None),
-        Err(()) => return Err(Status::INVALID_PARAMETER),
+        Ok(None) => Ok(None),
+        Err(()) => Err(Status::INVALID_PARAMETER),
     }
 }
 

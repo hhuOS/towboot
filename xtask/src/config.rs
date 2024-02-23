@@ -17,7 +17,7 @@ use towboot_config::{Config, ConfigSource, parse_load_options};
 ///
 /// Returns None if just a help text has been displayed.
 pub fn get(load_options: &str) -> Result<Option<Config>> {
-    match parse_load_options(load_options, &"") {
+    match parse_load_options(load_options, "") {
         Ok(Some(ConfigSource::File(s))) => Ok(Some(read_file(&s)?)),
         Ok(Some(ConfigSource::Given(c))) => Ok(Some(c)),
         Ok(None) => Ok(None),

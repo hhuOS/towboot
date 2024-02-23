@@ -53,7 +53,7 @@ pub(super) fn setup_video<'a>(
         .boot_services()
         .find_handles::<GraphicsOutput>()
         .expect("failed to list available graphics outputs");
-    let handle = handles.get(0).or_else(|| {
+    let handle = handles.first().or_else(|| {
         warn!("Failed to find a graphics output. Do you have a graphics card (and a driver)?");
         None
     })?;
