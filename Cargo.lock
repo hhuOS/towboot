@@ -855,6 +855,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "towbootctl"
+version = "0.0.0"
+dependencies = [
+ "fatfs",
+ "fscommon",
+ "gpt",
+ "log",
+]
+
+[[package]]
 name = "ucs2"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1222,12 +1232,10 @@ dependencies = [
  "anyhow",
  "argh",
  "env_logger",
- "fatfs",
- "fscommon",
- "gpt",
  "log",
  "tempfile",
  "thiserror",
  "toml 0.5.11",
  "towboot_config",
+ "towbootctl",
 ]

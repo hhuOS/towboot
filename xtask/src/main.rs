@@ -14,9 +14,8 @@ use tempfile::NamedTempFile;
 
 mod bochs;
 mod config;
-mod image;
 use bochs::bochsrc;
-use image::Image;
+use towbootctl::Image;
 
 const DEFAULT_IMAGE_SIZE: u64 = 50*1024*1024;
 

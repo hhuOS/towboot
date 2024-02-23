@@ -1,3 +1,4 @@
+//! This module contains functionality to work with images.
 use std::{fs::{File, OpenOptions}, path::Path, io::{Error, Write, Read}, collections::BTreeMap};
 
 use fscommon::StreamSlice;
@@ -5,12 +6,15 @@ use gpt::{GptConfig, disk::LogicalBlockSize, partition_types, DiskDevice, mbr::P
 use log::debug;
 use fatfs::{FileSystem, format_volume, FormatVolumeOptions, FsOptions};
 
-pub (super) struct Image {
+/// An image that is currently being constructed.
+pub struct Image {
     fs: FileSystem<StreamSlice<Box<dyn DiskDevice>>>,
 }
 
 impl Image {
-    pub(super) fn new(path: &Path, size: u64) -> Result<Self, Error> {
+    /// Create a new image at the given location with the given size.
+    /// If the file exists already, it will be overwritten.
+    pub fn new(path: &Path, size: u64) -> Result<Self, Error> {
         debug!("creating disk image");
         let mut file = Box::new(OpenOptions::new()
             .read(true)
@@ -42,7 +46,8 @@ impl Image {
         Ok(Self { fs: FileSystem::new(part, FsOptions::new())? })
     }
 
-    pub(super) fn add_file(&mut self, source: &Path, dest: &Path) -> Result<(), Error> {
+    /// Copy a file from the local filesystem to the image.
+    pub fn add_file(&mut self, source: &Path, dest: &Path) -> Result<(), Error> {
         debug!("adding {} as {}", source.display(), dest.display());
         let mut source_file = File::open(source)?;
         let mut dir = self.fs.root_dir();
