@@ -2,7 +2,6 @@
 
 extern crate alloc;
 
-use std::io::Write;
 use std::env;
 use std::path::PathBuf;
 use std::process;
@@ -10,12 +9,11 @@ use std::process;
 use anyhow::{Result, anyhow};
 use argh::{FromArgs, from_env};
 use log::info;
-use tempfile::NamedTempFile;
 
 mod bochs;
 mod config;
 use bochs::bochsrc;
-use towbootctl::Image;
+use towbootctl::{add_config_to_image, Image};
 
 const DEFAULT_IMAGE_SIZE: u64 = 50*1024*1024;
 
@@ -110,24 +108,7 @@ impl Build {
             }
         }
         if let Some(mut config) = config::get(&load_options)? {
-            let mut config_path = PathBuf::from(config.src.clone());
-            config_path.pop();
-            // go through all needed files; including them (but without the original path)
-            for src_file in config.needed_files() {
-                let src_path = config_path.join(PathBuf::from(&src_file));
-                let dst_file = src_path.file_name().unwrap();
-                let dst_path = PathBuf::from(&dst_file);
-                src_file.clear();
-                src_file.push_str(dst_file.to_str().unwrap());
-                image.add_file(&src_path, &dst_path)?;
-            }
-
-            // write itself to the image
-            let mut config_file = NamedTempFile::new()?;
-            config_file.as_file_mut().write_all(
-                toml::to_string(&config)?.as_bytes()
-            )?;
-            image.add_file(&config_file.into_temp_path(), &PathBuf::from("towboot.toml"))?;
+            add_config_to_image(&mut image, &mut config)?;
         }
         Ok(())
     }

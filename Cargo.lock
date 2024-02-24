@@ -858,10 +858,14 @@ dependencies = [
 name = "towbootctl"
 version = "0.0.0"
 dependencies = [
+ "anyhow",
  "fatfs",
  "fscommon",
  "gpt",
  "log",
+ "tempfile",
+ "toml 0.5.11",
+ "towboot_config",
 ]
 
 [[package]]
