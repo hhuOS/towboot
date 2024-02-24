@@ -10,6 +10,11 @@ use tempfile::NamedTempFile;
 
 use towbootctl::{add_config_to_image, config, Image, DEFAULT_IMAGE_SIZE, IA32_BOOT_PATH, X64_BOOT_PATH};
 
+#[allow(dead_code)]
+mod built_info {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
+
 #[derive(Debug, FromArgs)]
 /// Top-level command.
 struct Cli {
@@ -21,6 +26,7 @@ struct Cli {
 #[argh(subcommand)]
 enum Command {
     Image(ImageCommand),
+    Version(VersionCommand),
 }
 
 #[derive(Debug, FromArgs)]
@@ -73,6 +79,30 @@ impl ImageCommand {
     }
 }
 
+#[derive(Debug, FromArgs)]
+#[argh(subcommand, name = "version")]
+/// Display information about this application.
+struct VersionCommand {}
+
+impl VersionCommand {
+    fn r#do(&self) -> Result<()> {
+        println!(
+            "This is {} {}{}, built as {} for {} on {}.",
+            built_info::PKG_NAME,
+            built_info::GIT_VERSION.unwrap(),
+            if built_info::GIT_DIRTY.unwrap() {
+                " (dirty)"
+            } else {
+                ""
+            },
+            built_info::PROFILE,
+            built_info::TARGET,
+            built_info::HOST,
+        );
+        Ok(())
+    }
+}
+
 fn main() -> Result<()> {
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info");
@@ -81,5 +111,6 @@ fn main() -> Result<()> {
     let args: Cli = from_env();
     match args.command {
         Command::Image(image_command) => image_command.r#do(),
+        Command::Version(version_command) => version_command.r#do(),
     }
 }
