@@ -11,7 +11,5 @@ log = "0.4"
 env_logger = { version = "0.10", default-features = false, features = ["auto-color"] }
 anyhow = "1.0"
 thiserror = "1.0"
-toml = "0.5" # can't upgrade further as long as towboot depends on 0.4
 
-towboot_config = { path = "../towboot_config" }
 towbootctl = { path = "../towbootctl" }

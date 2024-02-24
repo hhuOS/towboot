@@ -8,6 +8,7 @@ use tempfile::NamedTempFile;
 use towboot_config::Config;
 
 mod bochs;
+pub mod config;
 mod image;
 pub use bochs::bochsrc;
 pub use image::Image;

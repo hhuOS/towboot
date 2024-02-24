@@ -4,7 +4,7 @@
 //! The command line options take precedence if they are specified.
 //! 
 //! Most of the actual structs can be found in the `towboot_config` crate.
-//! The xtask package has its own config.rs.
+//! The towbootctl package has its own config.rs.
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;

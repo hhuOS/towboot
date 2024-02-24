@@ -1,7 +1,4 @@
 #![feature(exit_status_error)]
-
-extern crate alloc;
-
 use std::env;
 use std::path::PathBuf;
 use std::process;
@@ -10,8 +7,7 @@ use anyhow::{Result, anyhow};
 use argh::{FromArgs, from_env};
 use log::info;
 
-mod config;
-use towbootctl::{add_config_to_image, bochsrc, Image};
+use towbootctl::{add_config_to_image, config, bochsrc, Image};
 
 const DEFAULT_IMAGE_SIZE: u64 = 50*1024*1024;
 
