@@ -10,10 +10,8 @@ use anyhow::{Result, anyhow};
 use argh::{FromArgs, from_env};
 use log::info;
 
-mod bochs;
 mod config;
-use bochs::bochsrc;
-use towbootctl::{add_config_to_image, Image};
+use towbootctl::{add_config_to_image, bochsrc, Image};
 
 const DEFAULT_IMAGE_SIZE: u64 = 50*1024*1024;
 

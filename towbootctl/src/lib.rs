@@ -7,7 +7,9 @@ use tempfile::NamedTempFile;
 
 use towboot_config::Config;
 
+mod bochs;
 mod image;
+pub use bochs::bochsrc;
 pub use image::Image;
 
 /// Write the given configuration file to image.

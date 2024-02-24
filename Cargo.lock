@@ -1237,7 +1237,6 @@ dependencies = [
  "argh",
  "env_logger",
  "log",
- "tempfile",
  "thiserror",
  "toml 0.5.11",
  "towboot_config",
