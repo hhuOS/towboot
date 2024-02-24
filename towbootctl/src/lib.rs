@@ -13,6 +13,15 @@ mod image;
 pub use bochs::bochsrc;
 pub use image::Image;
 
+/// How big the image should be
+pub const DEFAULT_IMAGE_SIZE: u64 = 50*1024*1024;
+
+/// Where to place the 32-bit EFI file
+pub const IA32_BOOT_PATH: &str = "EFI/Boot/bootia32.efi";
+
+/// Where to place the 64-bit EFI file
+pub const X64_BOOT_PATH: &str = "EFI/Boot/bootx64.efi";
+
 /// Write the given configuration file to image.
 /// This also copies all files that are referenced in it.
 pub fn add_config_to_image(image: &mut Image, config: &mut Config) -> Result<()> {

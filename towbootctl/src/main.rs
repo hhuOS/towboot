@@ -1,8 +1,14 @@
+//! A companion utility for towboot.
 use std::env;
+use std::io::Write;
+use std::path::PathBuf;
 
 use argh::{FromArgs, from_env};
-
 use anyhow::Result;
+use log::info;
+use tempfile::NamedTempFile;
+
+use towbootctl::{add_config_to_image, config, Image, DEFAULT_IMAGE_SIZE, IA32_BOOT_PATH, X64_BOOT_PATH};
 
 #[derive(Debug, FromArgs)]
 /// Top-level command.
@@ -21,7 +27,50 @@ enum Command {
 #[argh(subcommand, name = "image")]
 /// Build a bootable image containing towboot, kernels and their modules.
 struct ImageCommand {
-    
+    /// where to place the image
+    #[argh(option, default = "PathBuf::from(\"image.img\")")]
+    target: PathBuf,
+
+    /// runtime options to pass to towboot
+    #[argh(positional, greedy)]
+    runtime_args: Vec<String>,
+}
+
+impl ImageCommand {
+    fn r#do(&self) -> Result<()> {
+        info!("creating image at {}", self.target.display());
+        let mut image = Image::new(&self.target, DEFAULT_IMAGE_SIZE)?;
+
+        // generate a configuration file from the load options
+        let mut load_options = "towboot.efi".to_owned();
+        for string in self.runtime_args.iter() {
+            load_options.push(' ');
+            if string.contains(' ') {
+                load_options.push('"');
+            }
+            load_options.push_str(string);
+            if string.contains(' ') {
+                load_options.push('"');
+            }
+        }
+        if let Some(mut config) = config::get(&load_options)? {
+            add_config_to_image(&mut image, &mut config)?;
+        }
+
+        // add towboot itself
+        let mut towboot_temp_ia32 = NamedTempFile::new()?;
+        towboot_temp_ia32.as_file_mut().write_all(towboot_ia32::TOWBOOT)?;
+        image.add_file(
+            &towboot_temp_ia32.into_temp_path(), &PathBuf::from(IA32_BOOT_PATH)
+        )?;
+        let mut towboot_temp_x64 = NamedTempFile::new()?;
+        towboot_temp_x64.as_file_mut().write_all(towboot_x64::TOWBOOT)?;
+        image.add_file(
+            &towboot_temp_x64.into_temp_path(), &PathBuf::from(X64_BOOT_PATH)
+        )?;
+
+        Ok(())
+    }
 }
 
 fn main() -> Result<()> {
@@ -31,6 +80,6 @@ fn main() -> Result<()> {
     env_logger::init();
     let args: Cli = from_env();
     match args.command {
-        Command::Image(image_command) => todo!(),
+        Command::Image(image_command) => image_command.r#do(),
     }
 }

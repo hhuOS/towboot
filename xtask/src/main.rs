@@ -7,9 +7,7 @@ use anyhow::{Result, anyhow};
 use argh::{FromArgs, from_env};
 use log::info;
 
-use towbootctl::{add_config_to_image, config, bochsrc, Image};
-
-const DEFAULT_IMAGE_SIZE: u64 = 50*1024*1024;
+use towbootctl::{add_config_to_image, bochsrc, config, Image, DEFAULT_IMAGE_SIZE, IA32_BOOT_PATH, X64_BOOT_PATH};
 
 #[derive(Debug, FromArgs)]
 /// Top-level command.
@@ -82,11 +80,11 @@ impl Build {
         };
         if !self.no_i686 {
             let source: PathBuf = ["target", "i686-unknown-uefi", build, "towboot.efi"].into_iter().collect();
-            image.add_file(&source, &PathBuf::from("EFI/Boot/bootia32.efi"))?;
+            image.add_file(&source, &PathBuf::from(IA32_BOOT_PATH))?;
         }
         if !self.no_x86_64 {
             let source: PathBuf = ["target", "x86_64-unknown-uefi", build, "towboot.efi"].into_iter().collect();
-            image.add_file(&source, &PathBuf::from("EFI/Boot/bootx64.efi"))?;
+            image.add_file(&source, &PathBuf::from(X64_BOOT_PATH))?;
         }
 
         // generate a configuration file from the load options
