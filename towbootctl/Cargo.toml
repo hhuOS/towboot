@@ -15,3 +15,15 @@ tempfile = "3.8"
 toml = "0.5" # can't upgrade further as long as towboot depends on 0.4
 
 towboot_config = { path = "../towboot_config" }
+
+# these dependencies are only for the binary
+argh = { version = "0.1", optional = true }
+env_logger = { version = "0.10", default-features = false, features = ["auto-color"], optional = true }
+
+[features]
+binary = ["argh", "env_logger"]
+
+[[bin]]
+name = "towbootctl"
+required-features = ["binary"]
+
