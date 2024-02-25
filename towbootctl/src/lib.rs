@@ -45,3 +45,20 @@ pub fn add_config_to_image(image: &mut Image, config: &mut Config) -> Result<()>
     image.add_file(&config_file.into_temp_path(), &PathBuf::from("towboot.toml"))?;
     Ok(())
 }
+
+/// Joins a slice of strings.
+pub fn runtime_args_to_load_options(runtime_args: &[String]) -> String {
+    let mut load_options = "towboot.efi".to_owned();
+    for string in runtime_args.iter() {
+        load_options.push(' ');
+        if string.contains(' ') {
+            load_options.push('"');
+        }
+        load_options.push_str(string);
+        if string.contains(' ') {
+            load_options.push('"');
+        }
+    }
+    load_options
+}
+

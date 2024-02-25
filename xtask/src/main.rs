@@ -7,7 +7,7 @@ use anyhow::{Result, anyhow};
 use argh::{FromArgs, from_env};
 use log::info;
 
-use towbootctl::{add_config_to_image, bochsrc, config, Image, DEFAULT_IMAGE_SIZE, IA32_BOOT_PATH, X64_BOOT_PATH};
+use towbootctl::{add_config_to_image, bochsrc, config, runtime_args_to_load_options, Image, DEFAULT_IMAGE_SIZE, IA32_BOOT_PATH, X64_BOOT_PATH};
 
 #[derive(Debug, FromArgs)]
 /// Top-level command.
@@ -88,17 +88,7 @@ impl Build {
         }
 
         // generate a configuration file from the load options
-        let mut load_options = "towboot.efi".to_owned();
-        for string in self.runtime_args.iter() {
-            load_options.push(' ');
-            if string.contains(' ') {
-                load_options.push('"');
-            }
-            load_options.push_str(string);
-            if string.contains(' ') {
-                load_options.push('"');
-            }
-        }
+        let load_options = runtime_args_to_load_options(&self.runtime_args);
         if let Some(mut config) = config::get(&load_options)? {
             add_config_to_image(&mut image, &mut config)?;
         }
