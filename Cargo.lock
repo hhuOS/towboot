@@ -847,7 +847,7 @@ dependencies = [
 
 [[package]]
 name = "towboot_config"
-version = "0.0.0"
+version = "0.7.1"
 dependencies = [
  "log",
  "miniarg",
@@ -856,7 +856,7 @@ dependencies = [
 
 [[package]]
 name = "towbootctl"
-version = "0.0.0"
+version = "0.7.1"
 dependencies = [
  "anyhow",
  "argh",
@@ -1233,7 +1233,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.7.1"
 dependencies = [
  "anyhow",
  "argh",

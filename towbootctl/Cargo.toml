@@ -1,6 +1,9 @@
 [package]
 name = "towbootctl"
-version = "0.0.0"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

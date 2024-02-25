@@ -2,9 +2,10 @@ cargo-features = ["per-package-target"]
 
 [package]
 name = "towboot"
-version = "0.7.1"
-authors = ["Niklas Sombert <niklas.sombert@uni-duesseldorf.de>"]
-license = "MPL-2.0"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 default-target = "i686-unknown-uefi"
 
