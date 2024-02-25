@@ -79,6 +79,10 @@ struct InstallCommand {
     #[argh(switch)]
     removable: bool,
 
+    /// whether to register the install with the firmware (otherwise it can only be chain-loaded)
+    #[argh(switch)]
+    register: bool,
+
     /// the operating system's name
     /// This is being used as the folder name inside /EFI and as the name for
     /// the boot entry.
@@ -110,9 +114,7 @@ impl InstallCommand {
         if !install_path.exists() {
             fs::create_dir(&install_path)?;
         }
-        if !self.removable {
-            panic!("non-removable installs are not supported yet");
-        }
+        info!("installing to {}", install_path.display());
         if !self.runtime_args.is_empty() {
             let load_options = runtime_args_to_load_options(&self.runtime_args);
             if let Some(mut config) = config::get(&load_options)? {
@@ -120,18 +122,25 @@ impl InstallCommand {
                 let mut config_path = PathBuf::from(config.src.clone());
                 config_path.pop();
                 // go through all needed files; including them (but without the original path)
-                // TODO: non-removable installs need install_path instead of esp_path
                 for src_file in config.needed_files() {
                     let src_path = config_path.join(PathBuf::from(&src_file));
                     let dst_file = src_path.file_name().unwrap();
-                    let mut dst_path = self.esp_path.clone();
+                    let mut dst_path = if self.removable {
+                        self.esp_path.clone()
+                    } else {
+                        install_path.clone()
+                    };
                     dst_path.push(&dst_file);
                     src_file.clear();
                     src_file.push_str(dst_file.to_str().unwrap());
                     fs::copy(&src_path, &dst_path)?;
                 }
                 // write the configuration itself
-                let mut config_path = self.esp_path.clone();
+                let mut config_path = if self.removable {
+                    self.esp_path.clone()
+                } else {
+                    install_path.clone()
+                };
                 config_path.push("towboot.toml");
                 fs::write(&config_path, toml::to_vec(&config)?)?;
             } else {
@@ -143,7 +152,8 @@ impl InstallCommand {
         // TODO: rename this maybe for non-removable installs?
         fs::write(Path::join(&install_path, "BOOTIA32.efi"), towboot_ia32::TOWBOOT)?;
         fs::write(Path::join(&install_path, "BOOTX64.efi"), towboot_x64::TOWBOOT)?;
-        if !self.removable {
+        if self.register {
+            assert!(!self.removable);
             todo!("registration with the firmware is not supported, yet");
         }
         Ok(())
