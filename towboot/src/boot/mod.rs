@@ -102,7 +102,7 @@ impl LoadedKernel {
             .or(header.get_entry_address().map(
                 |e| EntryPoint::Multiboot(e as usize)
             ))
-            .unwrap();
+            .expect("failed to find an entry point to the kernel");
         let should_exit_boot_services = !quirks.contains(&Quirk::DontExitBootServices) && header.should_exit_boot_services();
         
         Ok(Self {
@@ -168,6 +168,9 @@ fn get_kernel_uefi_entry(
             Some(EntryPoint::Uefi(uefi_entry as usize))
         }
     } else {
+        if header.get_efi64_entry_address().is_some() {
+            warn!("The kernel supports 64-bit UEFI systems, but we're running on 32-bit.");
+        }
         None
     }
 }
@@ -189,6 +192,9 @@ fn get_kernel_uefi_entry(
             Some(EntryPoint::Uefi(uefi_entry as usize))
         }
     } else {
+        if header.get_efi32_entry_address().is_some() {
+            warn!("The kernel supports 32-bit UEFI systems, but we're running on 64-bit.");
+        }
         None
     }
 }
