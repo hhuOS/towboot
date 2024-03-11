@@ -36,3 +36,13 @@ jobs:
               with:
                   name: towboot-debug-x86_64.efi
                   path: target/x86_64-unknown-uefi/debug/towboot.efi
+            - name: Build towbootctl for x86_64-linux
+              uses: actions-rs/cargo@v1
+              with:
+                  command: build
+                  args: --package towbootctl --target x86_64-unknown-linux-gnu --features=binary
+            - name: Upload x86_64-linux artifact
+              uses: actions/upload-artifact@v3
+              with:
+                  name: towbootctl-debug-x86_64-linux
+                  path: target/x86_64-unknown-linux-gnu/debug/towbootctl
