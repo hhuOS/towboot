@@ -855,6 +855,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "towboot_ia32"
+version = "0.7.1"
+dependencies = [
+ "towboot",
+]
+
+[[package]]
+name = "towboot_x64"
+version = "0.7.1"
+dependencies = [
+ "towboot",
+]
+
+[[package]]
 name = "towbootctl"
 version = "0.7.1"
 dependencies = [
@@ -868,6 +882,8 @@ dependencies = [
  "tempfile",
  "toml 0.5.11",
  "towboot_config",
+ "towboot_ia32",
+ "towboot_x64",
 ]
 
 [[package]]

@@ -2,6 +2,8 @@
 resolver = "2"
 members = [
     "towboot",
+    "towboot_ia32",
+    "towboot_x64",
     "xtask",
     "towboot_config",
     "towbootctl",

@@ -1,0 +1,10 @@
+[package]
+name = "towboot_ia32"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+
+[dependencies]
+towboot = { path = "../towboot", artifact = "bin", target = "i686-unknown-uefi" }
