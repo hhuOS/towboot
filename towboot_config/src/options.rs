@@ -15,7 +15,9 @@ pub const CONFIG_FILE: &str = "towboot.toml";
 
 /// Where to load the configuration from
 pub enum ConfigSource {
+    /// Load the configuration from a file
     File(String),
+    /// Use the configuration specified in here
     Given(Config),
 }
 

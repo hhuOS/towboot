@@ -142,7 +142,7 @@ impl LoadedKernel {
     
     /// Get the symbols struct.
     /// This is needed for the Multiboot Information struct.
-    /// This leaks the allocated memory.
+    /// This can only be called once and leaks the allocated memory.
     fn symbols_struct(&mut self) -> Option<Symbols> {
         self.symbols.take().map(|(s, v)| {
             core::mem::forget(v);
@@ -283,7 +283,11 @@ fn prepare_multiboot_information(
     info_builder
 }
 
-pub(crate) struct PreparedEntry<'a> {
+/// An entry that has everything that's needed to boot it:
+/// a kernel, information and modules.
+/// 
+/// This is the main struct in this module.
+pub struct PreparedEntry<'a> {
     entry: &'a Entry,
     loaded_kernel: LoadedKernel,
     multiboot_information: InfoBuilder,
@@ -301,7 +305,7 @@ impl<'a> PreparedEntry<'a> {
     /// 5. make the framebuffer ready
     /// 6. create the Multiboot information for the kernel
     ///
-    /// Return a `PreparedEntry` which can be used to actually boot.
+    /// The returned `PreparedEntry` can be used to actually boot.
     /// This is non-destructive and will always return.
     pub(crate) fn new(
         entry: &'a Entry, image: Handle, image_fs_handle: Handle,
@@ -351,7 +355,7 @@ impl<'a> PreparedEntry<'a> {
     /// 5. jump!
     ///
     /// This function won't return.
-    pub(crate) fn boot(mut self, systab: SystemTable<Boot>) {
+    pub(crate) fn boot(mut self, systab: SystemTable<Boot>) -> ! {
         // Estimate the number of memory sections.
         let map_size = systab.boot_services().memory_map_size();
         let estimated_size = map_size.map_size + 500;
@@ -427,7 +431,9 @@ enum EntryPoint {
 }
 
 impl EntryPoint {
-    fn jump(self, signature: u32, info: Vec<u8>) {
+    /// Jump to the loaded kernel.
+    /// This requires everything else to be ready and won't return.
+    fn jump(self, signature: u32, info: Vec<u8>) -> ! {
         if let Self::Uefi(entry_address) = self {
             self.jump_uefi(entry_address, signature, info)
         } else if let Self::Multiboot(entry_address) = self {
@@ -437,7 +443,9 @@ impl EntryPoint {
         }
     }
 
-    fn jump_uefi(self, entry_address: usize, signature: u32, info: Vec<u8>) {
+    /// Jump to the loaded kernel, UEFI-style, eg. just passing the information.
+    /// This requires everything else to be ready and won't return.
+    fn jump_uefi(self, entry_address: usize, signature: u32, info: Vec<u8>) -> ! {
         debug!("jumping to 0x{:x}", entry_address);
         unsafe {
             // TODO: The spec mentions 32 bit registers, even on 64 bit.
@@ -457,7 +465,7 @@ impl EntryPoint {
 
     /// i686-specific part of the Multiboot machine state.
     #[cfg(target_arch = "x86")]
-    fn jump_multiboot(self, entry_address: usize, signature: u32, info: Vec<u8>) {
+    fn jump_multiboot(self, entry_address: usize, signature: u32, info: Vec<u8>) -> ! {
         debug!(
             "preparing machine state and jumping to 0x{:x}", entry_address,
         );
@@ -498,7 +506,7 @@ impl EntryPoint {
 
     /// x86_64-specific part of the Multiboot machine state.
     #[cfg(target_arch = "x86_64")]
-    fn jump_multiboot(self, entry_address: usize, signature: u32, info: Vec<u8>) {
+    fn jump_multiboot(self, entry_address: usize, signature: u32, info: Vec<u8>) -> ! {
         debug!(
             "preparing machine state and jumping to 0x{:x}", entry_address,
         );

@@ -34,6 +34,7 @@ pub(super) fn parse_for_multiboot(
     }
 }
 
+/// Parse the ACPI RSDP and create the Multiboot struct for it.
 fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
     debug!("handling ACPI RSDP");
     let rsdp = unsafe { *(table.address as *const Rsdp) };
@@ -57,7 +58,7 @@ fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
     }
 }
 
-
+/// The entry point for SMBIOS.
 enum EntryPoint {
     SMBIOS2(SMBiosEntryPoint32),
     SMBIOS3(SMBiosEntryPoint64),

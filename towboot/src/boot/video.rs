@@ -18,7 +18,7 @@ use towboot_config::Quirk;
 ///
 /// If there are multiple GPUs available, simply choose the first one.
 /// If there is no available mode that matches, just use the one we're already in.
-pub(super) fn setup_video<'a>(
+pub fn setup_video<'a>(
     header: &Header, systab: &'a SystemTable<Boot>, quirks: &BTreeSet<Quirk>
 ) -> Option<ScopedProtocol<'a, GraphicsOutput>> {
     info!("setting up the video...");
@@ -97,7 +97,7 @@ pub(super) fn setup_video<'a>(
 }
 
 /// Pass the framebuffer information to the kernel.
-pub(super) fn prepare_information(
+pub fn prepare_information(
     multiboot: &mut InfoBuilder, mut graphics_output: ScopedProtocol<GraphicsOutput>,
 ) {
     let address = graphics_output.frame_buffer().as_mut_ptr();

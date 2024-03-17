@@ -3,7 +3,7 @@
 //! The configuration can come from a file or from the command line.
 //! The command line options take precedence if they are specified.
 //!
-//! Most of the actual structs can be found in the `towboot_config` crate.
+//! Most of the actual structs can be found in the [`towboot_config`] crate.
 //! The towboot package has its own config.rs.
 use std::fs::read_to_string;
 

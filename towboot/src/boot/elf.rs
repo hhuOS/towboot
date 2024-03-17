@@ -14,6 +14,7 @@ use multiboot12::information::Symbols;
 
 use super::super::mem::Allocation;
 
+/// Load ELF binaries.
 pub(super) struct OurElfLoader {
     // maps virtual to physical addresses
     allocations: BTreeMap<u64, Allocation>,
@@ -57,6 +58,7 @@ impl OurElfLoader {
         }
     }
     
+    /// Allocate memory for a segment.
     fn allocate(&mut self, header: &elf::program_header::ProgramHeader) -> Result<(), &'static str> {
             trace!("header: {header:?}");
             debug!(
@@ -84,6 +86,7 @@ impl OurElfLoader {
         Ok(())
     }
     
+    /// Load a segment.
     fn load(&mut self, base: u64, region: &[u8]) -> Result<(), &'static str> {
         // check whether we actually allocated this
         match self.allocations.get_mut(&base) {
@@ -105,7 +108,7 @@ impl OurElfLoader {
 }
 
 impl From<OurElfLoader> for Vec<Allocation> {
-    // Gets the allocated memory.
+    /// Gets the allocated memory.
     fn from(loader: OurElfLoader) -> Vec<Allocation> {
         // using .values() would just borrow the values from the hash map
         loader.allocations.into_values().collect()

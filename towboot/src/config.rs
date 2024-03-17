@@ -3,7 +3,7 @@
 //! The configuration can come from a file or from the command line.
 //! The command line options take precedence if they are specified.
 //! 
-//! Most of the actual structs can be found in the `towboot_config` crate.
+//! Most of the actual structs can be found in the [`towboot_config`] crate.
 //! The towbootctl package has its own config.rs.
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -15,6 +15,7 @@ use towboot_config::{Config, ConfigSource, parse_load_options};
 
 use super::file::File;
 
+/// Generate the output for `-version`.
 fn version_info() -> String {
     #[allow(dead_code)]
     mod built_info {

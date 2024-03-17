@@ -174,6 +174,7 @@ impl Run {
     }
 }
 
+/// This gets started from the command line.
 fn main() -> Result<()> {
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info");
