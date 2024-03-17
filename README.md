@@ -15,11 +15,27 @@ configuration of the system.
 Simply place the 32-bit build at `\EFI\boot\bootia32.efi`, the 64-bit build at
 `\EFI\boot\bootx64.efi` and a configuration file at `\towboot.toml` on the ESP.
 
+You can also use the provided `towbootctl` binary to do this.
+
+```sh
+towbootctl install <path_to_the_esp> --removable -- -config towboot.toml
+```
+
+This will parse the configuration file and copy the configuration itself,
+the referenced kernels and modules and towboot binaries for 32-bit and 64-bit
+to the target directory.
+
 ### installed system
 
 Place an appropriate build at `\EFI\yourOS\towboot.efi` and the configuration
 at `\EFI\yourOS\towboot.toml` on the ESP and add a boot option for
 `\EFI\yourOS\towboot.efi -c \EFI\yourOS\towboot.toml`.
+
+towbootctl can help you a bit with this:
+
+```sh
+towbootctl install <path_to_the_esp> --name yourOS -- -config towboot.toml
+```
 
 (You can also configure towboot just with command line arguments instead of
 using a configuration file; see below.)
@@ -31,8 +47,7 @@ without support for Multiboot, you can add an entry like
 `towboot.efi -kernel "mykernel.elf quiet" -module "initramfs.img initrd"`.
 
 (You can use a configuration file instead of passing the information directly
-on the command line; see above. Please note that towboot and its configuration
-file currently have to be on the same partition.)
+on the command line; see above.)
 
 ### paths
 
@@ -46,6 +61,24 @@ Paths relative to the UEFI shell's current working directory are not supported, 
 
 Paths for kernel and modules given on the commandline can't contain spaces,
 use a configuration file for this.
+
+### quirks
+
+You can override some specifics of how the kernel is loaded at runtime by
+adding quirks. They can be configured either in the `quirk` key of a kernel
+entry (if the kernel is loaded via a configuration file) or via the `-quirk`
+command line option (if the kernel is loaded via `-kernel`).
+
+Available quirks are:
+
+* `DontExitBootServices`: do not exit Boot Services
+        This starts the kernel with more privileges and less available memory.
+        In some cases this might also display more helpful error messages.
+* `ForceElf`: always treat the kernel as an ELF file
+* `ForceOverwrite`: ignore the memory map when loading the kernel
+        (This might damage your hardware!)
+* `KeepResolution`: ignore the kernel's preferred resolution
+* `ModulesBelow200Mb`: keep allocations for modules below 200 MB
 
 ## development
 
@@ -64,8 +97,12 @@ You'll need OVMF for that, too, but the build script downloads it by itself.
 
 ### building
 
-`cargo build --package towboot` creates a `towboot.efi` file inside the `target`
-folder. By default, this is a debug build for `i686-unknown-uefi`.
+```sh
+cargo build --package towboot
+```
+
+creates a `towboot.efi` file inside the `target` folder.
+By default, this is a debug build for `i686-unknown-uefi`.
 You can change this by appending `--release`
 or by setting `--target x86_64_unknown_uefi` (for example).
 
@@ -77,30 +114,46 @@ You can configure whether to create a `debug` or `release` build for
 either `i686` or `x86_64`, whether to enable KVM or wait for a GDB to attach
 by specifying command line options.
 
-## documentation
+You can also run towbootctl directly from the source directory (building it will
+also build towboot, in turn):
 
-This README file is relatively short (as you can see).
-More documentation is available by running `cargo doc --open`.
+```sh
+cargo run --package towbootctl --features binary
+```
 
-## Known bugs / workarounds
+## project structure
 
-The `hacks` modules contains workarounds for bugs or missing features in
-the compiler.
+This project is a Cargo workspace consisting of the multiple packages.
+More documentation for each of them is available by running:
 
-# Quirks
+```sh
+cargo doc --package <package> --open
+```
 
-You can override some specifics of how the kernel is loaded at runtime by
-adding quirks. They can be configured either in the `quirk` key of a kernel
-entry (if the kernel is loaded via a configuration file) or via the `-quirk`
-command line option (if the kernel is loaded via `-kernel`).
+### towboot
 
-Available quirks are:
+This is the actual bootloader.
 
-* `DontExitBootServices`: do not exit Boot Services
-        This starts the kernel with more privileges and less available memory.
-        In some cases this might also display more helpful error messages.
-* `ForceElf`: always treat the kernel as an ELF file
-* `ForceOverwrite`: ignore the memory map when loading the kernel
-        (This might damage your hardware!)
-* `KeepResolution`: ignore the kernel's preferred resolution
-* `ModulesBelow200Mb`: keep allocations for modules below 200 MB
+### towboot_config
+
+This is a library containing the configuration structs.
+It is used by towboot and towbootctl.
+
+### towboot_ia32 / towboot_x64
+
+These are dummy crates that just exists to provide the towboot binary in library form.
+
+### towbootctl
+
+This is both a library and a command line utility that can create images,
+install towboot to disk, and so on.
+
+### xtask
+
+This contains build tooling.
+
+## contributing
+
+This project follows the usual GitHub workflow consisting of fork, pull request
+and merge. If you don't have a GitHub account, you can also send patches per
+e-mail.
