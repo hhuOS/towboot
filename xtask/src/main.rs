@@ -3,11 +3,11 @@ use std::env;
 use std::path::PathBuf;
 use std::process;
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use argh::{FromArgs, from_env};
 use log::info;
 
-use towbootctl::{create_image, bochsrc, firmware};
+use towbootctl::{boot_image, create_image};
 
 #[derive(Debug, FromArgs)]
 /// Top-level command.
@@ -119,45 +119,11 @@ struct Run {
 
 impl Run {
     fn r#do(self) -> Result<()> {
-        info!("getting firmware");
-        let firmware_path: PathBuf = if let Some(path) = self.firmware {
-            assert!(path.exists());
-            path.clone()
-        } else {
-            match self.x86_64 {
-                false => firmware::ia32()?,
-                true => firmware::x64()?,
-            }
-        };
-        if self.bochs {
-            info!("spawning Bochs");
-            if self.kvm {
-                return Err(anyhow!("can't do KVM in Bochs"));
-            }
-            let config = bochsrc(&firmware_path, &self.image, self.gdb)?;
-            process::Command::new("bochs")
-                .arg("-qf").arg(config.into_temp_path().as_os_str())
-                .status()?.exit_ok()?;
-        } else {
-            info!("spawning QEMU");
-            let mut qemu_base = process::Command::new(match self.x86_64 {
-                false => "qemu-system-i386",
-                true => "qemu-system-x86_64",
-            });
-            let mut qemu = qemu_base
-                .arg("-m").arg("256")
-                .arg("-hda").arg(self.image)
-                .arg("-serial").arg("stdio")
-                .arg("-bios").arg(firmware_path);
-            if self.kvm {
-                qemu = qemu.arg("-machine").arg("pc,accel=kvm,kernel-irqchip=off");
-            }
-            if self.gdb {
-                info!("The machine starts paused, waiting for GDB to attach to localhost:1234.");
-                qemu = qemu.arg("-s").arg("-S");
-            }
-            qemu.status()?.exit_ok()?;
-        }
+        let (mut process, _temp_files) = boot_image(
+            self.firmware.as_deref(), &self.image, self.x86_64, self.bochs,
+            self.kvm, self.gdb,
+        )?;
+        process.status()?.exit_ok()?;
         Ok(())
     }
 }

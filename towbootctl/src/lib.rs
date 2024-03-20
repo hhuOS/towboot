@@ -1,19 +1,20 @@
 //! This crate offers functionality to use towboot for your own operating system.
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use log::info;
-use tempfile::NamedTempFile;
+use tempfile::{NamedTempFile, TempPath};
 
 use towboot_config::Config;
 
 mod bochs;
 pub mod config;
-pub mod firmware;
+mod firmware;
 mod image;
-pub use bochs::bochsrc;
-pub use image::Image;
+use bochs::bochsrc;
+use image::Image;
 
 /// How big the image should be
 pub const DEFAULT_IMAGE_SIZE: u64 = 50*1024*1024;
@@ -86,5 +87,51 @@ pub fn create_image(
     }
 
     Ok(image)
+}
+
+/// Boot a built image, returning the running process.
+pub fn boot_image(
+    firmware: Option<&Path>, image: &Path, is_x86_64: bool, use_bochs: bool,
+    use_kvm: bool, use_gdb: bool,
+) -> Result<(Command, Vec<TempPath>)> {
+    info!("getting firmware");
+    let firmware_path = if let Some(path) = firmware {
+        assert!(path.exists());
+        path.to_path_buf()
+    } else {
+        match is_x86_64 {
+            false => firmware::ia32()?,
+            true => firmware::x64()?,
+        }
+    };
+    Ok(if use_bochs {
+        info!("spawning Bochs");
+        if use_kvm {
+            return Err(anyhow!("can't do KVM in Bochs"));
+        }
+        let config = bochsrc(&firmware_path, image, use_gdb)?.into_temp_path();
+        let mut bochs = Command::new("bochs");
+        bochs.arg("-qf").arg(config.as_os_str());
+        (bochs, vec![config])
+    } else {
+        info!("spawning QEMU");
+        let mut qemu = Command::new(match is_x86_64 {
+            false => "qemu-system-i386",
+            true => "qemu-system-x86_64",
+        });
+        qemu
+            .arg("-m").arg("256")
+            .arg("-hda").arg(image)
+            .arg("-serial").arg("stdio")
+            .arg("-bios").arg(firmware_path);
+        if use_kvm {
+            qemu.arg("-machine").arg("pc,accel=kvm,kernel-irqchip=off");
+        }
+        if use_gdb {
+            info!("The machine starts paused, waiting for GDB to attach to localhost:1234.");
+            qemu.arg("-s").arg("-S");
+        }
+        (qemu, vec![])
+    })
 }
 
