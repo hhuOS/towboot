@@ -7,7 +7,7 @@ use anyhow::{Result, anyhow};
 use argh::{FromArgs, from_env};
 use log::info;
 
-use towbootctl::{add_config_to_image, bochsrc, config, firmware, runtime_args_to_load_options, Image, DEFAULT_IMAGE_SIZE, IA32_BOOT_PATH, X64_BOOT_PATH};
+use towbootctl::{create_image, bochsrc, firmware};
 
 #[derive(Debug, FromArgs)]
 /// Top-level command.
@@ -72,26 +72,17 @@ impl Build {
                 .arg("x86_64-unknown-uefi")
                 .status()?.exit_ok()?;
         }
-        info!("creating image at {}", self.target.display());
-        let mut image = Image::new(&self.target, DEFAULT_IMAGE_SIZE)?;
         let build = match self.release {
             true => "release",
             false => "debug",
         };
-        if !self.no_i686 {
-            let source: PathBuf = ["target", "i686-unknown-uefi", build, "towboot.efi"].into_iter().collect();
-            image.add_file(&source, &PathBuf::from(IA32_BOOT_PATH))?;
-        }
-        if !self.no_x86_64 {
-            let source: PathBuf = ["target", "x86_64-unknown-uefi", build, "towboot.efi"].into_iter().collect();
-            image.add_file(&source, &PathBuf::from(X64_BOOT_PATH))?;
-        }
-
-        // generate a configuration file from the load options
-        let load_options = runtime_args_to_load_options(&self.runtime_args);
-        if let Some(mut config) = config::get(&load_options)? {
-            add_config_to_image(&mut image, &mut config)?;
-        }
+        let i686: Option<PathBuf> = (!self.no_i686).then_some(
+            ["target", "i686-unknown-uefi", build, "towboot.efi"].into_iter().collect()
+        );
+        let x86_64: Option<PathBuf> = (!self.no_x86_64).then_some(
+            ["target", "x86_64-unknown-uefi", build, "towboot.efi"].into_iter().collect()
+        );
+        create_image(&self.target, &self.runtime_args, i686.as_deref(), x86_64.as_deref())?;
         Ok(())
     }
 }

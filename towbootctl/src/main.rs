@@ -9,7 +9,7 @@ use anyhow::Result;
 use log::info;
 use tempfile::NamedTempFile;
 
-use towbootctl::{add_config_to_image, config, runtime_args_to_load_options, Image, DEFAULT_IMAGE_SIZE, IA32_BOOT_PATH, X64_BOOT_PATH};
+use towbootctl::{create_image, config, runtime_args_to_load_options};
 
 #[allow(dead_code)]
 mod built_info {
@@ -46,25 +46,16 @@ struct ImageCommand {
 
 impl ImageCommand {
     fn r#do(&self) -> Result<()> {
-        info!("creating image at {}", self.target.display());
-        let mut image = Image::new(&self.target, DEFAULT_IMAGE_SIZE)?;
-
-        // generate a configuration file from the load options
-        let load_options = runtime_args_to_load_options(&self.runtime_args);
-        if let Some(mut config) = config::get(&load_options)? {
-            add_config_to_image(&mut image, &mut config)?;
-        }
-
-        // add towboot itself
         let mut towboot_temp_ia32 = NamedTempFile::new()?;
         towboot_temp_ia32.as_file_mut().write_all(towboot_ia32::TOWBOOT)?;
-        image.add_file(
-            &towboot_temp_ia32.into_temp_path(), &PathBuf::from(IA32_BOOT_PATH)
-        )?;
         let mut towboot_temp_x64 = NamedTempFile::new()?;
         towboot_temp_x64.as_file_mut().write_all(towboot_x64::TOWBOOT)?;
-        image.add_file(
-            &towboot_temp_x64.into_temp_path(), &PathBuf::from(X64_BOOT_PATH)
+
+        create_image(
+            &self.target,
+            &self.runtime_args,
+            Some(&towboot_temp_ia32.into_temp_path()),
+            Some(&towboot_temp_x64.into_temp_path()),
         )?;
 
         Ok(())

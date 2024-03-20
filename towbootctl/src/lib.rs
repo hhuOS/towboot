@@ -1,8 +1,9 @@
 //! This crate offers functionality to use towboot for your own operating system.
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use log::info;
 use tempfile::NamedTempFile;
 
 use towboot_config::Config;
@@ -25,7 +26,7 @@ pub const X64_BOOT_PATH: &str = "EFI/Boot/bootx64.efi";
 
 /// Write the given configuration file to image.
 /// This also copies all files that are referenced in it.
-pub fn add_config_to_image(image: &mut Image, config: &mut Config) -> Result<()> {
+fn add_config_to_image(image: &mut Image, config: &mut Config) -> Result<()> {
     let mut config_path = PathBuf::from(config.src.clone());
     config_path.pop();
     // go through all needed files; including them (but without the original path)
@@ -61,5 +62,29 @@ pub fn runtime_args_to_load_options(runtime_args: &[String]) -> String {
         }
     }
     load_options
+}
+
+/// Create an image, containing a configuration file, kernels, modules and towboot.
+pub fn create_image(
+    target: &Path, runtime_args: &[String], i686: Option<&Path>, x86_64: Option<&Path>,
+) -> Result<Image> {
+    info!("creating image at {}", target.display());
+    let mut image = Image::new(target, DEFAULT_IMAGE_SIZE)?;
+
+    // generate a configuration file from the load options
+    let load_options = runtime_args_to_load_options(runtime_args);
+    if let Some(mut config) = config::get(&load_options)? {
+        add_config_to_image(&mut image, &mut config)?;
+    }
+
+    // add towboot itself
+    if let Some(src) = i686 { 
+        image.add_file(src, &PathBuf::from(IA32_BOOT_PATH))?;
+    }
+    if let Some(src) = x86_64 { 
+        image.add_file(src, &PathBuf::from(X64_BOOT_PATH))?;
+    }
+
+    Ok(image)
 }
 
