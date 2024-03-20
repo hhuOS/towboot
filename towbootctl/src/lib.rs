@@ -9,6 +9,7 @@ use towboot_config::Config;
 
 mod bochs;
 pub mod config;
+pub mod firmware;
 mod image;
 pub use bochs::bochsrc;
 pub use image::Image;

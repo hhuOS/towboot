@@ -7,7 +7,7 @@ use anyhow::{Result, anyhow};
 use argh::{FromArgs, from_env};
 use log::info;
 
-use towbootctl::{add_config_to_image, bochsrc, config, runtime_args_to_load_options, Image, DEFAULT_IMAGE_SIZE, IA32_BOOT_PATH, X64_BOOT_PATH};
+use towbootctl::{add_config_to_image, bochsrc, config, firmware, runtime_args_to_load_options, Image, DEFAULT_IMAGE_SIZE, IA32_BOOT_PATH, X64_BOOT_PATH};
 
 #[derive(Debug, FromArgs)]
 /// Top-level command.
@@ -133,13 +133,10 @@ impl Run {
             assert!(path.exists());
             path.clone()
         } else {
-            // TODO: replace this script
-            process::Command::new("bash").arg("download.sh")
-                .current_dir("ovmf").status()?.exit_ok()?;
-            ["ovmf", match self.x86_64 {
-                false => "ia32",
-                true => "x64",
-            }, "OVMF.fd"].into_iter().collect()
+            match self.x86_64 {
+                false => firmware::ia32()?,
+                true => firmware::x64()?,
+            }
         };
         if self.bochs {
             info!("spawning Bochs");
