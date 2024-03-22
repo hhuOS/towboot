@@ -121,6 +121,14 @@ also build towboot, in turn):
 cargo run --package towbootctl --features binary
 ```
 
+### running the tests
+
+The integration tests can be run with:
+
+```sh
+cargo test --package tests
+```
+
 ## project structure
 
 This project is a Cargo workspace consisting of the multiple packages.
@@ -147,6 +155,10 @@ These are dummy crates that just exists to provide the towboot binary in library
 
 This is both a library and a command line utility that can create images,
 install towboot to disk, and so on.
+
+### tests
+
+This contains the integration tests.
 
 ### xtask
 

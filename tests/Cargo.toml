@@ -1,0 +1,15 @@
+[package]
+name = "tests"
+edition = "2021"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow = "1.0"
+ctor = "0.2"
+tempfile = "3.8"
+env_logger = { version = "0.10", default-features = false, features = ["auto-color"] }
+
+towbootctl = { path = "../towbootctl" }

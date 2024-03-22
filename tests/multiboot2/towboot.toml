@@ -1,0 +1,10 @@
+default = "multiboot2"
+timeout = 0
+log_level = "warn"
+
+[entries]
+
+  [entries.multiboot2]
+    name = "multiboot2"
+    image = "kernel"
+    argv = ""
