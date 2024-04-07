@@ -98,6 +98,10 @@ fn multiboot1() {
                 arch, arch, arch,
                 release,
             ).expect("failed to run");
+            assert!(stdout.contains("cmdline = test of a cmdline"));
+            assert!(stdout.contains("boot_loader_name = towboot"));
+            assert!(stdout.contains("mods_count = 0"));
+            assert!(stdout.contains("mem_lower = 640KB"));
             assert!(stdout.ends_with("Halted."));
         }
     }
@@ -112,6 +116,10 @@ fn multiboot2() {
                 arch, arch, arch,
                 release,
             ).expect("failed to run");
+            assert!(stdout.contains("Command line = test of a cmdline"));
+            assert!(stdout.contains("Boot loader name = towboot"));
+            assert!(!stdout.contains("Module at"));
+            assert!(stdout.contains("mem_lower = 640KB"));
             assert!(stdout.ends_with("Halted."));
         }
     }
