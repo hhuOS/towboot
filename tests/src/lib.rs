@@ -98,6 +98,7 @@ fn multiboot1() {
                 arch, arch, arch,
                 release,
             ).expect("failed to run");
+            println!("{}", stdout);
             assert!(stdout.contains("cmdline = test of a cmdline"));
             assert!(stdout.contains("boot_loader_name = towboot"));
             assert!(stdout.contains("mods_count = 0"));
@@ -116,11 +117,41 @@ fn multiboot2() {
                 arch, arch, arch,
                 release,
             ).expect("failed to run");
+            println!("{}", stdout);
             assert!(stdout.contains("Command line = test of a cmdline"));
             assert!(stdout.contains("Boot loader name = towboot"));
             assert!(!stdout.contains("Module at"));
             assert!(stdout.contains("mem_lower = 640KB"));
             assert!(stdout.ends_with("Halted."));
         }
+    }
+}
+
+#[test]
+fn multiboot2_x64() {
+    // it should boot on x86_64
+    for release in [false, true] {
+        let stdout = build_and_boot(
+            &PathBuf::from("multiboot2_x64"),
+            Arch::X86_64, Arch::X86_64, Arch::X86_64,
+            release,
+        ).expect("failed to run");
+        println!("{}", stdout);
+        assert!(stdout.contains("Command line = test of a cmdline"));
+        assert!(stdout.contains("Boot loader name = towboot"));
+        assert!(!stdout.contains("Module at"));
+        assert!(stdout.contains("mem_lower = 640KB"));
+        assert!(stdout.ends_with("Halted."));
+    }
+    // it should not boot on i686
+    for release in [false, true] {
+        let stdout = build_and_boot(
+            &PathBuf::from("multiboot2_x64"),
+            Arch::I686, Arch::I686, Arch::I686,
+            release,
+        ).expect("failed to run");
+        println!("{}", stdout);
+        assert!(stdout.contains("The kernel supports 64-bit UEFI systems, but we're running on 32-bit"));
+        assert!(!stdout.contains("Halted."));
     }
 }
