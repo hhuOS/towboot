@@ -11,5 +11,7 @@ anyhow = "1.0"
 ctor = "0.2"
 tempfile = "3.8"
 env_logger = { version = "0.10", default-features = false, features = ["auto-color"] }
+towboot_ia32 = { path = "../towboot_ia32" }
+towboot_x64 = { path = "../towboot_x64" }
 
 towbootctl = { path = "../towbootctl" }

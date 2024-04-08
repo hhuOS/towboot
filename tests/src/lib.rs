@@ -1,7 +1,7 @@
 //! This crate contains integration tests.
 #![cfg(test)]
 #![feature(exit_status_error)]
-use std::{path::{Path, PathBuf}, process::{Command, Stdio}, thread::sleep, time::Duration};
+use std::{io::Write, path::{Path, PathBuf}, process::{Command, Stdio}, thread::sleep, time::Duration};
 
 use anyhow::Result;
 use tempfile::NamedTempFile;
@@ -24,32 +24,19 @@ fn init() {
 
 /// Builds the given folder as an image and boots it.
 fn build_and_boot(
-    folder: &Path, towboot_arch: Arch, machine_arch: Arch, firmware_arch: Arch, release: bool,
+    folder: &Path, towboot_arch: Arch, machine_arch: Arch, firmware_arch: Arch,
 ) -> Result<String> {
-    // ensure we have a current build of towboot
-    let mut cargo_command = Command::new("cargo");
-    cargo_command
-        .arg("build")
-        .arg("--package")
-        .arg("towboot");
-    if release {
-        cargo_command.arg("--release");
-    }
-    cargo_command.arg("--target").arg(match towboot_arch {
-        Arch::I686 => "i686-unknown-uefi",
-        Arch::X86_64 => "x86_64-unknown-uefi",
-    });
-    cargo_command.status()?.exit_ok()?;
-    let build = match release {
-        true => "release",
-        false => "debug",
-    };
-    let i686: Option<PathBuf> = matches!(towboot_arch, Arch::I686).then_some(
-        ["..", "target", "i686-unknown-uefi", build, "towboot.efi"].into_iter().collect()
-    );
-    let x86_64: Option<PathBuf> = matches!(towboot_arch, Arch::X86_64).then_some(
-        ["..", "target", "x86_64-unknown-uefi", build, "towboot.efi"].into_iter().collect()
-    );
+    // get towboot
+    let mut towboot_temp_ia32 = NamedTempFile::new()?;
+    towboot_temp_ia32.as_file_mut().write_all(towboot_ia32::TOWBOOT)?;
+    let mut towboot_temp_x64 = NamedTempFile::new()?;
+    towboot_temp_x64.as_file_mut().write_all(towboot_x64::TOWBOOT)?;
+    let towboot_temp_ia32_path = towboot_temp_ia32.into_temp_path();
+    let towboot_temp_x64_path = towboot_temp_x64.into_temp_path();
+    let i686: Option<&Path> = matches!(towboot_arch, Arch::I686)
+        .then_some(&towboot_temp_ia32_path);
+    let x86_64: Option<&Path> = matches!(towboot_arch, Arch::X86_64)
+        .then_some(&towboot_temp_x64_path);
 
     // make sure that the kernel is built
     Command::new("make")
@@ -92,49 +79,25 @@ fn build_and_boot(
 #[test]
 fn multiboot1() {
     for arch in [Arch::I686, Arch::X86_64] {
-        for release in [false, true] {
-            let stdout = build_and_boot(
-                &PathBuf::from("multiboot1"),
-                arch, arch, arch,
-                release,
-            ).expect("failed to run");
-            println!("{}", stdout);
-            assert!(stdout.contains("cmdline = test of a cmdline"));
-            assert!(stdout.contains("boot_loader_name = towboot"));
-            assert!(stdout.contains("mods_count = 0"));
-            assert!(stdout.contains("mem_lower = 640KB"));
-            assert!(stdout.ends_with("Halted."));
-        }
+        let stdout = build_and_boot(
+            &PathBuf::from("multiboot1"),
+            arch, arch, arch,
+        ).expect("failed to run");
+        println!("{}", stdout);
+        assert!(stdout.contains("cmdline = test of a cmdline"));
+        assert!(stdout.contains("boot_loader_name = towboot"));
+        assert!(stdout.contains("mods_count = 0"));
+        assert!(stdout.contains("mem_lower = 640KB"));
+        assert!(stdout.ends_with("Halted."));
     }
 }
 
 #[test]
 fn multiboot2() {
     for arch in [Arch::I686, Arch::X86_64] {
-        for release in [false, true] {
-            let stdout = build_and_boot(
-                &PathBuf::from("multiboot2"),
-                arch, arch, arch,
-                release,
-            ).expect("failed to run");
-            println!("{}", stdout);
-            assert!(stdout.contains("Command line = test of a cmdline"));
-            assert!(stdout.contains("Boot loader name = towboot"));
-            assert!(!stdout.contains("Module at"));
-            assert!(stdout.contains("mem_lower = 640KB"));
-            assert!(stdout.ends_with("Halted."));
-        }
-    }
-}
-
-#[test]
-fn multiboot2_x64() {
-    // it should boot on x86_64
-    for release in [false, true] {
         let stdout = build_and_boot(
-            &PathBuf::from("multiboot2_x64"),
-            Arch::X86_64, Arch::X86_64, Arch::X86_64,
-            release,
+            &PathBuf::from("multiboot2"),
+            arch, arch, arch,
         ).expect("failed to run");
         println!("{}", stdout);
         assert!(stdout.contains("Command line = test of a cmdline"));
@@ -143,15 +106,27 @@ fn multiboot2_x64() {
         assert!(stdout.contains("mem_lower = 640KB"));
         assert!(stdout.ends_with("Halted."));
     }
+}
+
+#[test]
+fn multiboot2_x64() {
+    // it should boot on x86_64
+    let stdout = build_and_boot(
+        &PathBuf::from("multiboot2_x64"),
+        Arch::X86_64, Arch::X86_64, Arch::X86_64,
+    ).expect("failed to run");
+    println!("{}", stdout);
+    assert!(stdout.contains("Command line = test of a cmdline"));
+    assert!(stdout.contains("Boot loader name = towboot"));
+    assert!(!stdout.contains("Module at"));
+    assert!(stdout.contains("mem_lower = 640KB"));
+    assert!(stdout.ends_with("Halted."));
     // it should not boot on i686
-    for release in [false, true] {
-        let stdout = build_and_boot(
-            &PathBuf::from("multiboot2_x64"),
-            Arch::I686, Arch::I686, Arch::I686,
-            release,
-        ).expect("failed to run");
-        println!("{}", stdout);
-        assert!(stdout.contains("The kernel supports 64-bit UEFI systems, but we're running on 32-bit"));
-        assert!(!stdout.contains("Halted."));
-    }
+    let stdout = build_and_boot(
+        &PathBuf::from("multiboot2_x64"),
+        Arch::I686, Arch::I686, Arch::I686,
+    ).expect("failed to run");
+    println!("{}", stdout);
+    assert!(stdout.contains("The kernel supports 64-bit UEFI systems, but we're running on 32-bit"));
+    assert!(!stdout.contains("Halted."));
 }
