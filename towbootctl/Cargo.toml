@@ -23,7 +23,7 @@ towboot_config = { path = "../towboot_config" }
 
 # these dependencies are only for the binary
 argh = { version = "0.1", optional = true }
-env_logger = { version = "0.10", default-features = false, features = ["auto-color"], optional = true }
+env_logger = { version = "0.11", default-features = false, features = ["auto-color"], optional = true }
 towboot_ia32 = { path = "../towboot_ia32", optional = true }
 towboot_x64 = { path = "../towboot_x64", optional = true }
 
