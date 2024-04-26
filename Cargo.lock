@@ -1119,10 +1119,10 @@ dependencies = [
 [[package]]
 name = "multiboot12"
 version = "0.1.0"
-source = "git+https://github.com/YtvwlD/multiboot12?tag=towboot-0.8.0#acfc61e3d67f423670c3a835ed6c69fb3714deba"
+source = "git+https://github.com/YtvwlD/multiboot12?tag=towboot-0.8.1#8aa45b0d6d5b9200be3584c9784e376111afbe12"
 dependencies = [
  "multiboot",
- "multiboot2 0.19.0 (git+https://github.com/YtvwlD/multiboot2?tag=towboot-0.8.0)",
+ "multiboot2 0.19.0 (git+https://github.com/YtvwlD/multiboot2?tag=towboot-0.8.1)",
  "multiboot2-header",
  "ouroboros",
  "update_cell",
@@ -1144,7 +1144,7 @@ dependencies = [
 [[package]]
 name = "multiboot2"
 version = "0.19.0"
-source = "git+https://github.com/YtvwlD/multiboot2?tag=towboot-0.8.0#1c2fb82b138b8a2706c98ba79ca16e0ab22aa19c"
+source = "git+https://github.com/YtvwlD/multiboot2?tag=towboot-0.8.1#d311bdccb66b7fe258143e61ab13802132832d22"
 dependencies = [
  "bitflags 2.5.0",
  "derive_more",
