@@ -85,3 +85,49 @@ jobs:
               with:
                 command: test
                 args: --package tests
+    build-mac:
+      # We could cross-compile from Linux instead,
+      # but we'd still need the Xcode Command Line Tools.
+      # Downloading them requires logging in with an Apple ID,
+      # which is not possible in the CI. The macOS runners include it.
+      runs-on: macos-latest
+      steps:
+          - uses: actions/checkout@v3
+          - name: Cache Cargo
+            uses: actions/cache@v4
+            with:
+              path: |
+                ~/.cargo/registry/index/
+                ~/.cargo/registry/cache/
+                ~/.cargo/git/db/
+                target/
+              key: cargo-${{ hashFiles('**/Cargo.lock') }}
+          - name: Install Rust for x86_64-apple
+            uses: actions-rs/toolchain@v1
+            with:
+                toolchain: nightly
+                override: true
+                target: x86_64-apple-darwin
+          - name: Install Rust for aarch64-apple
+            uses: actions-rs/toolchain@v1
+            with:
+                toolchain: nightly
+                override: true
+                target: aarch64-apple-darwin
+          - name: Build towbootctl for x86_64-apple
+            uses: actions-rs/cargo@v1
+            with:
+                command: build
+                args: --package towbootctl --target x86_64-apple-darwin --features=binary
+          - name: Build towbootctl for aarch64-apple
+            uses: actions-rs/cargo@v1
+            with:
+                command: build
+                args: --package towbootctl --target aarch64-apple-darwin --features=binary
+          - name: Build universal binary for macOS
+            run: mkdir -p target/apple-darwin/debug && lipo -create -output target/apple-darwin/debug/towbootctl target/x86_64-apple-darwin/debug/towbootctl target/aarch64-apple-darwin/debug/towbootctl
+          - name: Upload apple artifact
+            uses: actions/upload-artifact@v3
+            with:
+                  name: towbootctl-debug-macos
+                  path: target/apple-darwin/debug/towbootctl

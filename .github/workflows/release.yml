@@ -7,6 +7,15 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v3
+            - name: Cache Cargo
+              uses: actions/cache@v4
+              with:
+                path: |
+                  ~/.cargo/registry/index/
+                  ~/.cargo/registry/cache/
+                  ~/.cargo/git/db/
+                  target/
+                key: cargo-${{ vars.GITHUB_RUN_ID }}-${{ hashFiles('**/Cargo.lock') }}
             - name: Install Rust for i686
               uses: actions-rs/toolchain@v1
               with:
@@ -76,3 +85,48 @@ jobs:
                     towbootctl-*-x86_64-linux
               env:
                 GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    release-macos:
+        runs-on: macos-latest
+        needs: release
+        steps:
+            - uses: actions/checkout@v3
+            - name: Cache Cargo
+              uses: actions/cache@v4
+              with:
+                path: |
+                  ~/.cargo/registry/index/
+                  ~/.cargo/registry/cache/
+                  ~/.cargo/git/db/
+                  target/
+                key: cargo-${{ vars.GITHUB_RUN_ID }}-${{ hashFiles('**/Cargo.lock') }}
+            - name: Install Rust for x86_64-apple
+              uses: actions-rs/toolchain@v1
+              with:
+                toolchain: nightly
+                override: true
+                target: x86_64-apple-darwin
+            - name: Install Rust for aarch64-apple
+              uses: actions-rs/toolchain@v1
+              with:
+                toolchain: nightly
+                override: true
+                target: aarch64-apple-darwin
+            - name: Build towbootctl for x86_64-apple
+              uses: actions-rs/cargo@v1
+              with:
+                command: build
+                args: --package towbootctl --target x86_64-apple-darwin --features=binary --release
+            - name: Build towbootctl for aarch64-apple
+              uses: actions-rs/cargo@v1
+              with:
+                command: build
+                args: --package towbootctl --target aarch64-apple-darwin --features=binary --release
+            - name: Build universal binary for macOS
+              run: mkdir -p target/apple-darwin/release && lipo -create -output target/apple-darwin/release/towbootctl target/x86_64-apple-darwin/release/towbootctl target/aarch64-apple-darwin/release/towbootctl
+            - name: Upload macOS binary to release
+              uses: svenstaro/upload-release-action@v2
+              with:
+                repo_token: ${{ secrets.GITHUB_TOKEN }}
+                file: target/apple-darwin/release/towbootctl
+                asset_name: towbootctl-$(git describe --always --tags)-macos
+                tag: ${{ github.ref }}
