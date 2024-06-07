@@ -2,7 +2,7 @@ on: [push]
 jobs:
     test:
         # The 64-bit tests don't work on Ubuntu 20.04.
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v3
             - name: Cache Cargo

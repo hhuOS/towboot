@@ -125,7 +125,7 @@ pub fn boot_image(
             .arg("-serial").arg("stdio")
             .arg("-bios").arg(firmware_path);
         if use_kvm {
-            qemu.arg("-machine").arg("pc,accel=kvm,kernel-irqchip=off");
+            qemu.arg("-machine").arg("pc,accel=kvm");
         }
         if use_gdb {
             info!("The machine starts paused, waiting for GDB to attach to localhost:1234.");
