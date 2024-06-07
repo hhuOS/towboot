@@ -4,7 +4,11 @@ on:
         tags: 'v*'
 jobs:
     release:
-        runs-on: ubuntu-latest
+        # This is the oldest supported version of Ubuntu according to
+        # <https://github.com/actions/runner-images#available-images>. This is
+        # because applications linked against glibc only work on that version of
+        # glibc (or newer ones).
+        runs-on: ubuntu-20.04
         steps:
             - uses: actions/checkout@v3
             - name: Cache Cargo
@@ -44,7 +48,7 @@ jobs:
                   command: build
                   args: --package towbootctl --target x86_64-unknown-linux-gnu --features=binary --release
             - name: Install compiler for x86_64-windows
-              run: sudo apt-get update && sudo apt-get install gcc-mingw-w64-x86-64-win32
+              run: sudo apt-get update && sudo apt-get install gcc-mingw-w64-x86-64
             - name: Install Rust for x86_64-windows
               uses: actions-rs/toolchain@v1
               with:
@@ -86,6 +90,10 @@ jobs:
               env:
                 GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     release-macos:
+        # We could cross-compile from Linux instead,
+        # but we'd still need the Xcode Command Line Tools.
+        # Downloading them requires logging in with an Apple ID,
+        # which is not possible in the CI. The macOS runners include it.
         runs-on: macos-latest
         needs: release
         steps:
