@@ -15,7 +15,7 @@ use alloc::{vec::Vec, vec};
 
 use uefi::prelude::*;
 use uefi::table::boot::{AllocateType, MemoryDescriptor, MemoryType};
-use uefi_services::system_table;
+use uefi::helpers::system_table;
 
 use log::{debug, warn, error};
 

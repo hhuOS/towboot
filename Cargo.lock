@@ -1947,7 +1947,6 @@ dependencies = [
  "toml 0.5.8",
  "towboot_config",
  "uefi",
- "uefi-services",
  "x86",
 ]
 
@@ -2043,11 +2042,12 @@ dependencies = [
 
 [[package]]
 name = "uefi"
-version = "0.27.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89ee9c34c612d45735fef4c478450cd2a1e64e59ad1e5988e5024af53914a854"
+checksum = "a9c0a56dc9fed2589aad6ddca11c2584968fc21f227b5d7083bb8961d26a69fa"
 dependencies = [
  "bitflags 2.5.0",
+ "cfg-if",
  "log",
  "ptr_meta",
  "ucs2",
@@ -2087,17 +2087,6 @@ dependencies = [
  "bitflags 2.5.0",
  "ptr_meta",
  "uguid",
-]
-
-[[package]]
-name = "uefi-services"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "292d48d6dae6fb4a5f960bab64a72e9dcdbe3db7dd706ae0ace5de24580d2840"
-dependencies = [
- "cfg-if",
- "log",
- "uefi",
 ]
 
 [[package]]

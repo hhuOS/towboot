@@ -33,7 +33,7 @@ use multiboot12::information::{
 };
 
 use goblin::elf::Elf;
-use uefi_services::system_table;
+use uefi::helpers::system_table;
 
 use towboot_config::{Entry, Quirk};
 use super::file::File;
