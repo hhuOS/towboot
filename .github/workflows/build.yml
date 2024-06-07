@@ -1,11 +1,8 @@
 on: [push]
 jobs:
-    build:
-        # This is the oldest supported version of Ubuntu according to
-        # <https://github.com/actions/runner-images#available-images>. This is
-        # because applications linked against glibc only work on that version of
-        # glibc (or newer ones).
-        runs-on: ubuntu-20.04
+    test:
+        # The 64-bit tests don't work on Ubuntu 20.04.
+        runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v3
             - name: Cache Cargo
@@ -17,18 +14,37 @@ jobs:
                   ~/.cargo/git/db/
                   target/
                 key: cargo-${{ hashFiles('**/Cargo.lock') }}
-            - name: Install Rust for i686
-              uses: actions-rs/toolchain@v1
+            - name: Install qemu
+              run: sudo apt-get update && sudo apt-get install -y qemu-system-x86
+            - name: Enable KVM group perms
+              run: |
+                echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+                sudo udevadm control --reload-rules
+                sudo udevadm trigger --name-match=kvm
+                # https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
+            - name: Run tests
+              uses: actions-rs/cargo@v1
               with:
-                  toolchain: nightly
-                  override: true
-                  target: i686-unknown-uefi
-            - name: Install Rust for x86_64
-              uses: actions-rs/toolchain@v1
+                command: test
+                args: --package tests
+    build:
+        # This is the oldest supported version of Ubuntu according to
+        # <https://github.com/actions/runner-images#available-images>. This is
+        # because applications linked against glibc only work on that version of
+        # glibc (or newer ones).
+        runs-on: ubuntu-20.04
+        needs: test
+        steps:
+            - uses: actions/checkout@v3
+            - name: Cache Cargo
+              uses: actions/cache@v4
               with:
-                  toolchain: nightly
-                  override: true
-                  target: x86_64-unknown-uefi
+                path: |
+                  ~/.cargo/registry/index/
+                  ~/.cargo/registry/cache/
+                  ~/.cargo/git/db/
+                  target/
+                key: cargo-${{ hashFiles('**/Cargo.lock') }}
             - name: Build for i686
               uses: actions-rs/cargo@v1
               with:
@@ -76,25 +92,13 @@ jobs:
               with:
                   name: towbootctl-debug-x86_64-windows.exe
                   path: target/x86_64-pc-windows-gnu/debug/towbootctl.exe
-            - name: Install qemu
-              run: sudo apt-get update && sudo apt-get install -y qemu-system-x86
-            - name: Enable KVM group perms
-              run: |
-                echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-                sudo udevadm control --reload-rules
-                sudo udevadm trigger --name-match=kvm
-                # https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
-            - name: Run tests
-              uses: actions-rs/cargo@v1
-              with:
-                command: test
-                args: --package tests
     build-mac:
       # We could cross-compile from Linux instead,
       # but we'd still need the Xcode Command Line Tools.
       # Downloading them requires logging in with an Apple ID,
       # which is not possible in the CI. The macOS runners include it.
       runs-on: macos-latest
+      needs: test
       steps:
           - uses: actions/checkout@v3
           - name: Cache Cargo
