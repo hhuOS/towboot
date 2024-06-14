@@ -1,4 +1,5 @@
 //! A companion utility for towboot.
+#![feature(exit_status_error)]
 use std::fs;
 use std::env;
 use std::io::Write;
@@ -9,7 +10,7 @@ use anyhow::Result;
 use log::info;
 use tempfile::NamedTempFile;
 
-use towbootctl::{create_image, config, runtime_args_to_load_options};
+use towbootctl::{boot_image, create_image, config, runtime_args_to_load_options};
 
 #[allow(dead_code)]
 mod built_info {
@@ -26,9 +27,51 @@ struct Cli {
 #[derive(Debug, FromArgs)]
 #[argh(subcommand)]
 enum Command {
+    BootImage(BootImageCommand),
     Image(ImageCommand),
     Install(InstallCommand),
     Version(VersionCommand),
+}
+
+// TODO: dedup this with xtask's run
+#[derive(Debug, FromArgs)]
+#[argh(subcommand, name = "boot-image")]
+/// Boot an image.
+struct BootImageCommand {
+    /// what image to boot
+    #[argh(option, default = "PathBuf::from(\"image.img\")")]
+    image: PathBuf,
+
+    /// use x86_64 instead of i686
+    #[argh(switch)]
+    x86_64: bool,
+
+    /// enable KVM
+    #[argh(switch)]
+    kvm: bool,
+
+    /// use Bochs instead of QEMU
+    #[argh(switch)]
+    bochs: bool,
+
+    /// wait for GDB to attach
+    #[argh(switch)]
+    gdb: bool,
+
+    /// use the specified firmware instead of OVMF
+    #[argh(option)]
+    firmware: Option<PathBuf>,
+}
+
+impl BootImageCommand {
+    fn r#do(&self) -> Result<()> {
+        let (mut process, _temp_files) = boot_image(
+            self.firmware.as_deref(), &self.image, self.x86_64, self.bochs,
+            self.kvm, self.gdb,
+        )?;
+        process.status()?.exit_ok()?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, FromArgs)]
@@ -183,6 +226,7 @@ fn main() -> Result<()> {
     env_logger::init();
     let args: Cli = from_env();
     match args.command {
+        Command::BootImage(boot_image_command) => boot_image_command.r#do(),
         Command::Image(image_command) => image_command.r#do(),
         Command::Install(install_command) => install_command.r#do(),
         Command::Version(version_command) => version_command.r#do(),
