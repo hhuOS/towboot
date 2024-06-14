@@ -4,7 +4,7 @@ jobs:
         # The 64-bit tests don't work on Ubuntu 20.04.
         runs-on: ubuntu-24.04
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
             - name: Cache Cargo
               uses: actions/cache@v4
               with:
@@ -35,7 +35,7 @@ jobs:
         runs-on: ubuntu-20.04
         needs: test
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
             - name: Cache Cargo
               uses: actions/cache@v4
               with:
@@ -51,7 +51,7 @@ jobs:
                   command: build
                   args: --package towboot --target i686-unknown-uefi
             - name: Upload i686 artifact
-              uses: actions/upload-artifact@v3
+              uses: actions/upload-artifact@v4
               with:
                   name: towboot-debug-i686.efi
                   path: target/i686-unknown-uefi/debug/towboot.efi
@@ -61,7 +61,7 @@ jobs:
                   command: build
                   args: --package towboot --target x86_64-unknown-uefi
             - name: Upload x86_64 artifact
-              uses: actions/upload-artifact@v3
+              uses: actions/upload-artifact@v4
               with:
                   name: towboot-debug-x86_64.efi
                   path: target/x86_64-unknown-uefi/debug/towboot.efi
@@ -71,7 +71,7 @@ jobs:
                   command: build
                   args: --package towbootctl --target x86_64-unknown-linux-gnu --features=binary
             - name: Upload x86_64-linux artifact
-              uses: actions/upload-artifact@v3
+              uses: actions/upload-artifact@v4
               with:
                   name: towbootctl-debug-x86_64-linux
                   path: target/x86_64-unknown-linux-gnu/debug/towbootctl
@@ -88,7 +88,7 @@ jobs:
                   command: build
                   args: --package towbootctl --target x86_64-pc-windows-gnu --features=binary
             - name: Upload x86_64-windows artifact
-              uses: actions/upload-artifact@v3
+              uses: actions/upload-artifact@v4
               with:
                   name: towbootctl-debug-x86_64-windows.exe
                   path: target/x86_64-pc-windows-gnu/debug/towbootctl.exe
@@ -100,7 +100,7 @@ jobs:
       runs-on: macos-latest
       needs: test
       steps:
-          - uses: actions/checkout@v3
+          - uses: actions/checkout@v4
           - name: Cache Cargo
             uses: actions/cache@v4
             with:
@@ -135,7 +135,7 @@ jobs:
           - name: Build universal binary for macOS
             run: mkdir -p target/apple-darwin/debug && lipo -create -output target/apple-darwin/debug/towbootctl target/x86_64-apple-darwin/debug/towbootctl target/aarch64-apple-darwin/debug/towbootctl
           - name: Upload apple artifact
-            uses: actions/upload-artifact@v3
+            uses: actions/upload-artifact@v4
             with:
                   name: towbootctl-debug-macos
                   path: target/apple-darwin/debug/towbootctl

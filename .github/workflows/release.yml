@@ -6,7 +6,7 @@ jobs:
         # The 64-bit tests don't work on Ubuntu 20.04.
         runs-on: ubuntu-24.04
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
             - name: Cache Cargo
               uses: actions/cache@v4
               with:
@@ -37,7 +37,7 @@ jobs:
         runs-on: ubuntu-20.04
         needs: test
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
             - name: Cache Cargo
               uses: actions/cache@v4
               with:
@@ -83,7 +83,7 @@ jobs:
             - name: Rename files (3)
               run: cp target/x86_64-pc-windows-gnu/release/towbootctl.exe towbootctl-$(git describe --always --tags)-x86_64-windows.exe
             - name: Publish release
-              uses: softprops/action-gh-release@v1
+              uses: softprops/action-gh-release@v2
               with:
                 files: |
                     towboot-*-i686.efi
@@ -99,7 +99,7 @@ jobs:
         runs-on: macos-latest
         needs: release
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
             - name: Cache Cargo
               uses: actions/cache@v4
               with:
