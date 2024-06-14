@@ -118,7 +118,6 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
         Ok(e) => {
             info!("booting {entry_to_boot}...");
             e.boot(systab);
-            unreachable!();
         },
         Err(e) => {
             error!("failed to prepare the entry: {e:?}");

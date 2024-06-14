@@ -42,7 +42,7 @@ fn get_config_files(config: &mut Config) -> Result<Vec<(PathBuf, PathBuf)>> {
         paths.push((src_path, dst_path));
     }
 
-    return Ok(paths);
+    Ok(paths)
 }
 
 /// Joins a slice of strings.
