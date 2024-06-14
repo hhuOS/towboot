@@ -1,4 +1,5 @@
 //! This crate offers functionality to use towboot for your own operating system.
+use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -25,11 +26,12 @@ pub const IA32_BOOT_PATH: &str = "EFI/Boot/bootia32.efi";
 /// Where to place the 64-bit EFI file
 pub const X64_BOOT_PATH: &str = "EFI/Boot/bootx64.efi";
 
-/// Write the given configuration file to image.
-/// This also copies all files that are referenced in it.
-fn add_config_to_image(image: &mut Image, config: &mut Config) -> Result<()> {
+/// Get the source and destination paths of all files referenced in the config.
+fn get_config_files(config: &mut Config) -> Result<Vec<(PathBuf, PathBuf)>> {
+    let mut paths = Vec::<(PathBuf, PathBuf)>::new();
     let mut config_path = PathBuf::from(config.src.clone());
     config_path.pop();
+
     // go through all needed files; including them (but without the original path)
     for src_file in config.needed_files() {
         let src_path = config_path.join(PathBuf::from(&src_file));
@@ -37,16 +39,10 @@ fn add_config_to_image(image: &mut Image, config: &mut Config) -> Result<()> {
         let dst_path = PathBuf::from(&dst_file);
         src_file.clear();
         src_file.push_str(dst_file.to_str().unwrap());
-        image.add_file(&src_path, &dst_path)?;
+        paths.push((src_path, dst_path));
     }
 
-    // write the configuration itself to the image
-    let mut config_file = NamedTempFile::new()?;
-    config_file.as_file_mut().write_all(
-        toml::to_string(&config)?.as_bytes()
-    )?;
-    image.add_file(&config_file.into_temp_path(), &PathBuf::from("towboot.toml"))?;
-    Ok(())
+    return Ok(paths);
 }
 
 /// Joins a slice of strings.
@@ -69,21 +65,45 @@ pub fn runtime_args_to_load_options(runtime_args: &[String]) -> String {
 pub fn create_image(
     target: &Path, runtime_args: &[String], i686: Option<&Path>, x86_64: Option<&Path>,
 ) -> Result<Image> {
-    info!("creating image at {}", target.display());
-    let mut image = Image::new(target, DEFAULT_IMAGE_SIZE)?;
+    info!("calculating image size");
+    let mut paths = Vec::<(PathBuf, PathBuf)>::new();
 
     // generate a configuration file from the load options
     let load_options = runtime_args_to_load_options(runtime_args);
+    let mut config_file = NamedTempFile::new()?;
     if let Some(mut config) = config::get(&load_options)? {
-        add_config_to_image(&mut image, &mut config)?;
+        // get paths to all files referenced by config
+        // this also sets the correct config file paths inside the image
+        let mut config_paths = get_config_files(&mut config)?;
+        paths.append(&mut config_paths);
+
+        // generate temp config file
+        config_file.as_file_mut().write_all(
+            toml::to_string(&config)?.as_bytes()
+        )?;
+        paths.push((PathBuf::from(config_file.path()), PathBuf::from("towboot.toml")));
     }
 
     // add towboot itself
-    if let Some(src) = i686 { 
-        image.add_file(src, &PathBuf::from(IA32_BOOT_PATH))?;
+    if let Some(src) = i686 {
+        paths.push((PathBuf::from(src), PathBuf::from(IA32_BOOT_PATH)));
     }
-    if let Some(src) = x86_64 { 
-        image.add_file(src, &PathBuf::from(X64_BOOT_PATH))?;
+    if let Some(src) = x86_64 {
+        paths.push((PathBuf::from(src), PathBuf::from(X64_BOOT_PATH)));
+    }
+
+    let mut image_size = 0x00_20_00_00;
+    for pair in paths.iter() {
+        let file = OpenOptions::new()
+            .read(true)
+            .open(PathBuf::from(&pair.0))?;
+        image_size += file.metadata()?.len();
+    }
+
+    info!("creating image at {} (size: {} MiB)", target.display(), image_size / 1024 / 1024);
+    let mut image = Image::new(target, image_size)?;
+    for pair in paths {
+        image.add_file(pair.0.as_path(), pair.1.as_path())?
     }
 
     Ok(image)
