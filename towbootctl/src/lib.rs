@@ -186,6 +186,10 @@ pub struct BootImageCommand {
     /// use the specified firmware instead of OVMF
     #[argh(option)]
     firmware: Option<PathBuf>,
+
+    /// additional arguments to pass to the hypervisor
+    #[argh(positional, greedy)]
+    args: Vec<String>,
 }
 
 #[cfg(feature = "args")]
@@ -195,7 +199,10 @@ impl BootImageCommand {
             self.firmware.as_deref(), &self.image, self.x86_64, self.bochs,
             self.kvm, self.gdb,
         )?;
-        process.status()?.exit_ok()?;
+        process
+            .args(&self.args)
+            .status()?
+            .exit_ok()?;
         Ok(())
     }
 }
