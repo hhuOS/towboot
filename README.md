@@ -40,6 +40,16 @@ towbootctl install <path_to_the_esp> --name yourOS -- -config towboot.toml
 (You can also configure towboot just with command line arguments instead of
 using a configuration file; see below.)
 
+### image
+
+If you're not installing to physical media but instead want to create an image,
+towbootctl can do this as well:
+
+```sh
+towbootctl image --target yourOS.img -- -config towboot.toml
+towbootctl boot-image --image yourOS.img
+```
+
 ### chainloading from another bootloader
 
 If you already have a bootloader capable of loading UEFI applications but
@@ -108,7 +118,7 @@ or by setting `--target x86_64_unknown_uefi` (for example).
 
 Running `cargo xtask build` will do that and also create a disk image,
 so just may just want to run this. To boot the resulting image with QEMU,
-you can use `cargo xtask run`.
+you can use `cargo xtask boot-image`.
 
 You can configure whether to create a `debug` or `release` build for
 either `i686` or `x86_64`, whether to enable KVM or wait for a GDB to attach

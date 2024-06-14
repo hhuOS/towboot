@@ -31,7 +31,8 @@ towboot_x64 = { path = "../towboot_x64", optional = true }
 built = { version = "0.7", features = ["git2"] }
 
 [features]
-binary = ["argh", "env_logger", "towboot_ia32", "towboot_x64"]
+args = ["argh"]
+binary = ["args", "env_logger", "towboot_ia32", "towboot_x64"]
 
 [[bin]]
 name = "towbootctl"

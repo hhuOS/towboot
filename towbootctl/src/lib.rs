@@ -1,10 +1,13 @@
 //! This crate offers functionality to use towboot for your own operating system.
+#![cfg_attr(feature = "args", feature(exit_status_error))]
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{anyhow, Result};
+#[cfg(feature = "args")]
+use argh::FromArgs;
 use log::info;
 use tempfile::{NamedTempFile, TempPath};
 
@@ -155,3 +158,44 @@ pub fn boot_image(
     })
 }
 
+#[cfg(feature = "args")]
+#[derive(Debug, FromArgs)]
+#[argh(subcommand, name = "boot-image")]
+/// Boot an image.
+pub struct BootImageCommand {
+    /// what image to boot
+    #[argh(option, default = "PathBuf::from(\"image.img\")")]
+    image: PathBuf,
+
+    /// use x86_64 instead of i686
+    #[argh(switch)]
+    x86_64: bool,
+
+    /// enable KVM
+    #[argh(switch)]
+    kvm: bool,
+
+    /// use Bochs instead of QEMU
+    #[argh(switch)]
+    bochs: bool,
+
+    /// wait for GDB to attach
+    #[argh(switch)]
+    gdb: bool,
+
+    /// use the specified firmware instead of OVMF
+    #[argh(option)]
+    firmware: Option<PathBuf>,
+}
+
+#[cfg(feature = "args")]
+impl BootImageCommand {
+    pub fn r#do(&self) -> Result<()> {
+        let (mut process, _temp_files) = boot_image(
+            self.firmware.as_deref(), &self.image, self.x86_64, self.bochs,
+            self.kvm, self.gdb,
+        )?;
+        process.status()?.exit_ok()?;
+        Ok(())
+    }
+}
