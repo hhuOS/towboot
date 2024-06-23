@@ -7,14 +7,6 @@ jobs:
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
-            - name: Install Rust
-              uses: dtolnay/rust-toolchain@nightly
-            - name: Cache Cargo
-              uses: Swatinem/rust-cache@v2
-              with:
-                shared-key: cargo-${{ vars.GITHUB_RUN_ID }}-${{ hashFiles('**/Cargo.lock') }}
-                cache-all-crates: true
-                cache-on-failure: true
             - name: Install qemu
               run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qemu-system-x86
             - name: Enable KVM group perms
@@ -37,14 +29,6 @@ jobs:
         needs: test
         steps:
             - uses: actions/checkout@v4
-            - name: Install Rust
-              uses: dtolnay/rust-toolchain@nightly
-            - name: Cache Cargo
-              uses: Swatinem/rust-cache@v2
-              with:
-                shared-key: cargo-${{ vars.GITHUB_RUN_ID }}-${{ hashFiles('**/Cargo.lock') }}
-                cache-all-crates: true
-                cache-on-failure: true
             - name: Build for i686
               uses: clechasseur/rs-cargo@v2
               with:
@@ -101,12 +85,6 @@ jobs:
               uses: dtolnay/rust-toolchain@nightly
               with:
                 targets: x86_64-apple-darwin, aarch64-apple-darwin
-            - name: Cache Cargo
-              uses: Swatinem/rust-cache@v2
-              with:
-                shared-key: cargo-${{ vars.GITHUB_RUN_ID }}-${{ hashFiles('**/Cargo.lock') }}
-                cache-all-crates: true
-                cache-on-failure: true
             - name: Build towbootctl for x86_64-apple
               uses: clechasseur/rs-cargo@v2
               with:
