@@ -70,6 +70,7 @@ jobs:
                     towboot-*-i686.efi
                     towboot-*-x86_64.efi
                     towbootctl-*-x86_64-linux
+                    towbootctl-*-x86_64-windows.exe
               env:
                 GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     release-macos:
@@ -102,5 +103,5 @@ jobs:
               with:
                 repo_token: ${{ secrets.GITHUB_TOKEN }}
                 file: target/apple-darwin/release/towbootctl
-                asset_name: towbootctl-$(git describe --always --tags)-macos
+                asset_name: towbootctl-${{ github.ref }}-macos
                 tag: ${{ github.ref }}
