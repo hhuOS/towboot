@@ -1818,7 +1818,7 @@ dependencies = [
 
 [[package]]
 name = "tests"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "ctor",
@@ -1940,7 +1940,7 @@ dependencies = [
 
 [[package]]
 name = "towboot"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "acpi",
  "built",
@@ -1957,7 +1957,7 @@ dependencies = [
 
 [[package]]
 name = "towboot_config"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "log",
  "miniarg",
@@ -1966,21 +1966,21 @@ dependencies = [
 
 [[package]]
 name = "towboot_ia32"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "towboot",
 ]
 
 [[package]]
 name = "towboot_x64"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "towboot",
 ]
 
 [[package]]
 name = "towbootctl"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "argh",
@@ -2460,7 +2460,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "argh",
