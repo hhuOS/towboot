@@ -1,7 +1,7 @@
 on: [push]
 jobs:
     test:
-        # The 64-bit tests don't work on Ubuntu 20.04.
+        # Make sure that everything works on the newest Ubuntu.
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
@@ -27,11 +27,14 @@ jobs:
                 command: test
                 args: --package tests
     build:
-        # This is the oldest supported version of Ubuntu according to
-        # <https://github.com/actions/runner-images#available-images>. This is
-        # because applications linked against glibc only work on that version of
-        # glibc (or newer ones).
-        runs-on: ubuntu-20.04
+        # Applications linked against glibc only work on that version of glibc
+        # (or newer ones), so this is effectively the oldest version the release
+        # is going to run on.
+        # In theory, this should be the oldest supported version of Ubuntu
+        # according to <https://github.com/actions/runner-images#available-images>,
+        # but Ubuntu 20.04 has OpenSSL 1.1 which newer ones don't have, so we need
+        # to go with at least 22.04.
+        runs-on: ubuntu-22.04
         needs: test
         steps:
             - uses: actions/checkout@v4
@@ -74,7 +77,7 @@ jobs:
                   name: towbootctl-debug-x86_64-linux
                   path: target/x86_64-unknown-linux-gnu/debug/towbootctl
             - name: Install compiler for x86_64-windows
-              run: sudo apt-get update && sudo apt-get install gcc-mingw-w64-x86-64
+              run: sudo apt-get update && sudo apt-get install gcc-mingw-w64-x86-64-win32
             - name: Install Rust for x86_64-windows
               uses: dtolnay/rust-toolchain@nightly
               with:
