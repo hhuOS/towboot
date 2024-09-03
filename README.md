@@ -98,7 +98,7 @@ If you want to compile towboot yourself, here are the instructions:
 
 You'll need a nightly Rust compiler.
 The version doesn't really matter,
-though `1.78.0-nightly (c67326b06 2024-03-15)` definitely works.
+though `1.83.0-nightly (bd53aa3bf 2024-09-02)` definitely works.
 If you don't know how to install one,
 please take a look at [rustup.rs](https://rustup.rs/).
 

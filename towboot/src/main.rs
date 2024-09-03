@@ -19,6 +19,8 @@ use uefi::proto::loaded_image::LoadOptionsError;
 use log::{debug, info, warn, error};
 
 mod boot;
+// contains several workarounds for bugs in the Rust UEFI targets
+mod hacks;
 mod config;
 mod file;
 mod mem;
