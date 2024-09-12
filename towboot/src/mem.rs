@@ -11,11 +11,11 @@ use core::mem::size_of;
 
 use alloc::boxed::Box;
 use alloc::collections::btree_set::BTreeSet;
-use alloc::{vec::Vec, vec};
+use alloc::vec::Vec;
 
 use uefi::prelude::*;
+use uefi::table::system_table_boot;
 use uefi::table::boot::{AllocateType, MemoryDescriptor, MemoryType};
-use uefi::helpers::system_table;
 
 use log::{debug, warn, error};
 
@@ -41,7 +41,12 @@ impl Drop for Allocation {
     fn drop(&mut self) {
         // We can't free memory after we've exited boot services.
         // But this only happens in `PreparedEntry::boot` and this function doesn't return.
-        unsafe { system_table().boot_services().free_pages(self.ptr, self.pages) }
+        unsafe {
+            system_table_boot()
+                .expect("failed to get System Table")
+                .boot_services()
+                .free_pages(self.ptr, self.pages)
+        }
         // let's just panic if we can't free
         .expect("failed to free the allocated memory");
     }
@@ -60,11 +65,15 @@ impl Allocation {
     /// [`move_to_where_it_should_be`]: struct.Allocation.html#method.move_to_where_it_should_be
     pub(crate) fn new_at(address: usize, size: usize) -> Result<Self, Status>{
         let count_pages = Self::calculate_page_count(size);
-        match system_table().boot_services().allocate_pages(
-            AllocateType::Address(address.try_into().unwrap()),
-            MemoryType::LOADER_DATA,
-            count_pages
-        ) {
+        match system_table_boot()
+            .expect("failed to get System Table")
+            .boot_services()
+            .allocate_pages(
+                AllocateType::Address(address.try_into().unwrap()),
+                MemoryType::LOADER_DATA,
+                count_pages
+            )
+        {
             Ok(ptr) => Ok(Allocation { ptr, len: size, pages: count_pages, should_be_at: None }),
             Err(e) => {
                 warn!("failed to allocate {size} bytes of memory at {address:x}: {e:?}");
@@ -84,19 +93,23 @@ impl Allocation {
     /// Note: This will round up to whole pages.
     pub(crate) fn new_under_4gb(size: usize, quirks: &BTreeSet<Quirk>) -> Result<Self, Status> {
         let count_pages = Self::calculate_page_count(size);
-        let ptr = system_table().boot_services().allocate_pages(
-            AllocateType::MaxAddress(if quirks.contains(&Quirk::ModulesBelow200Mb) {
-                200 * 1024 * 1024
-            } else {
-                u32::MAX.into()
-            }),
-            MemoryType::LOADER_DATA,
-            count_pages
-        ).map_err(|e| {
-            error!("failed to allocate {size} bytes of memory: {e:?}");
-            dump_memory_map();
-            Status::LOAD_ERROR
-        })?;
+        let ptr = system_table_boot()
+            .expect("failed to get System Table")
+            .boot_services()
+            .allocate_pages(
+                AllocateType::MaxAddress(if quirks.contains(&Quirk::ModulesBelow200Mb) {
+                    200 * 1024 * 1024
+                } else {
+                    u32::MAX.into()
+                }),
+                MemoryType::LOADER_DATA,
+                count_pages
+            )
+            .map_err(|e| {
+                error!("failed to allocate {size} bytes of memory: {e:?}");
+                dump_memory_map();
+                Status::LOAD_ERROR
+            })?;
         Ok(Allocation { ptr, len:size, pages: count_pages, should_be_at: None })
     }
     
@@ -149,12 +162,10 @@ impl Allocation {
 /// Show the current memory map.
 fn dump_memory_map() {
     debug!("memory map:");
-    // The docs say that we should allocate a little bit more memory than needed.
-    let mut buf = vec![0; system_table().boot_services()
-        .memory_map_size().map_size + 100
-    ];
-    let mut memory_map = system_table().boot_services()
-        .memory_map(buf.as_mut_slice()).expect("failed to get memory map");
+    let mut memory_map = system_table_boot()
+        .expect("failed to get System Table")
+        .boot_services()
+        .memory_map(MemoryType::LOADER_DATA).expect("failed to get memory map");
     memory_map.sort();
     for descriptor in memory_map.entries() {
         debug!("{descriptor:?}");

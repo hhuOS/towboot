@@ -22,6 +22,7 @@ use core::ffi::c_void;
 use core::ptr::NonNull;
 use uefi::prelude::*;
 use uefi::proto::console::gop::GraphicsOutput;
+use uefi::table::system_table_boot;
 use uefi::table::boot::{ScopedProtocol, MemoryType};
 use uefi::table::cfg::ConfigTableEntry;
 
@@ -33,7 +34,6 @@ use multiboot12::information::{
 };
 
 use goblin::elf::Elf;
-use uefi::helpers::system_table;
 
 use towboot_config::{Entry, Quirk};
 use super::file::File;
@@ -248,7 +248,9 @@ fn prepare_multiboot_information(
 
     // This only has an effect on Multiboot2.
     // TODO: Does this stay valid when we exit Boot Services?
-    let systab_ptr = system_table().as_ptr();
+    let systab_ptr = system_table_boot()
+        .expect("failed to get System Table")
+        .as_ptr();
     let image_handle_ptr = (unsafe {
         core::mem::transmute::<_, NonNull<c_void>>(image)
     }).as_ptr();
@@ -356,13 +358,15 @@ impl<'a> PreparedEntry<'a> {
     ///
     /// This function won't return.
     pub(crate) fn boot(mut self, systab: SystemTable<Boot>) -> ! {
-        // Estimate the number of memory sections.
-        let map_size = systab.boot_services().memory_map_size();
-        let estimated_size = map_size.map_size + 500;
-        let estimated_count = estimated_size / map_size.entry_size;
+        // Get a memory map.
+        // This won't be completely accurate as we're still going to allocate
+        // and deallocate a bit, but it gives us a rough estimate.
+        let map = systab.boot_services().memory_map(MemoryType::LOADER_DATA)
+            .expect("failed to get memory map");
+        // Estimate how many entries there will be and add some.
+        let estimated_count = map.entries().len() + 5;
         debug!("expecting {estimated_count} memory areas");
-        // You may ask yourself why we're not passing map_size.entry_size here.
-        // That's because we're passing a slice of uefi.rs' MemoryDescriptors
+        // Note that we're passing a slice of uefi.rs' MemoryDescriptors
         // (which hopefully are the same as multiboot2's EFIMemoryDescs),
         // and not the ones the firmware provides us with.
         // (That's also why we can't set the version.)
@@ -378,16 +382,16 @@ impl<'a> PreparedEntry<'a> {
             mut info, signature, update_memory_info,
         ) = self.multiboot_information.build();
         debug!("passing signature {signature:x} to kernel...");
-        let mut mmap_vec = Vec::<u8>::new();
         let memory_map = if self.loaded_kernel.should_exit_boot_services {
             info!("exiting boot services...");
-            let (_systab, mut memory_map) = systab.exit_boot_services(MemoryType::LOADER_DATA);
+            let (_systab, mut memory_map) = unsafe {
+                systab.exit_boot_services(MemoryType::LOADER_DATA)
+            };
             memory_map.sort();
             // now, write! won't work anymore. Also, we can't allocate any memory.
             memory_map
         } else {
-            mmap_vec.resize(estimated_size, 0);
-            let memory_map = systab.boot_services().memory_map(mmap_vec.as_mut_slice()).unwrap();
+            let memory_map = systab.boot_services().memory_map(MemoryType::LOADER_DATA).unwrap();
             debug!("got {} memory areas", memory_map.entries().len());
             memory_map
         };
