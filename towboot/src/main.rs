@@ -31,7 +31,7 @@ fn efi_main(image: Handle, mut systab: SystemTable<Boot>) -> Status {
     // Putting this comment above the function breaks the entry annotation.
     //! This is the main function.
     //! Startup happens here.
-    uefi::helpers::init(&mut systab).expect("Failed to initialize utilities");
+    uefi::helpers::init().expect("Failed to initialize utilities");
     log::set_max_level(log::LevelFilter::Info);
     
     // blocks are so cool, I wish the borrow checker was real

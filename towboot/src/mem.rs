@@ -14,6 +14,7 @@ use alloc::collections::btree_set::BTreeSet;
 use alloc::vec::Vec;
 
 use uefi::prelude::*;
+use uefi::mem::memory_map::{MemoryMap, MemoryMapMut};
 use uefi::table::system_table_boot;
 use uefi::table::boot::{AllocateType, MemoryDescriptor, MemoryType};
 
@@ -183,7 +184,7 @@ pub(super) fn prepare_information(
         &mut [u8], u32, u32, &[multiboot12::information::MemoryEntry],
         Option<&[multiboot12::information::EfiMemoryDescriptor]>,
     )>,
-    efi_mmap: &uefi::table::boot::MemoryMap,
+    efi_mmap: &uefi::mem::memory_map::MemoryMapOwned,
     mb_mmap_vec: &mut Vec<multiboot12::information::MemoryEntry>,
     mb_efi_mmap_vec: &mut Vec<multiboot12::information::EfiMemoryDescriptor>,
     boot_services_exited: bool,

@@ -21,6 +21,7 @@ use core::arch::asm;
 use core::ffi::c_void;
 use core::ptr::NonNull;
 use uefi::prelude::*;
+use uefi::mem::memory_map::{MemoryMap, MemoryMapMut};
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::table::system_table_boot;
 use uefi::table::boot::{ScopedProtocol, MemoryType};
@@ -382,12 +383,11 @@ impl<'a> PreparedEntry<'a> {
             mut info, signature, update_memory_info,
         ) = self.multiboot_information.build();
         debug!("passing signature {signature:x} to kernel...");
-        let memory_map = if self.loaded_kernel.should_exit_boot_services {
+        let mut memory_map = if self.loaded_kernel.should_exit_boot_services {
             info!("exiting boot services...");
-            let (_systab, mut memory_map) = unsafe {
+            let (_systab, memory_map) = unsafe {
                 systab.exit_boot_services(MemoryType::LOADER_DATA)
             };
-            memory_map.sort();
             // now, write! won't work anymore. Also, we can't allocate any memory.
             memory_map
         } else {
@@ -395,6 +395,7 @@ impl<'a> PreparedEntry<'a> {
             debug!("got {} memory areas", memory_map.entries().len());
             memory_map
         };
+        memory_map.sort();
         super::mem::prepare_information(
             &mut info, update_memory_info, &memory_map,
             &mut mb_mmap_vec, &mut mb_efi_mmap_vec,
