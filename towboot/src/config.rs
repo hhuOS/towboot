@@ -43,10 +43,10 @@ fn version_info() -> String {
 ///
 /// Returns None if just a help text has been displayed.
 pub fn get(
-    image_fs_handle: Handle, load_options: &str, systab: &SystemTable<Boot>
+    image_fs_handle: Handle, load_options: &str,
 ) -> Result<Option<Config>, Status> {
     match parse_load_options(load_options, &version_info()) {
-        Ok(Some(ConfigSource::File(s))) => Ok(Some(read_file(image_fs_handle, &s, systab)?)),
+        Ok(Some(ConfigSource::File(s))) => Ok(Some(read_file(image_fs_handle, &s)?)),
         Ok(Some(ConfigSource::Given(c))) => Ok(Some(c)),
         Ok(None) => Ok(None),
         Err(()) => Err(Status::INVALID_PARAMETER),
@@ -54,8 +54,8 @@ pub fn get(
 }
 
 /// Try to read and parse the configuration from the given file.
-fn read_file(image_fs_handle: Handle, file_name: &str, systab: &SystemTable<Boot>) -> Result<Config, Status> {
-    let text: Vec<u8> = File::open(file_name, image_fs_handle, systab)?.try_into()?;
+fn read_file(image_fs_handle: Handle, file_name: &str) -> Result<Config, Status> {
+    let text: Vec<u8> = File::open(file_name, image_fs_handle)?.try_into()?;
     let mut config: Config = toml::from_slice(text.as_slice()).expect("failed to parse config file");
     config.src = file_name.to_string();
     Ok(config)

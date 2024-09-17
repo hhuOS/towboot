@@ -21,11 +21,10 @@ use core::arch::asm;
 use core::ffi::c_void;
 use core::ptr::NonNull;
 use uefi::prelude::*;
+use uefi::boot::{exit_boot_services, image_handle, memory_map, MemoryType, ScopedProtocol};
 use uefi::mem::memory_map::{MemoryMap, MemoryMapMut};
 use uefi::proto::console::gop::GraphicsOutput;
-use uefi::table::system_table_boot;
-use uefi::table::boot::{ScopedProtocol, MemoryType};
-use uefi::table::cfg::ConfigTableEntry;
+use uefi::table::system_table_raw;
 
 use log::{debug, info, error, warn};
 
@@ -204,8 +203,8 @@ fn get_kernel_uefi_entry(
 fn prepare_multiboot_information(
     entry: &Entry, header: Header, load_base_address: Option<u32>,
     modules: &[Allocation], symbols: Option<Symbols>,
-    graphics_output: Option<ScopedProtocol<GraphicsOutput>>, image: Handle,
-    config_tables: &[ConfigTableEntry], boot_services_exited: bool,
+    graphics_output: Option<ScopedProtocol<GraphicsOutput>>,
+    boot_services_exited: bool,
 ) -> InfoBuilder {
     let mut info_builder = header.info_builder();
     
@@ -249,12 +248,12 @@ fn prepare_multiboot_information(
 
     // This only has an effect on Multiboot2.
     // TODO: Does this stay valid when we exit Boot Services?
-    let systab_ptr = system_table_boot()
+    let systab_ptr = system_table_raw()
         .expect("failed to get System Table")
         .as_ptr();
-    let image_handle_ptr = (unsafe {
-        core::mem::transmute::<_, NonNull<c_void>>(image)
-    }).as_ptr();
+    let image_handle_ptr = unsafe {
+        core::mem::transmute::<_, NonNull<c_void>>(image_handle())
+    }.as_ptr();
     if cfg!(target_arch = "x86") {
         info_builder.set_system_table_ia32(Some(
             (systab_ptr as usize).try_into().unwrap()
@@ -273,7 +272,7 @@ fn prepare_multiboot_information(
         warn!("don't know how to pass the UEFI data on this target");
     }
 
-    config_tables::parse_for_multiboot(config_tables, &mut info_builder);
+    config_tables::parse_for_multiboot(&mut info_builder);
 
     if !boot_services_exited {
         info_builder.set_boot_services_not_exited();
@@ -311,10 +310,9 @@ impl<'a> PreparedEntry<'a> {
     /// The returned `PreparedEntry` can be used to actually boot.
     /// This is non-destructive and will always return.
     pub(crate) fn new(
-        entry: &'a Entry, image: Handle, image_fs_handle: Handle,
-        systab: &SystemTable<Boot>,
+        entry: &'a Entry, image_fs_handle: Handle,
     ) -> Result<PreparedEntry<'a>, Status> {
-        let kernel_vec: Vec<u8> = File::open(&entry.image, image_fs_handle, systab)?.try_into()?;
+        let kernel_vec: Vec<u8> = File::open(&entry.image, image_fs_handle)?.try_into()?;
         let header = Header::from_slice(kernel_vec.as_slice()).ok_or_else(|| {
             error!("invalid Multiboot header");
             Status::LOAD_ERROR
@@ -326,7 +324,7 @@ impl<'a> PreparedEntry<'a> {
         // Load all modules, fail completely if one fails to load.
         // just always use whole pages, that's easier for us
         let modules_vec: Vec<Allocation> = entry.modules.iter().map(|module|
-            File::open(&module.image, image_fs_handle, systab)
+            File::open(&module.image, image_fs_handle)
             .and_then(|f| f.try_into_allocation(&entry.quirks))
         ).collect::<Result<Vec<_>, _>>()?;
         info!("loaded {} modules", modules_vec.len());
@@ -334,12 +332,11 @@ impl<'a> PreparedEntry<'a> {
             debug!("loaded module {} to {:?}", index, module.as_ptr());
         }
         
-        let graphics_output = video::setup_video(&header, systab, &entry.quirks);
+        let graphics_output = video::setup_video(&header, &entry.quirks);
         
         let multiboot_information = prepare_multiboot_information(
             entry, header, loaded_kernel.load_base_address, &modules_vec,
-            loaded_kernel.symbols_struct(), graphics_output, image,
-            systab.config_table(),
+            loaded_kernel.symbols_struct(), graphics_output,
             !entry.quirks.contains(&Quirk::DontExitBootServices),
         );
         
@@ -358,11 +355,11 @@ impl<'a> PreparedEntry<'a> {
     /// 5. jump!
     ///
     /// This function won't return.
-    pub(crate) fn boot(mut self, systab: SystemTable<Boot>) -> ! {
+    pub(crate) fn boot(mut self) -> ! {
         // Get a memory map.
         // This won't be completely accurate as we're still going to allocate
         // and deallocate a bit, but it gives us a rough estimate.
-        let map = systab.boot_services().memory_map(MemoryType::LOADER_DATA)
+        let map = memory_map(MemoryType::LOADER_DATA)
             .expect("failed to get memory map");
         // Estimate how many entries there will be and add some.
         let estimated_count = map.entries().len() + 5;
@@ -385,13 +382,10 @@ impl<'a> PreparedEntry<'a> {
         debug!("passing signature {signature:x} to kernel...");
         let mut memory_map = if self.loaded_kernel.should_exit_boot_services {
             info!("exiting boot services...");
-            let (_systab, memory_map) = unsafe {
-                systab.exit_boot_services(MemoryType::LOADER_DATA)
-            };
+            unsafe { exit_boot_services(MemoryType::LOADER_DATA) }
             // now, write! won't work anymore. Also, we can't allocate any memory.
-            memory_map
         } else {
-            let memory_map = systab.boot_services().memory_map(MemoryType::LOADER_DATA).unwrap();
+            let memory_map = memory_map(MemoryType::LOADER_DATA).unwrap();
             debug!("got {} memory areas", memory_map.entries().len());
             memory_map
         };

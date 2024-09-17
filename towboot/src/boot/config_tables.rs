@@ -1,9 +1,12 @@
 //! Handle UEFI config tables.
 use alloc::slice;
+use alloc::vec::Vec;
+
 use log::{debug, warn};
 use multiboot12::information::InfoBuilder;
 use acpi::rsdp::Rsdp;
 use smbioslib::{SMBiosEntryPoint32, SMBiosEntryPoint64};
+use uefi::system::with_config_table;
 use uefi::table::cfg::{
     ConfigTableEntry, ACPI_GUID, ACPI2_GUID, DEBUG_IMAGE_INFO_GUID,
     DXE_SERVICES_GUID, HAND_OFF_BLOCK_LIST_GUID, LZMA_COMPRESS_GUID,
@@ -13,22 +16,25 @@ use uefi::table::cfg::{
 
 /// Go through all of the configuration tables.
 /// Some of them are interesting for Multiboot2.
-pub(super) fn parse_for_multiboot(
-    config_tables: &[ConfigTableEntry], info_builder: &mut InfoBuilder,
-) {
+pub(super) fn parse_for_multiboot(info_builder: &mut InfoBuilder) {
+    // first, copy all config table pointers
+    // TODO: remove this when with_config_table takes a FnMut
+    let config_tables: Vec<ConfigTableEntry> = with_config_table(|s|
+        s.iter().cloned().collect()
+    );
     debug!("going through configuration tables...");
     for table in config_tables {
         match table.guid {
-            ACPI_GUID => handle_acpi(table, info_builder),
-            ACPI2_GUID => handle_acpi(table, info_builder),
+            ACPI_GUID => handle_acpi(&table, info_builder),
+            ACPI2_GUID => handle_acpi(&table, info_builder),
             DEBUG_IMAGE_INFO_GUID => debug!("ignoring image debug info"),
             DXE_SERVICES_GUID => debug!("ignoring dxe services table"),
             HAND_OFF_BLOCK_LIST_GUID => debug!("ignoring hand-off block list"),
             LZMA_COMPRESS_GUID => debug!("ignoring lzma filesystem"),
             MEMORY_STATUS_CODE_RECORD_GUID => debug!("ignoring early memory info"),
             MEMORY_TYPE_INFORMATION_GUID => debug!("ignoring early memory info"),
-            SMBIOS_GUID => handle_smbios(table, info_builder),
-            SMBIOS3_GUID => handle_smbios(table, info_builder),
+            SMBIOS_GUID => handle_smbios(&table, info_builder),
+            SMBIOS3_GUID => handle_smbios(&table, info_builder),
             guid => debug!("ignoring table {guid}"),
         }
     }

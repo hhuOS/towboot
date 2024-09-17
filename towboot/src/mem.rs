@@ -8,14 +8,15 @@
 //! Also, gathering memory map information for the kernel happens here.
 
 use core::mem::size_of;
+use core::ptr::NonNull;
 
 use alloc::boxed::Box;
 use alloc::collections::btree_set::BTreeSet;
 use alloc::vec::Vec;
 
 use uefi::prelude::*;
+use uefi::boot::{allocate_pages, free_pages, memory_map};
 use uefi::mem::memory_map::{MemoryMap, MemoryMapMut};
-use uefi::table::system_table_boot;
 use uefi::table::boot::{AllocateType, MemoryDescriptor, MemoryType};
 
 use log::{debug, warn, error};
@@ -29,7 +30,7 @@ pub(super) const PAGE_SIZE: usize = 4096;
 /// Tracks our own allocations.
 #[derive(Debug)]
 pub(super) struct Allocation {
-    ptr: u64,
+    ptr: NonNull<u8>,
     pub len: usize,
     pages: usize,
     /// the address of memory where it should have been allocated
@@ -42,12 +43,7 @@ impl Drop for Allocation {
     fn drop(&mut self) {
         // We can't free memory after we've exited boot services.
         // But this only happens in `PreparedEntry::boot` and this function doesn't return.
-        unsafe {
-            system_table_boot()
-                .expect("failed to get System Table")
-                .boot_services()
-                .free_pages(self.ptr, self.pages)
-        }
+        unsafe { free_pages(self.ptr, self.pages) }
         // let's just panic if we can't free
         .expect("failed to free the allocated memory");
     }
@@ -66,15 +62,11 @@ impl Allocation {
     /// [`move_to_where_it_should_be`]: struct.Allocation.html#method.move_to_where_it_should_be
     pub(crate) fn new_at(address: usize, size: usize) -> Result<Self, Status>{
         let count_pages = Self::calculate_page_count(size);
-        match system_table_boot()
-            .expect("failed to get System Table")
-            .boot_services()
-            .allocate_pages(
-                AllocateType::Address(address.try_into().unwrap()),
-                MemoryType::LOADER_DATA,
-                count_pages
-            )
-        {
+        match allocate_pages(
+            AllocateType::Address(address.try_into().unwrap()),
+            MemoryType::LOADER_DATA,
+            count_pages
+        ) {
             Ok(ptr) => Ok(Allocation { ptr, len: size, pages: count_pages, should_be_at: None }),
             Err(e) => {
                 warn!("failed to allocate {size} bytes of memory at {address:x}: {e:?}");
@@ -94,10 +86,7 @@ impl Allocation {
     /// Note: This will round up to whole pages.
     pub(crate) fn new_under_4gb(size: usize, quirks: &BTreeSet<Quirk>) -> Result<Self, Status> {
         let count_pages = Self::calculate_page_count(size);
-        let ptr = system_table_boot()
-            .expect("failed to get System Table")
-            .boot_services()
-            .allocate_pages(
+        let ptr = allocate_pages(
                 AllocateType::MaxAddress(if quirks.contains(&Quirk::ModulesBelow200Mb) {
                     200 * 1024 * 1024
                 } else {
@@ -122,12 +111,12 @@ impl Allocation {
     
     /// Return a slice that references the associated memory.
     pub(crate) fn as_mut_slice(&mut self) -> &mut [u8] {
-        unsafe { core::slice::from_raw_parts_mut(self.ptr as *mut u8, self.pages * PAGE_SIZE) }
+        unsafe { core::slice::from_raw_parts_mut(self.ptr.as_ptr(), self.pages * PAGE_SIZE) }
     }
     
     /// Get the pointer inside.
     pub(crate) fn as_ptr(&self) -> *const u8 {
-        self.ptr as *const u8
+        self.ptr.as_ptr()
     }
     
     /// Move to the desired location.
@@ -152,9 +141,8 @@ impl Allocation {
                 assert!(filter.next().is_none()); // there shouldn't be another matching entry
             }
             let dest: usize = a.try_into().unwrap();
-            let src: usize = self.ptr.try_into().unwrap();
-            core::ptr::copy(src as *mut u8, dest as *mut u8, self.len);
-            self.ptr = a;
+            core::ptr::copy(self.ptr.as_ptr(), dest as *mut u8, self.len);
+            self.ptr = NonNull::new(a as *mut u8).unwrap();
             self.should_be_at = None;
         }
     }
@@ -163,10 +151,8 @@ impl Allocation {
 /// Show the current memory map.
 fn dump_memory_map() {
     debug!("memory map:");
-    let mut memory_map = system_table_boot()
-        .expect("failed to get System Table")
-        .boot_services()
-        .memory_map(MemoryType::LOADER_DATA).expect("failed to get memory map");
+    let mut memory_map = memory_map(MemoryType::LOADER_DATA)
+        .expect("failed to get memory map");
     memory_map.sort();
     for descriptor in memory_map.entries() {
         debug!("{descriptor:?}");

@@ -4,8 +4,11 @@ use alloc::collections::btree_set::BTreeSet;
 use alloc::vec::Vec;
 
 use uefi::prelude::*;
+use uefi::boot::{
+    find_handles, image_handle, open_protocol,
+    OpenProtocolAttributes, OpenProtocolParams, ScopedProtocol,
+};
 use uefi::proto::console::gop::{GraphicsOutput, Mode, PixelBitmask, PixelFormat};
-use uefi::table::boot::{ScopedProtocol, OpenProtocolParams, OpenProtocolAttributes};
 
 use log::{debug, warn, info, error};
 
@@ -18,12 +21,13 @@ use towboot_config::Quirk;
 ///
 /// If there are multiple GPUs available, simply choose the first one.
 /// If there is no available mode that matches, just use the one we're already in.
-pub fn setup_video<'a>(
-    header: &Header, systab: &'a SystemTable<Boot>, quirks: &BTreeSet<Quirk>
-) -> Option<ScopedProtocol<'a, GraphicsOutput>> {
+pub fn setup_video(
+    header: &Header, quirks: &BTreeSet<Quirk>,
+) -> Option<ScopedProtocol<GraphicsOutput>> {
     info!("setting up the video...");
     let wanted_resolution = match (
-        header.get_preferred_video_mode(), quirks.contains(&Quirk::KeepResolution)
+        header.get_preferred_video_mode(),
+        quirks.contains(&Quirk::KeepResolution),
     ) {
         (Some(mode), false) => {
             if mode.is_graphics() {
@@ -49,9 +53,7 @@ pub fn setup_video<'a>(
         _ => None,
     };
     // just get the first one
-    let handles = systab
-        .boot_services()
-        .find_handles::<GraphicsOutput>()
+    let handles = find_handles::<GraphicsOutput>()
         .expect("failed to list available graphics outputs");
     let handle = handles.first().or_else(|| {
         warn!("Failed to find a graphics output. Do you have a graphics card (and a driver)?");
@@ -59,15 +61,15 @@ pub fn setup_video<'a>(
     })?;
     // Opening a protocol non-exclusively is unsafe, but otherwise we won't get
     // to see any new log messages.
-    let mut output: ScopedProtocol<GraphicsOutput> = unsafe { systab.boot_services().open_protocol(
+    let mut output: ScopedProtocol<GraphicsOutput> = unsafe { open_protocol(
         OpenProtocolParams {
             handle: *handle,
-            agent: systab.boot_services().image_handle(),
+            agent: image_handle(),
             controller: None,
         },
         OpenProtocolAttributes::GetProtocol,
     ).ok() }?;
-    let modes: Vec<Mode> = output.modes(systab.boot_services()).collect();
+    let modes: Vec<Mode> = output.modes().collect();
     debug!(
         "available video modes: {:?}",
         modes.iter().map(Mode::info).map(|i| (i.resolution(), i.pixel_format()))

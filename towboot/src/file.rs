@@ -9,6 +9,7 @@ use alloc::string::ToString;
 use log::{info, error};
 
 use uefi::prelude::*;
+use uefi::boot::{find_handles, open_protocol_exclusive};
 use uefi::fs::{Path, PathBuf};
 use uefi::data_types::CString16;
 use uefi::proto::media::fs::SimpleFileSystem;
@@ -38,7 +39,7 @@ impl<'a> File<'a> {
     /// * `Status::NOT_FOUND`: the file does not exist
     /// * `Status::PROTOCOL_ERROR`: the file name is not a valid string
     /// * `Status::UNSUPPORTED`: the given path does exist, but it's a directory
-    pub(crate) fn open(name: &'a str, image_fs_handle: Handle, systab: &SystemTable<Boot>) -> Result<Self, Status> {
+    pub(crate) fn open(name: &'a str, image_fs_handle: Handle) -> Result<Self, Status> {
         info!("loading file '{name}'...");
         let file_name = CString16::try_from(name)
             .map_err(|e| {
@@ -56,9 +57,7 @@ impl<'a> File<'a> {
                 .strip_suffix(':')
                 .unwrap()
                 .strip_prefix("fs") {
-                let filesystems = systab
-                    .boot_services()
-                    .find_handles::<SimpleFileSystem>()
+                let filesystems = find_handles::<SimpleFileSystem>()
                     .map_err(|e| e.status())?;
                 let fs = filesystems.into_iter().nth(
                     idx.parse::<usize>().map_err(|_| {
@@ -78,9 +77,7 @@ impl<'a> File<'a> {
         } else {
             (image_fs_handle, file_name)
         };
-        let mut fs = systab
-            .boot_services()
-            .open_protocol_exclusive::<SimpleFileSystem>(fs_handle)
+        let mut fs = open_protocol_exclusive::<SimpleFileSystem>(fs_handle)
             .map_err(|e| e.status())?;
         let file_handle = match fs.open_volume().map_err(|e| e.status())?.open(
             &file_name,
