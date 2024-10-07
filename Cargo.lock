@@ -201,9 +201,9 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
-version = "2.5.0"
+version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf4b9d6a944f767f8e5e0db018570623c85f3d925ac718db4e06d0187adb21c1"
+checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
 
 [[package]]
 name = "block-buffer"
@@ -720,7 +720,7 @@ version = "0.18.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "232e6a7bfe35766bf715e55a88b39a700596c0ccfd88cd3680b4cdb40d66ef70"
 dependencies = [
- "bitflags 2.5.0",
+ "bitflags 2.6.0",
  "libc",
  "libgit2-sys",
  "log",
@@ -750,7 +750,7 @@ version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8283e7331b8c93b9756e0cfdbcfb90312852f953c6faf9bf741e684cc3b6ad69"
 dependencies = [
- "bitflags 2.5.0",
+ "bitflags 2.6.0",
  "crc",
  "log",
  "uuid",
@@ -1022,7 +1022,7 @@ version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0ff37bd590ca25063e35af745c343cb7a0271906fb7b37e4813e8f79f00268d"
 dependencies = [
- "bitflags 2.5.0",
+ "bitflags 2.6.0",
  "libc",
 ]
 
@@ -1133,10 +1133,10 @@ dependencies = [
 [[package]]
 name = "multiboot12"
 version = "0.1.0"
-source = "git+https://github.com/YtvwlD/multiboot12?tag=towboot-0.8.1#8aa45b0d6d5b9200be3584c9784e376111afbe12"
+source = "git+https://github.com/YtvwlD/multiboot12?tag=towboot-0.9.1#1afbcd477a71eebb0075790ca729738887d639f5"
 dependencies = [
  "multiboot",
- "multiboot2 0.19.0 (git+https://github.com/YtvwlD/multiboot2?tag=towboot-0.8.1)",
+ "multiboot2 0.20.0",
  "multiboot2-header",
  "ouroboros",
  "update_cell",
@@ -1144,37 +1144,51 @@ dependencies = [
 
 [[package]]
 name = "multiboot2"
-version = "0.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be7a13d71fc2f7747af3ce60e5eccb638acd687b3a580d0bd579c6d0f7b9d010"
+version = "0.20.0"
+source = "git+https://github.com/YtvwlD/multiboot2?tag=towboot-0.9.1#6bb49bf29b82cd5a4d0a86219c10e97ac5c40394"
 dependencies = [
- "bitflags 2.5.0",
+ "bitflags 2.6.0",
  "derive_more",
  "log",
  "ptr_meta",
- "uefi-raw 0.3.0",
+ "uefi-raw 0.5.2",
 ]
 
 [[package]]
 name = "multiboot2"
-version = "0.19.0"
-source = "git+https://github.com/YtvwlD/multiboot2?tag=towboot-0.8.1#d311bdccb66b7fe258143e61ab13802132832d22"
+version = "0.22.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4d84925172438a6c1649ba809cd24b4f9a4e3aeba9ce86ab1f88ec07aecf9af"
 dependencies = [
- "bitflags 2.5.0",
+ "bitflags 2.6.0",
  "derive_more",
  "log",
+ "multiboot2-common",
  "ptr_meta",
- "uefi-raw 0.3.0",
+ "uefi-raw 0.5.2",
+]
+
+[[package]]
+name = "multiboot2-common"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "891220b5305e3e8fe8eb192147e43ba6541148a9b4cfa8e36b28afa04736c8f1"
+dependencies = [
+ "derive_more",
+ "ptr_meta",
 ]
 
 [[package]]
 name = "multiboot2-header"
-version = "0.3.2"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b297dc15376dc7eef5e1175e770d5c9ad69c262589638990527d1b12cdf5ae02"
+checksum = "bda3673e628a85ed5ee3ba660ba4679d28e812c09ca081d867444242c6ff8898"
 dependencies = [
  "derive_more",
- "multiboot2 0.19.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log",
+ "multiboot2 0.22.2",
+ "multiboot2-common",
+ "ptr_meta",
 ]
 
 [[package]]
@@ -1236,7 +1250,7 @@ version = "0.10.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95a0481286a310808298130d22dd1fef0fa571e05a8f44ec801801e84b216b1f"
 dependencies = [
- "bitflags 2.5.0",
+ "bitflags 2.6.0",
  "cfg-if",
  "foreign-types",
  "libc",
@@ -1567,7 +1581,7 @@ version = "0.38.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70dc5ec042f7a43c4a73241207cecc9873a06d45debb38b329f8541d85c2730f"
 dependencies = [
- "bitflags 2.5.0",
+ "bitflags 2.6.0",
  "errno",
  "libc",
  "linux-raw-sys",
@@ -1624,7 +1638,7 @@ version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c627723fd09706bacdb5cf41499e95098555af3c3c29d014dc3c458ef6be11c0"
 dependencies = [
- "bitflags 2.5.0",
+ "bitflags 2.6.0",
  "core-foundation 0.9.4",
  "core-foundation-sys 0.8.6",
  "libc",
@@ -2058,7 +2072,7 @@ version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "91f17ea8502a6bd414acb2bf5194f90ca4c48e33a2d18cb57eab3294d2050d99"
 dependencies = [
- "bitflags 2.5.0",
+ "bitflags 2.6.0",
  "cfg-if",
  "log",
  "ptr_meta",
@@ -2081,11 +2095,11 @@ dependencies = [
 
 [[package]]
 name = "uefi-raw"
-version = "0.3.0"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62642516099c6441a5f41b0da8486d5fc3515a0603b0fdaea67b31600e22082e"
+checksum = "efa8716f52e8cab8bcedfd5052388a0f263b69fe5cc2561548dc6a530678333c"
 dependencies = [
- "bitflags 2.5.0",
+ "bitflags 2.6.0",
  "ptr_meta",
  "uguid",
 ]
@@ -2096,7 +2110,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b463030b802e1265a3800fab24df95d3229c202c2e408832a206f05b4d1496ca"
 dependencies = [
- "bitflags 2.5.0",
+ "bitflags 2.6.0",
  "ptr_meta",
  "uguid",
 ]
