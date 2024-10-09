@@ -68,14 +68,12 @@ fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
             rsdp.revision(), rsdp.rsdt_address(),
         );
     } else {
-        unsafe {
-            info_builder.set_rsdp_v2(
-                rsdp.signature(), rsdp.checksum(),
-                rsdp.oem_id().as_bytes()[0..6].try_into().unwrap(),
-                rsdp.revision(), rsdp.rsdt_address(), rsdp.length(),
-                rsdp.xsdt_address(), rsdp.ext_checksum(),
-            );
-        }
+        info_builder.set_rsdp_v2(
+            rsdp.signature(), rsdp.checksum(),
+            rsdp.oem_id().as_bytes()[0..6].try_into().unwrap(),
+            rsdp.revision(), rsdp.rsdt_address(), rsdp.length(),
+            rsdp.xsdt_address(), rsdp.ext_checksum(),
+        );
     }
 }
 

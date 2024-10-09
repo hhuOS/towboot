@@ -18,6 +18,7 @@ use x86::{
 };
 
 use core::arch::asm;
+use core::arch::naked_asm;
 use core::ffi::c_void;
 use core::ptr::NonNull;
 use uefi::prelude::*;
@@ -588,7 +589,7 @@ impl EntryPoint {
     #[naked]
     extern "stdcall" fn jump_multiboot_common() {
         unsafe {
-            asm!(
+            naked_asm!(
                 ".code32",
                 // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
                 // > Other bits are all undefined.
@@ -618,8 +619,7 @@ impl EntryPoint {
                 // write the struct address to EBX
                 "mov ebx, esi",
                 // finally jump to the kernel
-                "jmp edi",
-                options(noreturn),
+                "jmp edi"
             );
         }
     }
