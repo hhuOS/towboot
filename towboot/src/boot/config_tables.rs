@@ -1,4 +1,6 @@
 //! Handle UEFI config tables.
+
+use alloc::collections::BTreeSet;
 use alloc::slice;
 use alloc::vec::Vec;
 
@@ -6,6 +8,7 @@ use log::{debug, warn};
 use multiboot12::information::InfoBuilder;
 use acpi::rsdp::Rsdp;
 use smbioslib::{SMBiosEntryPoint32, SMBiosEntryPoint64};
+use uefi::Guid;
 use uefi::system::with_config_table;
 use uefi::table::cfg::{
     ConfigTableEntry, ACPI_GUID, ACPI2_GUID, DEBUG_IMAGE_INFO_GUID,
@@ -13,8 +16,6 @@ use uefi::table::cfg::{
     MEMORY_STATUS_CODE_RECORD_GUID, MEMORY_TYPE_INFORMATION_GUID, SMBIOS_GUID,
     SMBIOS3_GUID,
 };
-
-static mut RSDP_V2_SET: bool = false;
 
 /// Go through all of the configuration tables.
 /// Some of them are interesting for Multiboot2.
@@ -24,8 +25,18 @@ pub(super) fn parse_for_multiboot(info_builder: &mut InfoBuilder) {
     let config_tables: Vec<ConfigTableEntry> = with_config_table(|s|
         s.iter().cloned().collect()
     );
+
     debug!("going through configuration tables...");
+    let mut handled_guids: BTreeSet<Guid> = BTreeSet::new();
     for table in config_tables {
+        // We encountered real hardware with multiple ACPI2 entries,
+        // causing a panic in the multiboot crate.
+        // As a fix, we store all already handled GUIDs in a set, which we use to skip duplicates.
+        if handled_guids.contains(&table.guid) {
+            continue;
+        }
+
+        handled_guids.insert(table.guid);
         match table.guid {
             ACPI_GUID => handle_acpi(&table, info_builder),
             ACPI2_GUID => handle_acpi(&table, info_builder),
@@ -58,15 +69,12 @@ fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
         );
     } else {
         unsafe {
-            if !RSDP_V2_SET {
-                info_builder.set_rsdp_v2(
-                    rsdp.signature(), rsdp.checksum(),
-                    rsdp.oem_id().as_bytes()[0..6].try_into().unwrap(),
-                    rsdp.revision(), rsdp.rsdt_address(), rsdp.length(),
-                    rsdp.xsdt_address(), rsdp.ext_checksum(),
-                );
-                RSDP_V2_SET = true;
-            }
+            info_builder.set_rsdp_v2(
+                rsdp.signature(), rsdp.checksum(),
+                rsdp.oem_id().as_bytes()[0..6].try_into().unwrap(),
+                rsdp.revision(), rsdp.rsdt_address(), rsdp.length(),
+                rsdp.xsdt_address(), rsdp.ext_checksum(),
+            );
         }
     }
 }
