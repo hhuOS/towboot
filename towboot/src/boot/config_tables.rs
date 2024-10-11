@@ -14,8 +14,6 @@ use uefi::table::cfg::{
     SMBIOS3_GUID,
 };
 
-static mut RSDP_V2_SET: bool = false;
-
 /// Go through all of the configuration tables.
 /// Some of them are interesting for Multiboot2.
 pub(super) fn parse_for_multiboot(info_builder: &mut InfoBuilder) {
@@ -50,24 +48,30 @@ fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
         warn!("the RSDP is invalid");
         return;
     }
-    if rsdp.revision() == 0 {
-        info_builder.set_rsdp_v1(
-            rsdp.signature(), rsdp.checksum(),
-            rsdp.oem_id().as_bytes()[0..6].try_into().unwrap(),
-            rsdp.revision(), rsdp.rsdt_address(),
-        );
-    } else {
-        unsafe {
-            if !RSDP_V2_SET {
-                info_builder.set_rsdp_v2(
-                    rsdp.signature(), rsdp.checksum(),
-                    rsdp.oem_id().as_bytes()[0..6].try_into().unwrap(),
-                    rsdp.revision(), rsdp.rsdt_address(), rsdp.length(),
-                    rsdp.xsdt_address(), rsdp.ext_checksum(),
-                );
-                RSDP_V2_SET = true;
+
+    match table.guid {
+        ACPI_GUID => {
+            if rsdp.revision() != 0 {
+                warn!("expected RSDP version 0, but got {}", rsdp.revision());
             }
+            info_builder.set_rsdp_v1(
+                rsdp.signature(), rsdp.checksum(),
+                rsdp.oem_id().as_bytes()[0..6].try_into().unwrap(),
+                rsdp.revision(), rsdp.rsdt_address(),
+            );
         }
+        ACPI2_GUID => {
+            if rsdp.revision() == 0 {
+                warn!("expected RSDP version > 0, but got {}", rsdp.revision());
+            }
+            info_builder.set_rsdp_v2(
+                rsdp.signature(), rsdp.checksum(),
+                rsdp.oem_id().as_bytes()[0..6].try_into().unwrap(),
+                rsdp.revision(), rsdp.rsdt_address(), rsdp.length(),
+                rsdp.xsdt_address(), rsdp.ext_checksum(),
+            );
+        }
+        _ => warn!("'handle_acpi()' called with wrong config table entry")
     }
 }
 
