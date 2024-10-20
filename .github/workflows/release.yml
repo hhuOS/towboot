@@ -106,5 +106,5 @@ jobs:
               with:
                 repo_token: ${{ secrets.GITHUB_TOKEN }}
                 file: target/apple-darwin/release/towbootctl
-                asset_name: towbootctl-${{ github.ref }}-macos
+                asset_name: towbootctl-${{ github.ref_name }}-macos
                 tag: ${{ github.ref }}
