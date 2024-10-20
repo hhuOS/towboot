@@ -61,8 +61,8 @@ fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
             );
         }
         ACPI2_GUID => {
-            if rsdp.revision() == 0 {
-                warn!("expected RSDP version > 0, but got {}", rsdp.revision());
+            if rsdp.revision() != 2 {
+                warn!("expected RSDP version 2, but got {}", rsdp.revision());
             }
             info_builder.set_rsdp_v2(
                 rsdp.signature(), rsdp.checksum(),
