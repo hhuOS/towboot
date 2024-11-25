@@ -26,9 +26,5 @@ scroll = { version = "0.12", default-features = false }
 
 towboot_config = { path = "../towboot_config" }
 
-# i686-unknown-uefi currently lacks float functions, see hacks.rs
-[target.'cfg(target_arch = "x86")'.dependencies]
-libm = "0.2"
-
 [build-dependencies]
 built = { version = "0.7", features = ["git2"] }
