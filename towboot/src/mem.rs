@@ -15,9 +15,8 @@ use alloc::collections::btree_set::BTreeSet;
 use alloc::vec::Vec;
 
 use uefi::prelude::*;
-use uefi::boot::{allocate_pages, free_pages, memory_map};
-use uefi::mem::memory_map::{MemoryMap, MemoryMapMut};
-use uefi::table::boot::{AllocateType, MemoryDescriptor, MemoryType};
+use uefi::boot::{AllocateType, allocate_pages, free_pages, memory_map};
+use uefi::mem::memory_map::{MemoryDescriptor, MemoryMap, MemoryMapMut, MemoryType};
 
 use log::{debug, warn, error};
 

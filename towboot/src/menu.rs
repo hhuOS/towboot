@@ -4,10 +4,9 @@ use alloc::collections::btree_map::BTreeMap;
 use alloc::string::String;
 
 use uefi::prelude::*;
-use uefi::boot::{create_event, set_timer, wait_for_event};
+use uefi::boot::{EventType, TimerTrigger, Tpl, create_event, set_timer, wait_for_event};
 use uefi::proto::console::text::{Key, ScanCode};
 use uefi::system::{with_stdin, with_stdout};
-use uefi::table::boot::{EventType, TimerTrigger, Tpl};
 
 use log::{error, warn};
 
