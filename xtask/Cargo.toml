@@ -13,6 +13,5 @@ argh = "0.1"
 log = "0.4"
 env_logger = { version = "0.11", default-features = false, features = ["auto-color"] }
 anyhow = "1.0"
-thiserror = "1.0"
 
 towbootctl = { path = "../towbootctl", features = ["args"] }
