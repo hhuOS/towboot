@@ -1,9 +1,9 @@
 #![feature(exit_status_error)]
 use std::env;
+use std::error::Error;
 use std::path::PathBuf;
 use std::process;
 
-use anyhow::Result;
 use argh::{FromArgs, from_env};
 use log::info;
 
@@ -49,7 +49,7 @@ struct Build {
 }
 
 impl Build {
-    fn r#do(self) -> Result<()> {
+    fn r#do(self) -> Result<(), Box<dyn Error>> {
         let mut cargo_command = process::Command::new("cargo");
         let mut build_command = cargo_command
             .arg("build")
@@ -88,7 +88,7 @@ impl Build {
 }
 
 /// This gets started from the command line.
-fn main() -> Result<()> {
+fn main() -> Result<(), Box<dyn Error>> {
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info");
     }

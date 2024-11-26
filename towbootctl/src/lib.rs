@@ -1,11 +1,12 @@
 //! This crate offers functionality to use towboot for your own operating system.
 #![cfg_attr(feature = "args", feature(exit_status_error))]
+use std::error::Error;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{anyhow, Result};
+use anyhow::anyhow;
 #[cfg(feature = "args")]
 use argh::FromArgs;
 use log::info;
@@ -30,7 +31,9 @@ pub const IA32_BOOT_PATH: &str = "EFI/Boot/bootia32.efi";
 pub const X64_BOOT_PATH: &str = "EFI/Boot/bootx64.efi";
 
 /// Get the source and destination paths of all files referenced in the config.
-fn get_config_files(config: &mut Config) -> Result<Vec<(PathBuf, PathBuf)>> {
+fn get_config_files(
+    config: &mut Config,
+) -> Result<Vec<(PathBuf, PathBuf)>, Box<dyn Error>> {
     let mut paths = Vec::<(PathBuf, PathBuf)>::new();
     let mut config_path = PathBuf::from(config.src.clone());
     config_path.pop();
@@ -67,7 +70,7 @@ pub fn runtime_args_to_load_options(runtime_args: &[String]) -> String {
 /// Create an image, containing a configuration file, kernels, modules and towboot.
 pub fn create_image(
     target: &Path, runtime_args: &[String], i686: Option<&Path>, x86_64: Option<&Path>,
-) -> Result<Image> {
+) -> Result<Image, Box<dyn Error>> {
     info!("calculating image size");
     let mut paths = Vec::<(PathBuf, PathBuf)>::new();
 
@@ -116,7 +119,7 @@ pub fn create_image(
 pub fn boot_image(
     firmware: Option<&Path>, image: &Path, is_x86_64: bool, use_bochs: bool,
     use_kvm: bool, use_gdb: bool,
-) -> Result<(Command, Vec<TempPath>)> {
+) -> Result<(Command, Vec<TempPath>), Box<dyn Error>> {
     info!("getting firmware");
     let firmware_path = if let Some(path) = firmware {
         assert!(path.exists());
@@ -130,7 +133,7 @@ pub fn boot_image(
     Ok(if use_bochs {
         info!("spawning Bochs");
         if use_kvm {
-            return Err(anyhow!("can't do KVM in Bochs"));
+            return Err(anyhow!("can't do KVM in Bochs").into());
         }
         let config = bochsrc(&firmware_path, image, use_gdb)?.into_temp_path();
         let mut bochs = Command::new("bochs");
@@ -194,7 +197,7 @@ pub struct BootImageCommand {
 
 #[cfg(feature = "args")]
 impl BootImageCommand {
-    pub fn r#do(&self) -> Result<()> {
+    pub fn r#do(&self) -> Result<(), Box<dyn Error>> {
         let (mut process, _temp_files) = boot_image(
             self.firmware.as_deref(), &self.image, self.x86_64, self.bochs,
             self.kvm, self.gdb,

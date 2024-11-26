@@ -1,9 +1,13 @@
 //! This crate contains integration tests.
 #![cfg(test)]
 #![feature(exit_status_error)]
-use std::{io::Write, path::{Path, PathBuf}, process::{Command, Stdio}, thread::sleep, time::Duration};
+use std::error::Error;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::thread::sleep;
+use std::time::Duration;
 
-use anyhow::Result;
 use tempfile::NamedTempFile;
 use towbootctl::{boot_image, create_image};
 
@@ -25,7 +29,7 @@ fn init() {
 /// Builds the given folder as an image and boots it.
 fn build_and_boot(
     folder: &Path, towboot_arch: Arch, machine_arch: Arch, firmware_arch: Arch,
-) -> Result<String> {
+) -> Result<String, Box<dyn Error>> {
     // get towboot
     let mut towboot_temp_ia32 = NamedTempFile::new()?;
     towboot_temp_ia32.as_file_mut().write_all(towboot_ia32::TOWBOOT)?;

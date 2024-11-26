@@ -1,20 +1,24 @@
 //! This module contains functionality to work with images.
-use std::{fs::{File, OpenOptions}, path::Path, io::{Error, Write, Read}, collections::BTreeMap};
+use std::error::Error;
+use std::collections::BTreeMap;
+use std::fs::{File, OpenOptions};
+use std::io::{Write, Read};
+use std::path::Path;
 
 use fscommon::StreamSlice;
-use gpt::{GptConfig, disk::LogicalBlockSize, partition_types, DiskDevice, mbr::ProtectiveMBR};
+use gpt::{GptConfig, disk::LogicalBlockSize, mbr::ProtectiveMBR, partition_types};
 use log::debug;
 use fatfs::{FileSystem, format_volume, FormatVolumeOptions, FsOptions};
 
 /// An image that is currently being constructed.
 pub struct Image {
-    fs: FileSystem<StreamSlice<Box<dyn DiskDevice>>>,
+    fs: FileSystem<StreamSlice<Box<File>>>,
 }
 
 impl Image {
     /// Create a new image at the given location with the given size.
     /// If the file exists already, it will be overwritten.
-    pub fn new(path: &Path, size: u64) -> Result<Self, Error> {
+    pub fn new(path: &Path, size: u64) -> Result<Self, Box<dyn Error>> {
         debug!("creating disk image");
         let mut file = Box::new(OpenOptions::new()
             .read(true)
@@ -30,7 +34,6 @@ impl Image {
         mbr.overwrite_lba0(&mut file)?;
         let mut disk = GptConfig::new()
             .writable(true)
-            .initialized(false)
             .logical_block_size(LogicalBlockSize::Lb512)
             .create_from_device(file, None)?;
         disk.update_partitions(BTreeMap::new())?;
@@ -48,7 +51,7 @@ impl Image {
     }
 
     /// Copy a file from the local filesystem to the image.
-    pub fn add_file(&mut self, source: &Path, dest: &Path) -> Result<(), Error> {
+    pub fn add_file(&mut self, source: &Path, dest: &Path) -> Result<(), Box<dyn Error>> {
         debug!("adding {} as {}", source.display(), dest.display());
         let mut source_file = File::open(source)?;
         let mut dir = self.fs.root_dir();

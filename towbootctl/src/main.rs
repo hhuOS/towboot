@@ -1,11 +1,11 @@
 //! A companion utility for towboot.
+use std::error::Error;
 use std::fs;
 use std::env;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use argh::{FromArgs, from_env};
-use anyhow::Result;
 use log::info;
 use tempfile::NamedTempFile;
 
@@ -46,7 +46,7 @@ struct ImageCommand {
 }
 
 impl ImageCommand {
-    fn r#do(&self) -> Result<()> {
+    fn r#do(&self) -> Result<(), Box<dyn Error>> {
         let mut towboot_temp_ia32 = NamedTempFile::new()?;
         towboot_temp_ia32.as_file_mut().write_all(towboot_ia32::TOWBOOT)?;
         let mut towboot_temp_x64 = NamedTempFile::new()?;
@@ -91,7 +91,7 @@ struct InstallCommand {
 }
 
 impl InstallCommand {
-    fn r#do(&self) -> Result<()> {
+    fn r#do(&self) -> Result<(), Box<dyn Error>> {
         assert!(self.esp_path.is_dir());
         let mut install_path = self.esp_path.clone();
         install_path.push("EFI");
@@ -158,7 +158,7 @@ impl InstallCommand {
 struct VersionCommand {}
 
 impl VersionCommand {
-    fn r#do(&self) -> Result<()> {
+    fn r#do(&self) -> Result<(), Box<dyn Error>> {
         println!(
             "This is {} {}{}, built as {} for {} on {}.",
             built_info::PKG_NAME,
@@ -177,7 +177,7 @@ impl VersionCommand {
 }
 
 /// This gets started from the command line.
-fn main() -> Result<()> {
+fn main() -> Result<(), Box<dyn Error>> {
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info");
     }
