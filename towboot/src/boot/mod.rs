@@ -253,7 +253,7 @@ fn prepare_multiboot_information(
         .expect("failed to get System Table")
         .as_ptr();
     let image_handle_ptr = unsafe {
-        core::mem::transmute::<_, NonNull<c_void>>(image_handle())
+        core::mem::transmute::<Handle, NonNull<c_void>>(image_handle())
     }.as_ptr();
     if cfg!(target_arch = "x86") {
         info_builder.set_system_table_ia32(Some(

@@ -136,7 +136,7 @@ impl<'a> File<'a> {
     }
 }
 
-impl<'a> TryFrom<File<'a>> for Vec<u8> {
+impl TryFrom<File<'_>> for Vec<u8> {
     type Error = Status;
     
     /// Read a whole file into memory and return the resulting byte vector.

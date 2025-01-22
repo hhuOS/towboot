@@ -255,7 +255,7 @@ pub(super) fn prepare_information(
     efi_mmap.entries().zip(mb_efi_mmap_vec.iter_mut())
         .for_each(
             |(src, dst)|
-            *dst = unsafe { core::mem::transmute(*src) }
+            *dst = unsafe { core::mem::transmute::<MemoryDescriptor, multiboot12::information::EfiMemoryDescriptor>(*src) }
         );
     
     update_memory_info(

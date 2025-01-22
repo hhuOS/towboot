@@ -122,7 +122,7 @@ impl InstallCommand {
                     } else {
                         install_path.clone()
                     };
-                    dst_path.push(&dst_file);
+                    dst_path.push(dst_file);
                     src_file.clear();
                     src_file.push_str(dst_file.to_str().unwrap());
                     fs::copy(&src_path, &dst_path)?;

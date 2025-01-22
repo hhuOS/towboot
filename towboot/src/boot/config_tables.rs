@@ -20,7 +20,7 @@ pub(super) fn parse_for_multiboot(info_builder: &mut InfoBuilder) {
     // first, copy all config table pointers
     // TODO: remove this when with_config_table takes a FnMut
     let config_tables: Vec<ConfigTableEntry> = with_config_table(|s|
-        s.iter().cloned().collect()
+        s.to_vec()
     );
     debug!("going through configuration tables...");
     for table in config_tables {
