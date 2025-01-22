@@ -21,7 +21,7 @@ enum Arch {
 #[ctor::ctor]
 fn init() {
     if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "warn");
+        unsafe { std::env::set_var("RUST_LOG", "warn"); }
     }
     env_logger::init();
 }

@@ -140,7 +140,7 @@ impl Allocation {
                 assert!(filter.next().is_none()); // there shouldn't be another matching entry
             }
             let dest: usize = a.try_into().unwrap();
-            core::ptr::copy(self.ptr.as_ptr(), dest as *mut u8, self.len);
+            unsafe { core::ptr::copy(self.ptr.as_ptr(), dest as *mut u8, self.len); }
             self.ptr = NonNull::new(a as *mut u8).unwrap();
             self.should_be_at = None;
         }
