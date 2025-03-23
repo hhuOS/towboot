@@ -8,7 +8,7 @@ repository.workspace = true
 
 [dependencies]
 anyhow = "1.0"
-ctor = "0.2"
+ctor = "0.4"
 tempfile = "3.8"
 env_logger = { version = "0.11", default-features = false, features = ["auto-color"] }
 towboot_ia32 = { path = "../towboot_ia32" }

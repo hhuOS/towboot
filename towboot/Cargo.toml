@@ -12,7 +12,7 @@ default-target = "i686-unknown-uefi"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-uefi = { version = "0.33", features = ["alloc", "global_allocator", "logger", "panic_handler"] }
+uefi = { version = "0.34", features = ["alloc", "global_allocator", "logger", "panic_handler"] }
 acpi = "5.0"
 smbios-lib = { git = "https://github.com/hhuOS/smbios-lib.git", branch = "main", default-features = false, features = ["no_std"] }
 x86 =  "0.52"
@@ -21,7 +21,7 @@ log = { version = "0.4", default-features = false }
 
 toml = { git = "https://github.com/thomcc/toml-rs.git", branch = "nostd", default-features = false }
 multiboot12 = { git = "https://github.com/YtvwlD/multiboot12", tag = "towboot-0.9.1" }
-goblin = { version = "0.8", default-features = false, features = ["elf32", "elf64", "endian_fd"] }
+goblin = { version = "0.9", default-features = false, features = ["elf32", "elf64", "endian_fd"] }
 scroll = { version = "0.12", default-features = false }
 
 towboot_config = { path = "../towboot_config" }

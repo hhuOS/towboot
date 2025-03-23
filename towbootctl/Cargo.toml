@@ -11,7 +11,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0"
 cached-path = "0.6"
-directories = "5.0"
+directories = "6"
 gpt = { version = "4.0", features = ["log"] }
 fscommon = "0.1"
 fatfs = "0.3"
