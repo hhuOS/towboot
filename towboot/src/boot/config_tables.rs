@@ -64,6 +64,16 @@ fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
             if rsdp.revision() != 2 {
                 warn!("expected RSDP version 2, but got {}", rsdp.revision());
             }
+            if rsdp.revision() == 0 {
+                // some u-boot versions do this
+                warn!("RSDP revision is 0, forcing v1");
+                info_builder.set_rsdp_v1(
+                    rsdp.signature(), rsdp.checksum(),
+                    rsdp.oem_id().as_bytes()[0..6].try_into().unwrap(),
+                    rsdp.revision(), rsdp.rsdt_address(),
+                );
+                return;
+            }
             info_builder.set_rsdp_v2(
                 rsdp.signature(), rsdp.checksum(),
                 rsdp.oem_id().as_bytes()[0..6].try_into().unwrap(),
