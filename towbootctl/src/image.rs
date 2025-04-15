@@ -26,10 +26,14 @@ impl Image {
             .create(true)
             .truncate(true)
             .open(path)?);
+        // make sure the image size is a multiple of 512
+        // gdisk warns otherwise and OVMF seems to ignore the disk in some cases
+        // also, keep a spare megabyte for the partition table and alignment
+        let size = size.next_multiple_of(512) + 1024 * 1024;
         file.set_len(size)?;
         // protective MBR
         let mbr = ProtectiveMBR::with_lb_size(
-            u32::try_from((size / 512) - 1).unwrap_or(0xFF_FF_FF_FF)
+            u32::try_from((size / 512) - 1)?
         );
         mbr.overwrite_lba0(&mut file)?;
         let mut disk = GptConfig::new()
@@ -38,7 +42,10 @@ impl Image {
             .create_from_device(file, None)?;
         disk.update_partitions(BTreeMap::new())?;
         debug!("creating partition");
-        disk.add_partition("towboot", size - 1024 * 1024, partition_types::EFI, 0, None)?;
+        // the partition needs to be slightly smaller than the disk image
+        disk.add_partition(
+            "towboot", size - 64 * 1024, partition_types::EFI, 0, None,
+        )?;
         let partitions = disk.partitions().clone();
         let (_, partition) = partitions.iter().next().unwrap();
         let file = disk.write()?;

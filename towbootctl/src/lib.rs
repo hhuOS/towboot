@@ -21,9 +21,6 @@ mod image;
 use bochs::bochsrc;
 use image::Image;
 
-/// How big the image should be
-pub const DEFAULT_IMAGE_SIZE: u64 = 50*1024*1024;
-
 /// Where to place the 32-bit EFI file
 pub const IA32_BOOT_PATH: &str = "EFI/Boot/bootia32.efi";
 
@@ -98,7 +95,7 @@ pub fn create_image(
         paths.push((PathBuf::from(src), PathBuf::from(X64_BOOT_PATH)));
     }
 
-    let mut image_size = 0x00_20_00_00;
+    let mut image_size = 0;
     for pair in paths.iter() {
         let file = OpenOptions::new()
             .read(true)
@@ -106,7 +103,11 @@ pub fn create_image(
         image_size += file.metadata()?.len();
     }
 
-    info!("creating image at {} (size: {} MiB)", target.display(), image_size / 1024 / 1024);
+    info!(
+        "creating image at {} (size: {} MiB)",
+        target.display(),
+        image_size.div_ceil(1024).div_ceil(1024),
+    );
     let mut image = Image::new(target, image_size)?;
     for pair in paths {
         image.add_file(pair.0.as_path(), pair.1.as_path())?
