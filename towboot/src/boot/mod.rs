@@ -586,41 +586,39 @@ impl EntryPoint {
     }
 
     /// This last part is common for i686 and x86_64.
-    #[naked]
+    #[unsafe(naked)]
     extern "stdcall" fn jump_multiboot_common() {
-        unsafe {
-            naked_asm!(
-                ".code32",
-                // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
-                // > Other bits are all undefined.
-                "mov ecx, cr0",
-                // disable paging (it should have been enabled)
-                "and ecx, ~(1<<31)",
-                // enable protected mode (it should have already been enabled)
-                "or ecx, 1",
-                "mov cr0, ecx",
-                
-                // The spec doesn't say anything about cr4, but let's do it anyway.
-                "mov ecx, cr4",
-                // disable PAE
-                "and ecx, ~(1<<5)",
-                "mov cr4, ecx",
-                
-                // x86_64: switch from compatibility mode to protected mode
-                // get the EFER
-                "mov ecx, 0xC0000080",
-                "rdmsr",
-                // disable long mode
-                "and eax, ~(1<<8)",
-                "wrmsr",
-                
-                // write the signature to EAX
-                "mov eax, ebp",
-                // write the struct address to EBX
-                "mov ebx, esi",
-                // finally jump to the kernel
-                "jmp edi"
-            );
-        }
+        naked_asm!(
+            ".code32",
+            // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
+            // > Other bits are all undefined.
+            "mov ecx, cr0",
+            // disable paging (it should have been enabled)
+            "and ecx, ~(1<<31)",
+            // enable protected mode (it should have already been enabled)
+            "or ecx, 1",
+            "mov cr0, ecx",
+            
+            // The spec doesn't say anything about cr4, but let's do it anyway.
+            "mov ecx, cr4",
+            // disable PAE
+            "and ecx, ~(1<<5)",
+            "mov cr4, ecx",
+            
+            // x86_64: switch from compatibility mode to protected mode
+            // get the EFER
+            "mov ecx, 0xC0000080",
+            "rdmsr",
+            // disable long mode
+            "and eax, ~(1<<8)",
+            "wrmsr",
+            
+            // write the signature to EAX
+            "mov eax, ebp",
+            // write the struct address to EBX
+            "mov ebx, esi",
+            // finally jump to the kernel
+            "jmp edi"
+        );
     }
 }

@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 #![feature(let_chains)]
-#![feature(naked_functions)]
 
 //! towboot – a bootloader for Multiboot kernels on UEFI systems
 
