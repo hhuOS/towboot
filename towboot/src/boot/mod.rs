@@ -383,7 +383,7 @@ impl<'a> PreparedEntry<'a> {
         debug!("passing signature {signature:x} to kernel...");
         let mut memory_map = if self.loaded_kernel.should_exit_boot_services {
             info!("exiting boot services...");
-            unsafe { exit_boot_services(MemoryType::LOADER_DATA) }
+            unsafe { exit_boot_services(None) }
             // now, write! won't work anymore. Also, we can't allocate any memory.
         } else {
             let memory_map = memory_map(MemoryType::LOADER_DATA).unwrap();
