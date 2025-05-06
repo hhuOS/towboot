@@ -28,7 +28,7 @@ pub fn get(load_options: &str) -> Result<Option<Config>> {
 /// Try to read and parse the configuration from the given file.
 fn read_file(file_name: &str) -> Result<Config> {
     let text = read_to_string(file_name)?;
-    let mut config: Config = toml::from_str(&text).expect("failed to parse config file");
+    let mut config: Config = toml::from_str(&text)?;
     config.src = file_name.to_string();
     Ok(config)
 }

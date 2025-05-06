@@ -134,7 +134,7 @@ impl InstallCommand {
                     install_path.clone()
                 };
                 config_path.push("towboot.toml");
-                fs::write(&config_path, toml::to_vec(&config)?)?;
+                fs::write(&config_path, toml::to_string(&config)?)?;
             } else {
                 // Exit if the options were just -help.
                 return Ok(())

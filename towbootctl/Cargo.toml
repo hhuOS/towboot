@@ -17,7 +17,7 @@ fscommon = "0.1"
 fatfs = "0.3"
 log = "0.4.4"
 tempfile = "3.8"
-toml = "0.5" # can't upgrade further as long as towboot depends on 0.4
+toml = "0.8"
 
 towboot_config = { path = "../towboot_config" }
 
