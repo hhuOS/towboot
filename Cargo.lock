@@ -2198,19 +2198,21 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.5.8"
-source = "git+https://github.com/thomcc/toml-rs.git?branch=nostd#080972fe0e937d82f5adf7f540849e5b6cbc748b"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "toml"
 version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "tomling"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32c8aacf149901ec6d6b345adb5707bb8f538cdc4077ce09e6e795e6a428da1f"
+dependencies = [
+ "serde",
+ "winnow",
 ]
 
 [[package]]
@@ -2224,7 +2226,7 @@ dependencies = [
  "multiboot12",
  "scroll",
  "smbios-lib",
- "toml 0.5.8",
+ "tomling",
  "towboot_config",
  "uefi",
  "x86",
@@ -2268,7 +2270,7 @@ dependencies = [
  "gpt",
  "log",
  "tempfile",
- "toml 0.5.11",
+ "toml",
  "towboot_config",
  "towboot_ia32",
  "towboot_x64",
@@ -2725,6 +2727,12 @@ name = "windows_x86_64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
+
+[[package]]
+name = "winnow"
+version = "0.6.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e90edd2ac1aa278a5c4599b1d89cf03074b610800f866d4026dc199d7929a28"
 
 [[package]]
 name = "winreg"

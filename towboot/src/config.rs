@@ -9,6 +9,7 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
+use log::error;
 use uefi::prelude::*;
 
 use towboot_config::{Config, ConfigSource, parse_load_options};
@@ -55,8 +56,15 @@ pub fn get(
 
 /// Try to read and parse the configuration from the given file.
 fn read_file(image_fs_handle: Handle, file_name: &str) -> Result<Config, Status> {
-    let text: Vec<u8> = File::open(file_name, image_fs_handle)?.try_into()?;
-    let mut config: Config = toml::from_slice(text.as_slice()).expect("failed to parse config file");
+    let bytes: Vec<u8> = File::open(file_name, image_fs_handle)?.try_into()?;
+    let text = str::from_utf8(&bytes).map_err(|e| {
+        error!("configuration file contains invalid bytes: {e:?}");
+        Status::UNSUPPORTED
+    })?;
+    let mut config: Config = tomling::from_str(text).map_err(|e| {
+        error!("configuration file could not be parsed: {e:?}");
+        Status::UNSUPPORTED
+    })?;
     config.src = file_name.to_string();
     Ok(config)
 }
