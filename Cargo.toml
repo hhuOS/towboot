@@ -12,7 +12,7 @@ members = [
 
 [workspace.package]
 # these apply to all crates
-version = "0.9.3"
+version = "0.9.4"
 authors = ["Niklas Sombert <niklas.sombert@uni-duesseldorf.de>"]
 license = "MPL-2.0"
 repository = "https://github.com/hhuOS/towboot"
