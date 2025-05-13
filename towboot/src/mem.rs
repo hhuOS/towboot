@@ -99,7 +99,7 @@ impl Allocation {
                     if entry.ty == MemoryType::CONVENTIONAL {
                         continue;
                     }
-                    warn!("{:x?}", entry);
+                    warn!("{entry:x?}");
                     types_in_the_way.insert(entry.ty);
                 }
                 // if the allocation is only blocked by our code or data,
@@ -173,7 +173,7 @@ impl Allocation {
     /// See the checks in [`new_at`].
     pub(crate) unsafe fn move_to_where_it_should_be(&mut self) {
         if let Some(a) = self.should_be_at {
-            debug!("trying to write {:?}...", self);
+            debug!("trying to write {self:?}...");
             // checks already happened in new_at
             let dest: usize = a.try_into().unwrap();
             unsafe {

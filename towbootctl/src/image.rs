@@ -52,7 +52,7 @@ impl Image {
         let mut part = StreamSlice::new(
             file, partition.first_lba * 512, partition.last_lba * 512,
         )?;
-        debug!("formatting {}", partition);
+        debug!("formatting {partition}");
         format_volume(&mut part, FormatVolumeOptions::new())?;
         Ok(Self { fs: FileSystem::new(part, FsOptions::new())? })
     }

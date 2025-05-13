@@ -448,7 +448,7 @@ impl EntryPoint {
     /// Jump to the loaded kernel, UEFI-style, eg. just passing the information.
     /// This requires everything else to be ready and won't return.
     fn jump_uefi(self, entry_address: usize, signature: u32, info: Vec<u8>) -> ! {
-        debug!("jumping to 0x{:x}", entry_address);
+        debug!("jumping to 0x{entry_address:x}");
         unsafe {
             // TODO: The spec mentions 32 bit registers, even on 64 bit.
             // Do we need to zero the beginning?
@@ -468,9 +468,7 @@ impl EntryPoint {
     /// i686-specific part of the Multiboot machine state.
     #[cfg(target_arch = "x86")]
     fn jump_multiboot(self, entry_address: usize, signature: u32, info: Vec<u8>) -> ! {
-        debug!(
-            "preparing machine state and jumping to 0x{:x}", entry_address,
-        );
+        debug!("preparing machine state and jumping to 0x{entry_address:x}");
 
         // 3.2 Machine state says:
         // > ‘EFLAGS’: Bit 17 (VM) must be cleared. Bit 9 (IF) must be cleared.
@@ -509,9 +507,7 @@ impl EntryPoint {
     /// x86_64-specific part of the Multiboot machine state.
     #[cfg(target_arch = "x86_64")]
     fn jump_multiboot(self, entry_address: usize, signature: u32, info: Vec<u8>) -> ! {
-        debug!(
-            "preparing machine state and jumping to 0x{:x}", entry_address,
-        );
+        debug!("preparing machine state and jumping to 0x{entry_address:x}");
 
         // 3.2 Machine state says:
         // > ‘EFLAGS’: Bit 17 (VM) must be cleared. Bit 9 (IF) must be cleared.
