@@ -61,7 +61,7 @@ fn read_file(image_fs_handle: Handle, file_name: &str) -> Result<Config, Status>
         error!("configuration file contains invalid bytes: {e:?}");
         Status::UNSUPPORTED
     })?;
-    let mut config: Config = tomling::from_str(text).map_err(|e| {
+    let mut config: Config = toml::from_str(text).map_err(|e| {
         error!("configuration file could not be parsed: {e:?}");
         Status::UNSUPPORTED
     })?;

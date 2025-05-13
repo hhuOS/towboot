@@ -19,7 +19,8 @@ x86 =  "0.52"
 
 log = { version = "0.4", default-features = false }
 
-tomling = { version = "0.2", default-features = false, features = ["serde"] }
+# tomling is a nice and no_std toml parser, but sadly it fails on our modules :/
+toml = { git = "https://github.com/thomcc/toml-rs.git", branch = "nostd", default-features = false }
 multiboot12 = { git = "https://github.com/YtvwlD/multiboot12", tag = "towboot-0.9.1" }
 goblin = { version = "0.9", default-features = false, features = ["elf32", "elf64", "endian_fd"] }
 scroll = { version = "0.12", default-features = false }
