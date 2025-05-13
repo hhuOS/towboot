@@ -1,6 +1,7 @@
 //! Handling of ELF files
 
 use alloc::collections::btree_map::BTreeMap;
+use alloc::collections::btree_set::BTreeSet;
 use alloc::vec::Vec;
 
 use log::{trace, debug, warn};
@@ -11,6 +12,7 @@ use scroll::ctx::IntoCtx;
 
 use multiboot12::header::Header;
 use multiboot12::information::Symbols;
+use towboot_config::Quirk;
 
 use super::super::mem::Allocation;
 
@@ -35,10 +37,15 @@ impl OurElfLoader {
     }
     
     /// Load an ELF.
-    pub(super) fn load_elf(&mut self, binary: &elf::Elf, data: &[u8]) -> Result<(), &'static str> {
+    pub(super) fn load_elf(
+        &mut self,
+        binary: &elf::Elf,
+        data: &[u8],
+        quirks: &BTreeSet<Quirk>,
+    ) -> Result<(), &'static str> {
         for program_header in &binary.program_headers {
             if program_header.p_type == elf::program_header::PT_LOAD {
-                self.allocate(program_header)?;
+                self.allocate(program_header, quirks)?;
                 self.load(program_header.p_vaddr, &data[program_header.file_range()])?;
             }
         }
@@ -59,30 +66,39 @@ impl OurElfLoader {
     }
     
     /// Allocate memory for a segment.
-    fn allocate(&mut self, header: &elf::program_header::ProgramHeader) -> Result<(), &'static str> {
-            trace!("header: {header:?}");
-            debug!(
-                "allocating {} {} bytes at {:#x} for {:#x}",
-                header.p_memsz, header.p_flags, header.p_paddr, header.p_vaddr
+    fn allocate(
+        &mut self,
+        header: &elf::program_header::ProgramHeader,
+        quirks: &BTreeSet<Quirk>,
+    ) -> Result<(), &'static str> {
+        trace!("header: {header:?}");
+        debug!(
+            "allocating {} {} bytes at {:#x} for {:#x}",
+            header.p_memsz, header.p_flags, header.p_paddr, header.p_vaddr
+        );
+        let mut allocation = Allocation::new_at(
+            header.p_paddr.try_into().unwrap(),
+            header.p_memsz.try_into().unwrap(),
+            quirks,
+        )
+        .map_err(|_e| "failed to allocate memory for the kernel")?;
+        let mem_slice = allocation.as_mut_slice();
+        mem_slice.fill(0);
+        self.allocations.insert(header.p_vaddr, allocation);
+        if header.p_vaddr <= self.virtual_entry_point
+            && header.p_vaddr + header.p_memsz >= self.virtual_entry_point
+        {
+            self.physical_entry_point = Some(
+                (header.p_paddr + self.virtual_entry_point - header.p_vaddr)
+                    .try_into()
+                    .unwrap(),
             );
-            let mut allocation = Allocation::new_at(
-                header.p_paddr.try_into().unwrap(),
-                header.p_memsz.try_into().unwrap(),
-            ).map_err(|_e| "failed to allocate memory for the kernel")?;
-            let mem_slice = allocation.as_mut_slice();
-            mem_slice.fill(0);
-            self.allocations.insert(header.p_vaddr, allocation);
-            if header.p_vaddr <= self.virtual_entry_point
-            && header.p_vaddr + header.p_memsz >= self.virtual_entry_point {
-                self.physical_entry_point = Some(
-                    (header.p_paddr + self.virtual_entry_point - header.p_vaddr)
-                    .try_into().unwrap()
-                );
-                debug!(
-                    "(this segment will contain the entry point {:#x} at {:#x})",
-                    self.virtual_entry_point, self.physical_entry_point.unwrap(),
-                );
-            }
+            debug!(
+                "(this segment will contain the entry point {:#x} at {:#x})",
+                self.virtual_entry_point,
+                self.physical_entry_point.unwrap(),
+            );
+        }
         Ok(())
     }
     

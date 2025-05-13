@@ -16,7 +16,9 @@ use alloc::vec::Vec;
 
 use uefi::prelude::*;
 use uefi::boot::{AllocateType, allocate_pages, free_pages, memory_map};
-use uefi::mem::memory_map::{MemoryDescriptor, MemoryMap, MemoryMapMut, MemoryType};
+use uefi::mem::memory_map::{
+    MemoryDescriptor, MemoryMap, MemoryMapMut, MemoryMapOwned, MemoryType
+};
 
 use log::{debug, warn, error};
 
@@ -57,25 +59,69 @@ impl Allocation {
     /// it will print a warning and allocate it somewhere else instead.
     /// You can move the allocated memory later to the correct address by calling
     /// [`move_to_where_it_should_be`], but please keep its safety implications in mind.
+    /// This only works for our code and data by default, but this can be
+    /// overridden with the ForceOverwrite quirk.
     ///
     /// [`move_to_where_it_should_be`]: struct.Allocation.html#method.move_to_where_it_should_be
-    pub(crate) fn new_at(address: usize, size: usize) -> Result<Self, Status>{
+    pub(crate) fn new_at(
+        address: usize,
+        size: usize,
+        quirks: &BTreeSet<Quirk>,
+    ) -> Result<Self, Status>{
         let count_pages = Self::calculate_page_count(size);
         match allocate_pages(
             AllocateType::Address(address.try_into().unwrap()),
             MemoryType::LOADER_DATA,
-            count_pages
+            count_pages,
         ) {
-            Ok(ptr) => Ok(Allocation { ptr, len: size, pages: count_pages, should_be_at: None }),
+            Ok(ptr) => Ok(Allocation {
+                ptr,
+                len: size,
+                pages: count_pages,
+                should_be_at: None,
+            }),
             Err(e) => {
-                warn!("failed to allocate {size} bytes of memory at {address:x}: {e:?}");
-                dump_memory_map();
-                warn!("going to allocate it somewhere else and try to move it later");
-                warn!("this might fail without notice");
-                Self::new_under_4gb(size, &BTreeSet::default()).map(|mut allocation| {
-                    allocation.should_be_at = Some(address.try_into().unwrap());
-                    allocation
-                })
+                warn!("failed to allocate 0x{size:x} bytes of memory at 0x{address:x}: {e:?}");
+                // find out why that part of memory is occupied
+                let memory_map = get_memory_map();
+                let mut types_in_the_way = BTreeSet::new();
+                warn!("the following sections are in the way:");
+                for entry in memory_map.entries() {
+                    // if it's after the space we need, ignore it
+                    if entry.phys_start > (address + size).try_into().unwrap() {
+                        continue;
+                    }
+                    // if it's before the space we need, ignore it
+                    if entry.phys_start + entry.page_count * 4096 < address.try_into().unwrap() {
+                        continue;
+                    }
+                    // if it's empty, ignore it
+                    if entry.ty == MemoryType::CONVENTIONAL {
+                        continue;
+                    }
+                    warn!("{:x?}", entry);
+                    types_in_the_way.insert(entry.ty);
+                }
+                // if the allocation is only blocked by our code or data,
+                // allocate it somewhere else and move later
+                // TODO: or by Boot Services, but we'll have to determine if
+                // we're going to exit them
+                types_in_the_way.remove(&MemoryType::LOADER_CODE);
+                types_in_the_way.remove(&MemoryType::LOADER_DATA);
+                if types_in_the_way.is_empty() || quirks.contains(&Quirk::ForceOverwrite) {
+                    warn!("going to allocate it somewhere else and try to move it later");
+                    warn!("this might fail without notice");
+                    Self::new_under_4gb(size, &BTreeSet::default()).map(|mut allocation| {
+                        allocation.should_be_at = Some(address.try_into().unwrap());
+                        allocation
+                    })
+                } else {
+                    error!("Cannot allocate memory for the kernel, it might be too big.");
+                    warn!(
+                        "If you're in a virtual machine, you could try passing the ForceOverwrite quirk."
+                    );
+                    Err(Status::LOAD_ERROR)
+                }
             }
         }
     }
@@ -96,7 +142,7 @@ impl Allocation {
             )
             .map_err(|e| {
                 error!("failed to allocate {size} bytes of memory: {e:?}");
-                dump_memory_map();
+                get_memory_map();
                 Status::LOAD_ERROR
             })?;
         Ok(Allocation { ptr, len:size, pages: count_pages, should_be_at: None })
@@ -120,42 +166,36 @@ impl Allocation {
     
     /// Move to the desired location.
     ///
-    /// This is unsafe: In the worst case we could overwrite ourselves, our variables,
-    /// the Multiboot info struct or anything referenced therein.
-    pub(crate) unsafe fn move_to_where_it_should_be(
-        &mut self, memory_map: &[multiboot12::information::MemoryEntry],
-        quirks: &BTreeSet<Quirk>,
-    ) {
+    /// This is unsafe: In the worst case we could overwrite ourselves, our
+    /// variables, firmware code, firmware data, ACPI memory, the Multiboot info
+    /// struct or anything referenced therein.
+    /// 
+    /// See the checks in [`new_at`].
+    pub(crate) unsafe fn move_to_where_it_should_be(&mut self) {
         if let Some(a) = self.should_be_at {
             debug!("trying to write {:?}...", self);
-            let mut filter = memory_map.iter().filter(|e|
-                e.base_address() <= a
-                && e.base_address() + e.length() >= a + self.len as u64
-            );
-            if !quirks.contains(&Quirk::ForceOverwrite) {
-                let entry = filter.next().expect("the memory map to contain the place we want to write to");
-                if entry.memory_type() != multiboot12::information::MemoryType::Available {
-                    panic!("would overwrite {entry:?}; specify the ForceOverwrite quirk if you really want to do this");
-                }
-                assert!(filter.next().is_none()); // there shouldn't be another matching entry
-            }
+            // checks already happened in new_at
             let dest: usize = a.try_into().unwrap();
-            unsafe { core::ptr::copy(self.ptr.as_ptr(), dest as *mut u8, self.len); }
+            unsafe {
+                core::ptr::copy(self.ptr.as_ptr(), dest as *mut u8, self.len);
+            }
             self.ptr = NonNull::new(a as *mut u8).unwrap();
             self.should_be_at = None;
         }
     }
 }
 
-/// Show the current memory map.
-fn dump_memory_map() {
+/// Get the current memory map.
+/// 
+/// If the log level is set to debug, the memory map is also logged.
+fn get_memory_map() -> MemoryMapOwned {
     debug!("memory map:");
-    let mut memory_map = memory_map(MemoryType::LOADER_DATA)
-        .expect("failed to get memory map");
+    let mut memory_map = memory_map(MemoryType::LOADER_DATA).expect("failed to get memory map");
     memory_map.sort();
     for descriptor in memory_map.entries() {
-        debug!("{descriptor:?}");
+        debug!("{descriptor:x?}");
     }
+    memory_map
 }
 
 

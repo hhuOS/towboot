@@ -85,7 +85,9 @@ impl LoadedKernel {
             kernel_vec.len().try_into().unwrap()
         ).try_into().unwrap();
         let mut allocation = Allocation::new_at(
-            addresses.load_addr().try_into().unwrap(), kernel_length
+            addresses.load_addr().try_into().unwrap(),
+            kernel_length,
+            quirks,
         )?;
         let kernel_buf = allocation.as_mut_slice();
         // copy from beginning of text to end of data segment and fill the rest with zeroes
@@ -124,10 +126,12 @@ impl LoadedKernel {
             Status::LOAD_ERROR
         })?;
         let mut loader = OurElfLoader::new(binary.entry);
-        loader.load_elf(&binary, kernel_vec.as_slice()).map_err(|msg| {
-            error!("failed to load kernel: {msg}");
-            Status::LOAD_ERROR
-        })?;
+        loader
+            .load_elf(&binary, kernel_vec.as_slice(), quirks)
+            .map_err(|msg| {
+                error!("failed to load kernel: {msg}");
+                Status::LOAD_ERROR
+            })?;
         let symbols = Some(elf::symbols(header, &mut binary, kernel_vec.as_slice()));
         let entry_point = get_kernel_uefi_entry(header, quirks)
             .or(header.get_entry_address().map(
@@ -401,9 +405,7 @@ impl<'a> PreparedEntry<'a> {
             // It could be possible that we failed to allocate memory for the kernel in the correct
             // place before. Just copy it now to where is belongs.
             // This is *really* unsafe, please see the documentation comment for details.
-            unsafe { allocation.move_to_where_it_should_be(
-                &mb_mmap_vec, &self.entry.quirks,
-            ) };
+            unsafe { allocation.move_to_where_it_should_be() };
         }
         // The kernel will need its code and data, so make sure it stays around indefinitely.
         core::mem::forget(self.loaded_kernel.allocations);
