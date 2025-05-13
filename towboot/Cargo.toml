@@ -27,4 +27,4 @@ scroll = { version = "0.12", default-features = false }
 towboot_config = { path = "../towboot_config" }
 
 [build-dependencies]
-built = { version = "0.7", features = ["git2"] }
+built = { version = "0.8", features = ["git2"] }
