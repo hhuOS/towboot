@@ -16,3 +16,9 @@ version = "0.9.4"
 authors = ["Niklas Sombert <niklas.sombert@uni-duesseldorf.de>"]
 license = "MPL-2.0"
 repository = "https://github.com/hhuOS/towboot"
+
+[profile.release]
+# these settings are only really interesting for towbootctl,
+# but lto can't be set for just one crate
+strip = true
+lto = true
