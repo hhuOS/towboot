@@ -585,7 +585,7 @@ impl EntryPoint {
 
     /// This last part is common for i686 and x86_64.
     #[unsafe(naked)]
-    extern "stdcall" fn jump_multiboot_common() {
+    extern "C" fn jump_multiboot_common() {
         naked_asm!(
             ".code32",
             // > ‘CR0’ Bit 31 (PG) must be cleared. Bit 0 (PE) must be set.
