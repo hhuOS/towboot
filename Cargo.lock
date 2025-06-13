@@ -9,7 +9,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94476c7ef97af4c4d998b3f422c1b01d5211aad57c80ed200baf148d1f1efab6"
 dependencies = [
  "bit_field",
- "bitflags 2.9.0",
+ "bitflags 2.9.1",
  "log",
 ]
 
@@ -204,9 +204,9 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
-version = "2.9.0"
+version = "2.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c8214115b7bf84099f1309324e63141d4c5d7cc26862f97a0a857dbefe165bd"
+checksum = "1b8e56985ec62d17e9c1001dc89c88ecd7dc08e47eba5ec7c29c7b5eeecde967"
 
 [[package]]
 name = "block-buffer"
@@ -459,13 +459,23 @@ dependencies = [
 
 [[package]]
 name = "derive_more"
-version = "0.99.20"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6edb4b64a43d977b8e99788fe3a04d483834fba1215a7e02caa415b626497f7f"
+checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
+dependencies = [
+ "derive_more-impl",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.101",
+ "unicode-xid",
 ]
 
 [[package]]
@@ -760,7 +770,7 @@ version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2deb07a133b1520dc1a5690e9bd08950108873d7ed5de38dcc74d3b5ebffa110"
 dependencies = [
- "bitflags 2.9.0",
+ "bitflags 2.9.1",
  "libc",
  "libgit2-sys",
  "log",
@@ -790,7 +800,7 @@ version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3696fafb1ecdcc2ae3ce337de73e9202806068594b77d22fdf2f3573c5ec2219"
 dependencies = [
- "bitflags 2.9.0",
+ "bitflags 2.9.1",
  "crc",
  "log",
  "simple-bytes",
@@ -1148,7 +1158,7 @@ version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0ff37bd590ca25063e35af745c343cb7a0271906fb7b37e4813e8f79f00268d"
 dependencies = [
- "bitflags 2.9.0",
+ "bitflags 2.9.1",
  "libc",
  "redox_syscall",
 ]
@@ -1266,10 +1276,10 @@ dependencies = [
 [[package]]
 name = "multiboot12"
 version = "0.1.0"
-source = "git+https://github.com/YtvwlD/multiboot12?tag=towboot-0.9.1#1afbcd477a71eebb0075790ca729738887d639f5"
+source = "git+https://github.com/YtvwlD/multiboot12?tag=towboot-0.9.5#9e25962b16b25c21beab474658488f76459338b1"
 dependencies = [
  "multiboot",
- "multiboot2 0.20.0",
+ "multiboot2 0.20.2",
  "multiboot2-header",
  "ouroboros",
  "update_cell",
@@ -1277,10 +1287,10 @@ dependencies = [
 
 [[package]]
 name = "multiboot2"
-version = "0.20.0"
-source = "git+https://github.com/YtvwlD/multiboot2?tag=towboot-0.9.1#6bb49bf29b82cd5a4d0a86219c10e97ac5c40394"
+version = "0.20.2"
+source = "git+https://github.com/YtvwlD/multiboot2?tag=towboot-0.9.5#f744a0a0bce2ef80de28b48b47d68098b18fc0c9"
 dependencies = [
- "bitflags 2.9.0",
+ "bitflags 2.9.1",
  "derive_more",
  "log",
  "ptr_meta 0.2.0",
@@ -1289,39 +1299,39 @@ dependencies = [
 
 [[package]]
 name = "multiboot2"
-version = "0.22.2"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4d84925172438a6c1649ba809cd24b4f9a4e3aeba9ce86ab1f88ec07aecf9af"
+checksum = "2011496ba8bbd4e64dcfdd66a867e666a39b2ec49b57042afea2bd32e00962d6"
 dependencies = [
- "bitflags 2.9.0",
- "derive_more",
+ "bitflags 2.9.1",
  "log",
  "multiboot2-common",
- "ptr_meta 0.2.0",
- "uefi-raw 0.5.2",
+ "ptr_meta 0.3.0",
+ "thiserror 2.0.12",
+ "uefi-raw 0.8.0",
 ]
 
 [[package]]
 name = "multiboot2-common"
-version = "0.1.2"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "891220b5305e3e8fe8eb192147e43ba6541148a9b4cfa8e36b28afa04736c8f1"
+checksum = "6892f2795001adb0f6e4c124de90b68f9edc4bf52b8d81b14dac45cb361f1cca"
 dependencies = [
- "derive_more",
- "ptr_meta 0.2.0",
+ "ptr_meta 0.3.0",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
 name = "multiboot2-header"
-version = "0.5.1"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bda3673e628a85ed5ee3ba660ba4679d28e812c09ca081d867444242c6ff8898"
+checksum = "a0986ac90d9ecb9e241ada73a0b5da22c92e200161f015b4c40c461874912730"
 dependencies = [
- "derive_more",
  "log",
- "multiboot2 0.22.2",
+ "multiboot2 0.24.0",
  "multiboot2-common",
- "ptr_meta 0.2.0",
+ "ptr_meta 0.3.0",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -1383,7 +1393,7 @@ version = "0.10.72"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fedfea7d58a1f73118430a55da6a286e7b044961736ce96a16a17068ea25e5da"
 dependencies = [
- "bitflags 2.9.0",
+ "bitflags 2.9.1",
  "cfg-if",
  "foreign-types",
  "libc",
@@ -1656,7 +1666,7 @@ version = "0.5.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "928fca9cf2aa042393a8325b9ead81d2f0df4cb12e1e24cef072922ccd99c5af"
 dependencies = [
- "bitflags 2.9.0",
+ "bitflags 2.9.1",
 ]
 
 [[package]]
@@ -1757,7 +1767,7 @@ version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c71e83d6afe7ff64890ec6b71d6a69bb8a610ab78ce364b3352876bb4c801266"
 dependencies = [
- "bitflags 2.9.0",
+ "bitflags 2.9.1",
  "errno",
  "libc",
  "linux-raw-sys",
@@ -1820,7 +1830,7 @@ version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "897b2245f0b511c87893af39b033e5ca9cce68824c4d7e7630b5a1d339658d02"
 dependencies = [
- "bitflags 2.9.0",
+ "bitflags 2.9.1",
  "core-foundation 0.9.4",
  "core-foundation-sys 0.8.7",
  "libc",
@@ -2346,7 +2356,7 @@ version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da7569ceafb898907ff764629bac90ac24ba4203c38c33ef79ee88c74aa35b11"
 dependencies = [
- "bitflags 2.9.0",
+ "bitflags 2.9.1",
  "cfg-if",
  "log",
  "ptr_meta 0.3.0",
@@ -2373,7 +2383,18 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "efa8716f52e8cab8bcedfd5052388a0f263b69fe5cc2561548dc6a530678333c"
 dependencies = [
- "bitflags 2.9.0",
+ "bitflags 2.9.1",
+ "ptr_meta 0.2.0",
+ "uguid",
+]
+
+[[package]]
+name = "uefi-raw"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b463030b802e1265a3800fab24df95d3229c202c2e408832a206f05b4d1496ca"
+dependencies = [
+ "bitflags 2.9.1",
  "ptr_meta 0.2.0",
  "uguid",
 ]
@@ -2384,7 +2405,7 @@ version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7cad96b8baaf1615d3fdd0f03d04a0b487d857c1b51b19dcbfe05e2e3c447b78"
 dependencies = [
- "bitflags 2.9.0",
+ "bitflags 2.9.1",
  "uguid",
 ]
 
@@ -2399,6 +2420,12 @@ name = "unicode-ident"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a5f39404a5da50712a4c1eecf25e90dd62b613502b7e925fd4e4d19b5c96512"
+
+[[package]]
+name = "unicode-xid"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
 name = "update_cell"
@@ -2809,7 +2836,7 @@ version = "0.39.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f42320e61fe2cfd34354ecb597f86f413484a798ba44a8ca1165c58d42da6c1"
 dependencies = [
- "bitflags 2.9.0",
+ "bitflags 2.9.1",
 ]
 
 [[package]]
