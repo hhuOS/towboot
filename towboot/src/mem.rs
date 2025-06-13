@@ -31,7 +31,11 @@ pub(super) const PAGE_SIZE: usize = 4096;
 /// Tracks our own allocations.
 #[derive(Debug)]
 pub(super) struct Allocation {
+    /// the actual start of the allocation; this will be the beginning of a page
     ptr: NonNull<u8>,
+    /// how far into the page the allocation starts
+    offset: usize,
+    /// the length that was requested
     pub len: usize,
     pages: usize,
     /// the address of memory where it should have been allocated
@@ -68,14 +72,20 @@ impl Allocation {
         size: usize,
         quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status>{
-        let count_pages = Self::calculate_page_count(size);
+        let page_offset = address % PAGE_SIZE;
+        if page_offset != 0 {
+            debug!("wasting {page_offset} bytes because the allocation is not page-aligned");
+        }
+        let page_start = address - page_offset;
+        let count_pages = (size + page_offset).div_ceil(PAGE_SIZE);
         match allocate_pages(
-            AllocateType::Address(address.try_into().unwrap()),
+            AllocateType::Address(page_start.try_into().unwrap()),
             MemoryType::LOADER_DATA,
             count_pages,
         ) {
             Ok(ptr) => Ok(Allocation {
                 ptr,
+                offset: page_offset,
                 len: size,
                 pages: count_pages,
                 should_be_at: None,
@@ -130,7 +140,7 @@ impl Allocation {
     ///
     /// Note: This will round up to whole pages.
     pub(crate) fn new_under_4gb(size: usize, quirks: &BTreeSet<Quirk>) -> Result<Self, Status> {
-        let count_pages = Self::calculate_page_count(size);
+        let count_pages = size.div_ceil(PAGE_SIZE);
         let ptr = allocate_pages(
                 AllocateType::MaxAddress(if quirks.contains(&Quirk::ModulesBelow200Mb) {
                     200 * 1024 * 1024
@@ -145,23 +155,23 @@ impl Allocation {
                 get_memory_map();
                 Status::LOAD_ERROR
             })?;
-        Ok(Allocation { ptr, len:size, pages: count_pages, should_be_at: None })
-    }
-    
-    /// Calculate how many pages to allocate for the given amount of bytes.
-    const fn calculate_page_count(size: usize) -> usize {
-        (size / PAGE_SIZE) // full pages
-        + if (size % PAGE_SIZE) == 0 { 0 } else { 1 } // perhaps one page more
+        Ok(Allocation {
+            ptr, offset: 0, len: size, pages: count_pages, should_be_at: None,
+        })
     }
     
     /// Return a slice that references the associated memory.
     pub(crate) fn as_mut_slice(&mut self) -> &mut [u8] {
-        unsafe { core::slice::from_raw_parts_mut(self.ptr.as_ptr(), self.pages * PAGE_SIZE) }
+        unsafe { core::slice::from_raw_parts_mut(
+            self.ptr.as_ptr().add(self.offset),
+            self.len,
+        ) }
     }
     
     /// Get the pointer inside.
     pub(crate) fn as_ptr(&self) -> *const u8 {
-        self.ptr.as_ptr()
+        assert!(self.offset < self.len);
+        unsafe { self.ptr.as_ptr().add(self.offset) }
     }
     
     /// Move to the desired location.
@@ -177,9 +187,15 @@ impl Allocation {
             // checks already happened in new_at
             let dest: usize = a.try_into().unwrap();
             unsafe {
-                core::ptr::copy(self.ptr.as_ptr(), dest as *mut u8, self.len);
+                core::ptr::copy(
+                    self.ptr.as_ptr().add(self.offset),
+                    dest as *mut u8,
+                    self.len,
+                );
             }
-            self.ptr = NonNull::new(a as *mut u8).unwrap();
+            self.ptr = unsafe {
+                NonNull::new(a as *mut u8).unwrap().sub(self.offset)
+            };
             self.should_be_at = None;
         }
     }
