@@ -296,8 +296,13 @@ pub(super) fn prepare_information(
     // Upper memory is the part of the memory from 1 MB to the next memory hole
     // (usually a few megabytes).
     let lower = 640; // If we had less than 640KB, we wouldn't fit into memory.
-    let upper = mb_mmap_vec.iter().find(|e| e.base_address() == 1024 * 1024)
-    .unwrap().length() / 1024;
+    let upper = mb_mmap_vec
+        .iter()
+        // find the area starting at 1MB and get its length
+        .find(|e| e.base_address() == 1024 * 1024)
+        .map(|e| e.length())
+        // if there is none, it's 0KB
+        .unwrap_or(0) / 1024;
 
     // When updating either uefi.rs or multiboot2, make sure that the types
     // still match.
