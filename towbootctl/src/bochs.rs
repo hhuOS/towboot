@@ -36,7 +36,7 @@ keyboard: type=mf, serial_delay=250, paste_delay=100000, user_shortcut=none
 mouse: type=ps2, enabled=0, toggle=ctrl+mbutton
 speaker: enabled=1, mode=sound
 parport1: enabled=1, file=none
-com1: enabled=1, mode=null
+com1: enabled=1, mode=file, dev=serial.out
 ")?;
     if gdb {
         writeln!(file.as_file_mut(), "gdbstub: enabled=1, port=1234, text_base=0, data_base=0, bss_base=0")?;

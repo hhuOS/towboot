@@ -126,3 +126,4 @@ target/
 image.img
 part.img
 OVMF.fd
+serial.out
