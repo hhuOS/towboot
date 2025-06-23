@@ -2,10 +2,10 @@
 use alloc::slice;
 use alloc::vec::Vec;
 
-use log::{debug, warn};
+use log::{debug, warn, error};
 use multiboot12::information::InfoBuilder;
 use acpi::rsdp::Rsdp;
-use smbioslib::{SMBiosEntryPoint32, SMBiosEntryPoint64};
+use dmidecode::EntryPoint;
 use uefi::system::with_config_table;
 use uefi::table::cfg::{
     ConfigTableEntry, ACPI_GUID, ACPI2_GUID, DEBUG_IMAGE_INFO_GUID,
@@ -81,53 +81,9 @@ fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
                 rsdp.xsdt_address(), rsdp.ext_checksum(),
             );
         }
-        _ => warn!("'handle_acpi()' called with wrong config table entry")
+        _ => panic!("'handle_acpi()' called with wrong config table entry")
     }
 }
-
-/// The entry point for SMBIOS.
-enum EntryPoint {
-    SMBIOS2(SMBiosEntryPoint32),
-    SMBIOS3(SMBiosEntryPoint64),
-}
-
-impl EntryPoint {
-    fn major_version(&self) -> u8 {
-        match self {
-            Self::SMBIOS2(e) => e.major_version(),
-            Self::SMBIOS3(e) => e.major_version(),
-        }
-    }
-
-    fn minor_version(&self) -> u8 {
-        match self {
-            Self::SMBIOS2(e) => e.minor_version(),
-            Self::SMBIOS3(e) => e.minor_version(),
-        }
-    }
-
-    fn entry_point_length(&self) -> u8 {
-        match self {
-            Self::SMBIOS2(e) => e.entry_point_length(),
-            Self::SMBIOS3(e) => e.entry_point_length(),
-        }
-    }
-
-    fn structure_table_address(&self) -> u64 {
-        match self {
-            Self::SMBIOS2(e) => e.structure_table_address().into(),
-            Self::SMBIOS3(e) => e.structure_table_address(),
-        }
-    }
-
-    fn structure_table_length(&self) -> u32 {
-        match self {
-            Self::SMBIOS2(e) => e.structure_table_length().into(),
-            Self::SMBIOS3(e) => e.structure_table_maximum_size(),
-        }
-    }
-}
-
 
 /// Copy the SMBIOS tables.
 /// This is a copy of the Entry Point and the Structure Table.
@@ -135,31 +91,33 @@ impl EntryPoint {
 fn handle_smbios(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
     debug!("handling SMBIOS table");
     let bigger_slice = unsafe { slice::from_raw_parts(
-        table.address as *const u8, 100 + match table.guid {
-            SMBIOS_GUID => SMBiosEntryPoint32::MINIMUM_SIZE,
-            SMBIOS3_GUID => SMBiosEntryPoint64::MINIMUM_SIZE,
-            guid => panic!("{guid} is not a SMBIOS table"),
-        }
+        table.address as *const u8, 128,
     ) };
-    let entry_point = match table.guid {
-        SMBIOS_GUID => EntryPoint::SMBIOS2(
-            SMBiosEntryPoint32::try_scan_from_raw(bigger_slice)
-            .expect("the 32 bit SMBIOS table to be parseable")
-        ),
-        SMBIOS3_GUID => EntryPoint::SMBIOS3(
-            SMBiosEntryPoint64::try_scan_from_raw(bigger_slice)
-            .expect("the 64 bit SMBIOS table to be parseable")
-        ),
-        guid => panic!("{guid} is not a SMBIOS table"),
-    };
-    let mut bytes = bigger_slice[0..entry_point.entry_point_length().into()].to_vec();
-    // TODO: replace structure_table_address afterwards
-    let structure_table_address: usize = entry_point.structure_table_address().try_into().unwrap();
-    bytes.extend_from_slice(unsafe { slice::from_raw_parts(
-        structure_table_address as *const u8,
-        entry_point.structure_table_length().try_into().unwrap(),
-    ) });
-    info_builder.add_smbios_tag(
-        entry_point.major_version(), entry_point.minor_version(), bytes.as_slice(),
-    );
+    match EntryPoint::search(bigger_slice) {
+        Ok(entry_point) => {
+            let version = entry_point.to_version();
+            let should_be_version = match table.guid {
+                SMBIOS_GUID => 2,
+                SMBIOS3_GUID => 3,
+                _ => panic!("'handle_smbios()' called with wrong config table entry")
+            };
+            if version.major != should_be_version {
+                warn!(
+                    "expected SMBIOS entry point version {}, but got {}",
+                    should_be_version, version.major,
+                );
+            }
+            let mut bytes = bigger_slice[0..entry_point.len().into()].to_vec();
+            // TODO: replace structure_table_address afterwards
+            let structure_table_address: usize = entry_point.smbios_address().try_into().unwrap();
+            bytes.extend_from_slice(unsafe { slice::from_raw_parts(
+                structure_table_address as *const u8,
+                entry_point.smbios_len().try_into().unwrap(),
+            ) });
+            info_builder.add_smbios_tag(
+                version.major, version.minor, bytes.as_slice(),
+            );
+        },
+        Err(e) => error!("failed to parse SMBIOS entry point: {e:?}"),
+    }
 }

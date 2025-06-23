@@ -14,7 +14,7 @@ default-target = "i686-unknown-uefi"
 [dependencies]
 uefi = { version = "0.35", features = ["alloc", "global_allocator", "logger", "panic_handler"] }
 acpi = { version = "5.0", default-features = false }
-smbios-lib = { git = "https://github.com/hhuOS/smbios-lib.git", branch = "main", default-features = false, features = ["no_std"] }
+dmidecode = "0.9"
 x86 =  "0.52"
 
 log = { version = "0.4", default-features = false }
