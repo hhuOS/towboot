@@ -7,9 +7,9 @@ use tempfile::NamedTempFile;
 
 /// Generate a appropriate bochrs file.
 pub fn bochsrc(ovmf: &Path, image: &Path, gdb: bool) -> Result<NamedTempFile> {
+    // This currently only seems to work with Ubuntu 22.04's OVMF.
     let ovmf = ovmf.display();
     let image = image.display();
-    let gdb: u8 = gdb.into();
     let mut file = NamedTempFile::new()?;
     write!(file.as_file_mut(), "
 # partly taken from https://forum.osdev.org/viewtopic.php?f=1&t=33440
@@ -34,11 +34,12 @@ error: action=report
 panic: action=ask
 keyboard: type=mf, serial_delay=250, paste_delay=100000, user_shortcut=none
 mouse: type=ps2, enabled=0, toggle=ctrl+mbutton
-sound: waveoutdrv=win, waveout=none, waveindrv=win, wavein=none, midioutdrv=win, midiout=none
 speaker: enabled=1, mode=sound
 parport1: enabled=1, file=none
 com1: enabled=1, mode=null
-gdbstub: enabled={gdb}, port=1234, text_base=0, data_base=0, bss_base=0
 ")?;
+    if gdb {
+        writeln!(file.as_file_mut(), "gdbstub: enabled=1, port=1234, text_base=0, data_base=0, bss_base=0")?;
+    }
     Ok(file)
 }
