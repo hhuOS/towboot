@@ -28,8 +28,8 @@ impl OurElfLoader {
     /// Create a new instance.
     ///
     /// The parameter is the virtual address of the entry point.
-    pub(super) fn new(entry_point: u64) -> Self {
-        OurElfLoader {
+    pub(super) const fn new(entry_point: u64) -> Self {
+        Self {
             allocations: BTreeMap::new(),
             virtual_entry_point: entry_point,
             physical_entry_point: None,
@@ -46,7 +46,7 @@ impl OurElfLoader {
         for program_header in &binary.program_headers {
             if program_header.p_type == elf::program_header::PT_LOAD {
                 self.allocate(program_header, quirks)?;
-                self.load(program_header.p_vaddr, &data[program_header.file_range()])?;
+                self.load(program_header.p_vaddr, &data[program_header.file_range()]);
             }
         }
         Ok(())
@@ -57,12 +57,10 @@ impl OurElfLoader {
     /// We should have found it in `allocate`,
     /// else fall back to the virtual one and hope for the best.
     pub(super) fn entry_point(&self) -> usize {
-        if let Some(a) = self.physical_entry_point {
-            a
-        } else {
+        self.physical_entry_point.unwrap_or_else(|| {
             warn!("didn't find the entry point while loading sections, assuming virtual = physical");
             self.virtual_entry_point.try_into().unwrap()
-        }
+        })
     }
     
     /// Allocate memory for a segment.
@@ -103,7 +101,7 @@ impl OurElfLoader {
     }
     
     /// Load a segment.
-    fn load(&mut self, base: u64, region: &[u8]) -> Result<(), &'static str> {
+    fn load(&mut self, base: u64, region: &[u8]) {
         // check whether we actually allocated this
         match self.allocations.get_mut(&base) {
             None => panic!("we didn't allocate {base:#x}, but tried to write to it o.O"),
@@ -117,7 +115,6 @@ impl OurElfLoader {
                     "load {} bytes into {:#x} (at {:#x})", region.len(), base, ptr as usize
                 );
                 alloc.as_mut_slice()[0..region.len()].clone_from_slice(region);
-                Ok(())
             },
         }
     }
@@ -125,7 +122,7 @@ impl OurElfLoader {
 
 impl From<OurElfLoader> for Vec<Allocation> {
     /// Gets the allocated memory.
-    fn from(loader: OurElfLoader) -> Vec<Allocation> {
+    fn from(loader: OurElfLoader) -> Self {
         // using .values() would just borrow the values from the hash map
         loader.allocations.into_values().collect()
     }

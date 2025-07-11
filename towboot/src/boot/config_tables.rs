@@ -19,22 +19,17 @@ use uefi::table::cfg::{
 pub(super) fn parse_for_multiboot(info_builder: &mut InfoBuilder) {
     // first, copy all config table pointers
     // TODO: remove this when with_config_table takes a FnMut
-    let config_tables: Vec<ConfigTableEntry> = with_config_table(|s|
-        s.to_vec()
-    );
+    let config_tables: Vec<ConfigTableEntry> = with_config_table(<[ConfigTableEntry]>::to_vec);
     debug!("going through configuration tables...");
     for table in config_tables {
         match table.guid {
-            ACPI_GUID => handle_acpi(&table, info_builder),
-            ACPI2_GUID => handle_acpi(&table, info_builder),
+            ACPI_GUID | ACPI2_GUID => handle_acpi(&table, info_builder),
             DEBUG_IMAGE_INFO_GUID => debug!("ignoring image debug info"),
             DXE_SERVICES_GUID => debug!("ignoring dxe services table"),
             HAND_OFF_BLOCK_LIST_GUID => debug!("ignoring hand-off block list"),
             LZMA_COMPRESS_GUID => debug!("ignoring lzma filesystem"),
-            MEMORY_STATUS_CODE_RECORD_GUID => debug!("ignoring early memory info"),
-            MEMORY_TYPE_INFORMATION_GUID => debug!("ignoring early memory info"),
-            SMBIOS_GUID => handle_smbios(&table, info_builder),
-            SMBIOS3_GUID => handle_smbios(&table, info_builder),
+            MEMORY_STATUS_CODE_RECORD_GUID | MEMORY_TYPE_INFORMATION_GUID => debug!("ignoring early memory info"),
+            SMBIOS_GUID | SMBIOS3_GUID => handle_smbios(&table, info_builder),
             guid => debug!("ignoring table {guid}"),
         }
     }
@@ -43,7 +38,7 @@ pub(super) fn parse_for_multiboot(info_builder: &mut InfoBuilder) {
 /// Parse the ACPI RSDP and create the Multiboot struct for it.
 fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
     debug!("handling ACPI RSDP");
-    let rsdp = unsafe { *(table.address as *const Rsdp) };
+    let rsdp: Rsdp = unsafe { *(table.address.cast()) };
     if rsdp.validate().is_err() {
         warn!("the RSDP is invalid");
         return;
@@ -90,9 +85,7 @@ fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
 /// Caveat: The Structure Table pointer in the Entry Point is not adjusted.
 fn handle_smbios(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
     debug!("handling SMBIOS table");
-    let bigger_slice = unsafe { slice::from_raw_parts(
-        table.address as *const u8, 128,
-    ) };
+    let bigger_slice = unsafe { slice::from_raw_parts(table.address.cast(), 128) };
     match EntryPoint::search(bigger_slice) {
         Ok(entry_point) => {
             let version = entry_point.to_version();

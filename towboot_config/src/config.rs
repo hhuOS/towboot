@@ -19,9 +19,9 @@ pub struct Config {
 
 impl Config {
     /// Determine which files are referenced in the configuration.
-    pub fn needed_files(self: &mut Config) -> Vec<&mut String> {
+    pub fn needed_files(&mut self) -> Vec<&mut String> {
         let mut files = Vec::new();
-        for (_name, entry) in self.entries.iter_mut() {
+        for entry in self.entries.values_mut() {
             files.push(&mut entry.image);
             for module in &mut entry.modules {
                 files.push(&mut module.image);

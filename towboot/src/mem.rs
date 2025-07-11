@@ -64,7 +64,7 @@ impl Allocation {
     /// You can move the allocated memory later to the correct address by calling
     /// [`move_to_where_it_should_be`], but please keep its safety implications in mind.
     /// This only works for our code and data by default, but this can be
-    /// overridden with the ForceOverwrite quirk.
+    /// overridden with the `ForceOverwrite` quirk.
     ///
     /// [`move_to_where_it_should_be`]: struct.Allocation.html#method.move_to_where_it_should_be
     pub(crate) fn new_at(
@@ -83,7 +83,7 @@ impl Allocation {
             MemoryType::LOADER_DATA,
             count_pages,
         ) {
-            Ok(ptr) => Ok(Allocation {
+            Ok(ptr) => Ok(Self {
                 ptr,
                 offset: page_offset,
                 len: size,
@@ -155,13 +155,13 @@ impl Allocation {
                 get_memory_map();
                 Status::LOAD_ERROR
             })?;
-        Ok(Allocation {
+        Ok(Self {
             ptr, offset: 0, len: size, pages: count_pages, should_be_at: None,
         })
     }
     
     /// Return a slice that references the associated memory.
-    pub(crate) fn as_mut_slice(&mut self) -> &mut [u8] {
+    pub(crate) const fn as_mut_slice(&mut self) -> &mut [u8] {
         unsafe { core::slice::from_raw_parts_mut(
             self.ptr.as_ptr().add(self.offset),
             self.len,
@@ -300,9 +300,8 @@ pub(super) fn prepare_information(
         .iter()
         // find the area starting at 1MB and get its length
         .find(|e| e.base_address() == 1024 * 1024)
-        .map(|e| e.length())
         // if there is none, it's 0KB
-        .unwrap_or(0) / 1024;
+        .map_or(0, |e| e.length()) / 1024;
 
     // When updating either uefi.rs or multiboot2, make sure that the types
     // still match.

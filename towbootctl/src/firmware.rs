@@ -20,10 +20,8 @@ fn get_firmware(url: &str) -> Result<PathBuf> {
     let mut cache = Cache::new()?;
     if let Some(dirs) = ProjectDirs::from_path("towbootctl".into()) {
         cache.dir = dirs.cache_dir().to_path_buf();
-    };
-    Ok(
-        cache.cached_path(url)?
-    )
+    }
+    Ok(cache.cached_path(url)?)
 }
 
 /// Get OVMF for x64.

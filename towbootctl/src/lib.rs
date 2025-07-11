@@ -28,9 +28,7 @@ pub const IA32_BOOT_PATH: &str = "EFI/Boot/bootia32.efi";
 pub const X64_BOOT_PATH: &str = "EFI/Boot/bootx64.efi";
 
 /// Get the source and destination paths of all files referenced in the config.
-fn get_config_files(
-    config: &mut Config,
-) -> Result<Vec<(PathBuf, PathBuf)>, Box<dyn Error>> {
+fn get_config_files(config: &mut Config) -> Vec<(PathBuf, PathBuf)> {
     let mut paths = Vec::<(PathBuf, PathBuf)>::new();
     let mut config_path = PathBuf::from(config.src.clone());
     config_path.pop();
@@ -45,13 +43,14 @@ fn get_config_files(
         paths.push((src_path, dst_path));
     }
 
-    Ok(paths)
+    paths
 }
 
 /// Joins a slice of strings.
+#[must_use]
 pub fn runtime_args_to_load_options(runtime_args: &[String]) -> String {
     let mut load_options = "towboot.efi".to_owned();
-    for string in runtime_args.iter() {
+    for string in runtime_args {
         load_options.push(' ');
         if string.contains(' ') {
             load_options.push('"');
@@ -77,7 +76,7 @@ pub fn create_image(
     if let Some(mut config) = config::get(&load_options)? {
         // get paths to all files referenced by config
         // this also sets the correct config file paths inside the image
-        let mut config_paths = get_config_files(&mut config)?;
+        let mut config_paths = get_config_files(&mut config);
         paths.append(&mut config_paths);
 
         // generate temp config file
@@ -96,7 +95,7 @@ pub fn create_image(
     }
 
     let mut image_size = 0;
-    for pair in paths.iter() {
+    for pair in &paths {
         let file = OpenOptions::new()
             .read(true)
             .open(PathBuf::from(&pair.0))?;
@@ -110,7 +109,7 @@ pub fn create_image(
     );
     let mut image = Image::new(target, image_size)?;
     for pair in paths {
-        image.add_file(pair.0.as_path(), pair.1.as_path())?
+        image.add_file(pair.0.as_path(), pair.1.as_path())?;
     }
 
     Ok(image)
@@ -123,14 +122,11 @@ pub fn boot_image(
 ) -> Result<(Command, Vec<TempPath>), Box<dyn Error>> {
     info!("getting firmware");
     let firmware_path = if let Some(path) = firmware {
-        assert!(path.exists());
-        path.to_path_buf()
-    } else {
-        match is_x86_64 {
-            false => firmware::ia32()?,
-            true => firmware::x64()?,
+        if !path.exists() {
+            return Err(anyhow!("given firmware path does not exist").into());
         }
-    };
+        path.to_path_buf()
+    } else if is_x86_64 { firmware::x64()? } else { firmware::ia32()? };
     Ok(if use_bochs {
         info!("spawning Bochs");
         if use_kvm {
@@ -142,10 +138,7 @@ pub fn boot_image(
         (bochs, vec![config])
     } else {
         info!("spawning QEMU");
-        let mut qemu = Command::new(match is_x86_64 {
-            false => "qemu-system-i386",
-            true => "qemu-system-x86_64",
-        });
+        let mut qemu = Command::new(if is_x86_64 { "qemu-system-x86_64" } else { "qemu-system-i386" });
         qemu
             .arg("-m").arg("256")
             .arg("-hda").arg(image)

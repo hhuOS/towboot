@@ -59,18 +59,18 @@ impl LoadedKernel {
     /// Load a kernel from a vector.
     /// This requires that the Multiboot header has already been parsed.
     fn new(
-        kernel_vec: Vec<u8>, header: &Header, quirks: &BTreeSet<Quirk>,
+        kernel_bytes: &[u8], header: &Header, quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
         if header.get_load_addresses().is_some() && !quirks.contains(&Quirk::ForceElf) {
-            LoadedKernel::new_multiboot(kernel_vec, header, quirks)
+            Self::new_multiboot(kernel_bytes, header, quirks)
         } else {
-            LoadedKernel::new_elf(header, kernel_vec, quirks)
+            Self::new_elf(header, kernel_bytes, quirks)
         }
     }
     
     /// Load a kernel which has its addresses specified inside the Multiboot header.
     fn new_multiboot(
-        kernel_vec: Vec<u8>, header: &Header, quirks: &BTreeSet<Quirk>,
+        kernel_bytes: &[u8], header: &Header, quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
         // TODO: Add support for AOut symbols? Do we really know this binary is AOut at this point?
         let addresses = header.get_load_addresses().unwrap();
@@ -82,7 +82,7 @@ impl LoadedKernel {
         let load_offset = addresses.compute_load_offset(header.header_start());
         // allocate
         let kernel_length: usize = addresses.compute_kernel_length(
-            kernel_vec.len().try_into().unwrap()
+            kernel_bytes.len().try_into().unwrap()
         ).try_into().unwrap();
         let mut allocation = Allocation::new_at(
             addresses.load_addr().try_into().unwrap(),
@@ -92,14 +92,12 @@ impl LoadedKernel {
         let kernel_buf = allocation.as_mut_slice();
         // copy from beginning of text to end of data segment and fill the rest with zeroes
         kernel_buf.iter_mut().zip(
-            kernel_vec.iter()
+            kernel_bytes.iter()
             .skip(load_offset.try_into().unwrap())
             .take(kernel_length)
             .chain(core::iter::repeat(&0))
         )
         .for_each(|(dst,src)| *dst = *src);
-        // drop the old vector
-        core::mem::drop(kernel_vec);
 
         let entry_point = get_kernel_uefi_entry(header, quirks)
             .or(header.get_entry_address().map(
@@ -119,20 +117,20 @@ impl LoadedKernel {
     
     /// Load a kernel which uses ELF semantics.
     fn new_elf(
-        header: &Header, kernel_vec: Vec<u8>, quirks: &BTreeSet<Quirk>,
+        header: &Header, kernel_bytes: &[u8], quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
-        let mut binary = Elf::parse(kernel_vec.as_slice()).map_err(|msg| {
+        let mut binary = Elf::parse(kernel_bytes).map_err(|msg| {
             error!("failed to parse ELF structure of kernel: {msg}");
             Status::LOAD_ERROR
         })?;
         let mut loader = OurElfLoader::new(binary.entry);
         loader
-            .load_elf(&binary, kernel_vec.as_slice(), quirks)
+            .load_elf(&binary, kernel_bytes, quirks)
             .map_err(|msg| {
                 error!("failed to load kernel: {msg}");
                 Status::LOAD_ERROR
             })?;
-        let symbols = Some(elf::symbols(header, &mut binary, kernel_vec.as_slice()));
+        let symbols = Some(elf::symbols(header, &mut binary, kernel_bytes));
         let entry_point = get_kernel_uefi_entry(header, quirks)
             .or(header.get_entry_address().map(
                 |e| EntryPoint::Multiboot(e as usize)
@@ -206,7 +204,7 @@ fn get_kernel_uefi_entry(
 
 /// Prepare information for the kernel.
 fn prepare_multiboot_information(
-    entry: &Entry, header: Header, load_base_address: Option<u32>,
+    entry: &Entry, header: &Header, load_base_address: Option<u32>,
     modules: &[Allocation], symbols: Option<Symbols>,
     graphics_output: Option<ScopedProtocol<GraphicsOutput>>,
     boot_services_exited: bool,
@@ -316,14 +314,15 @@ impl<'a> PreparedEntry<'a> {
     /// This is non-destructive and will always return.
     pub(crate) fn new(
         entry: &'a Entry, image_fs_handle: Handle,
-    ) -> Result<PreparedEntry<'a>, Status> {
+    ) -> Result<Self, Status> {
         let kernel_vec: Vec<u8> = File::open(&entry.image, image_fs_handle)?.try_into()?;
         let header = Header::from_slice(kernel_vec.as_slice()).ok_or_else(|| {
             error!("invalid Multiboot header");
             Status::LOAD_ERROR
         })?;
         debug!("loaded kernel {:?} to {:?}", header, kernel_vec.as_ptr());
-        let mut loaded_kernel = LoadedKernel::new(kernel_vec, &header, &entry.quirks)?;
+        let mut loaded_kernel = LoadedKernel::new(&kernel_vec, &header, &entry.quirks)?;
+        core::mem::drop(kernel_vec);
         info!("kernel is loaded and bootable");
         
         // Load all modules, fail completely if one fails to load.
@@ -340,7 +339,7 @@ impl<'a> PreparedEntry<'a> {
         let graphics_output = video::setup_video(&header, &entry.quirks);
         
         let multiboot_information = prepare_multiboot_information(
-            entry, header, loaded_kernel.load_base_address, &modules_vec,
+            entry, &header, loaded_kernel.load_base_address, &modules_vec,
             loaded_kernel.symbols_struct(), graphics_output,
             !entry.quirks.contains(&Quirk::DontExitBootServices),
         );
@@ -414,7 +413,7 @@ impl<'a> PreparedEntry<'a> {
         // The kernel is going to need the section headers and symbols.
         core::mem::forget(self.loaded_kernel.symbols);
         
-        self.loaded_kernel.entry_point.jump(signature, info)
+        self.loaded_kernel.entry_point.jump(signature, &info)
     }
 }
 
@@ -435,11 +434,11 @@ enum EntryPoint {
 impl EntryPoint {
     /// Jump to the loaded kernel.
     /// This requires everything else to be ready and won't return.
-    fn jump(self, signature: u32, info: Vec<u8>) -> ! {
+    fn jump(self, signature: u32, info: &[u8]) -> ! {
         if let Self::Uefi(entry_address) = self {
-            self.jump_uefi(entry_address, signature, info)
+            Self::jump_uefi(entry_address, signature, info)
         } else if let Self::Multiboot(entry_address) = self {
-            self.jump_multiboot(entry_address, signature, info)
+            Self::jump_multiboot(entry_address, signature, info)
         } else {
             panic!("invalid entry point")
         }
@@ -447,7 +446,7 @@ impl EntryPoint {
 
     /// Jump to the loaded kernel, UEFI-style, eg. just passing the information.
     /// This requires everything else to be ready and won't return.
-    fn jump_uefi(self, entry_address: usize, signature: u32, info: Vec<u8>) -> ! {
+    fn jump_uefi(entry_address: usize, signature: u32, info: &[u8]) -> ! {
         debug!("jumping to 0x{entry_address:x}");
         unsafe {
             // TODO: The spec mentions 32 bit registers, even on 64 bit.
@@ -459,7 +458,7 @@ impl EntryPoint {
                 "jmp {}",
                 in(reg) entry_address,
                 in("eax") signature,
-                in("ecx") &info.as_slice()[0],
+                in("ecx") &raw const info[0],
                 options(noreturn),
             );
         }
@@ -467,7 +466,7 @@ impl EntryPoint {
 
     /// i686-specific part of the Multiboot machine state.
     #[cfg(target_arch = "x86")]
-    fn jump_multiboot(self, entry_address: usize, signature: u32, info: Vec<u8>) -> ! {
+    fn jump_multiboot(entry_address: usize, signature: u32, info: &[u8]) -> ! {
         debug!("preparing machine state and jumping to 0x{entry_address:x}");
 
         // 3.2 Machine state says:
@@ -497,7 +496,7 @@ impl EntryPoint {
                 sym Self::jump_multiboot_common,
                 // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
                 in("eax") signature,
-                in("ecx") &info.as_slice()[0],
+                in("ecx") &raw const info[0],
                 in("edi") entry_address,
                 options(noreturn),
             );
@@ -506,7 +505,7 @@ impl EntryPoint {
 
     /// x86_64-specific part of the Multiboot machine state.
     #[cfg(target_arch = "x86_64")]
-    fn jump_multiboot(self, entry_address: usize, signature: u32, info: Vec<u8>) -> ! {
+    fn jump_multiboot(entry_address: usize, signature: u32, info: &[u8]) -> ! {
         debug!("preparing machine state and jumping to 0x{entry_address:x}");
 
         // 3.2 Machine state says:
@@ -576,7 +575,7 @@ impl EntryPoint {
                 sym Self::jump_multiboot_common,
                 // LLVM needs some registers (https://github.com/rust-lang/rust/blob/1.67.1/compiler/rustc_target/src/asm/x86.rs#L206)
                 in("eax") signature,
-                in("ecx") &info.as_slice()[0],
+                in("ecx") &raw const info[0],
                 in("edi") entry_address,
                 options(noreturn),
             );

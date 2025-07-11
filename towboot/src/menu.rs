@@ -5,7 +5,7 @@ use alloc::string::String;
 
 use uefi::prelude::*;
 use uefi::boot::{EventType, TimerTrigger, Tpl, create_event, set_timer, wait_for_event};
-use uefi::proto::console::text::{Key, ScanCode};
+use uefi::proto::console::text::{Input, Key, ScanCode};
 use uefi::system::{with_stdin, with_stdout};
 
 use log::{error, warn};
@@ -27,7 +27,7 @@ pub fn choose(config: &Config) -> &Entry {
         warn!("default entry is missing, trying the first one");
         config.entries.values().next().expect("no entries")
     });
-    if let Some(0) = config.timeout {
+    if config.timeout == Some(0) {
         return default_entry
     }
     match display_menu(config, default_entry) {
@@ -68,7 +68,7 @@ fn display_menu<'a>(
                 ]
             ).discard_errdata()? {
                 // key
-                0 => match with_stdin(|stdin| stdin.read_key())? {
+                0 => match with_stdin(Input::read_key)? {
                     Some(Key::Special(ScanCode::ESCAPE)) => break,
                     _ => (),
                 },
@@ -108,9 +108,7 @@ fn select_entry(entries: &BTreeMap<String, Entry>) -> uefi::Result<&Entry> {
             // this is safe because we're never calling close_event
             &mut [unsafe { key_event.unsafe_clone() }]
         ).discard_errdata()?;
-        if let Some(Key::Printable(c)) = with_stdin(
-            |stdin| stdin.read_key()
-        )? {
+        if let Some(Key::Printable(c)) = with_stdin(Input::read_key)? {
             match c.into() {
                 '\r' => break, // enter
                 '\u{8}' => {value.pop();}, // backspace

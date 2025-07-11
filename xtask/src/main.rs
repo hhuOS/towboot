@@ -51,31 +51,28 @@ struct Build {
 impl Build {
     fn r#do(self) -> Result<(), Box<dyn Error>> {
         let mut cargo_command = process::Command::new("cargo");
-        let mut build_command = cargo_command
+        cargo_command
             .arg("build")
             .arg("--package")
             .arg("towboot");
         if self.release {
-            build_command = cargo_command.arg("--release");
+            cargo_command.arg("--release");
         }
         if !self.no_i686 {
             info!("building for i686, pass --no-i686 to skip this");
-            build_command
+            cargo_command
                 .arg("--target")
                 .arg("i686-unknown-uefi")
                 .status()?.exit_ok()?;
         }
         if !self.no_x86_64 {
             info!("building for x86_64, pass --no-x86-64 to skip this");
-            build_command
+            cargo_command
                 .arg("--target")
                 .arg("x86_64-unknown-uefi")
                 .status()?.exit_ok()?;
         }
-        let build = match self.release {
-            true => "release",
-            false => "debug",
-        };
+        let build = if self.release { "release" } else { "debug" };
         let i686: Option<PathBuf> = (!self.no_i686).then_some(
             ["target", "i686-unknown-uefi", build, "towboot.efi"].into_iter().collect()
         );
