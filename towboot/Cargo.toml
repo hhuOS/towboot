@@ -14,15 +14,15 @@ default-target = "i686-unknown-uefi"
 [dependencies]
 uefi = { version = "0.35", features = ["alloc", "global_allocator", "logger", "panic_handler"] }
 acpi = { version = "5.0", default-features = false }
-dmidecode = "0.9"
+dmidecode = { version = "1.0", default-features = false }
 x86 =  "0.52"
 
 log = { version = "0.4", default-features = false }
 
 toml = { version = "0.9", default-features = false, features = ["parse", "serde"] }
 multiboot12 = { git = "https://github.com/YtvwlD/multiboot12", tag = "towboot-0.9.5" }
-goblin = { version = "0.9", default-features = false, features = ["elf32", "elf64", "endian_fd"] }
-scroll = { version = "0.12", default-features = false }
+goblin = { version = "0.10", default-features = false, features = ["elf32", "elf64", "endian_fd"] }
+scroll = { version = "0.13", default-features = false }
 
 towboot_config = { path = "../towboot_config" }
 
