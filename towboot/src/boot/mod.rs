@@ -292,14 +292,13 @@ fn prepare_multiboot_information(
 /// a kernel, information and modules.
 /// 
 /// This is the main struct in this module.
-pub struct PreparedEntry<'a> {
-    entry: &'a Entry,
+pub struct PreparedEntry {
     loaded_kernel: LoadedKernel,
     multiboot_information: InfoBuilder,
     modules_vec: Vec<Allocation>,
 }
 
-impl<'a> PreparedEntry<'a> {
+impl PreparedEntry {
     /// Prepare an entry for boot.
     ///
     /// What this means:
@@ -313,7 +312,7 @@ impl<'a> PreparedEntry<'a> {
     /// The returned `PreparedEntry` can be used to actually boot.
     /// This is non-destructive and will always return.
     pub(crate) fn new(
-        entry: &'a Entry, image_fs_handle: Handle,
+        entry: &Entry, image_fs_handle: Handle,
     ) -> Result<Self, Status> {
         let kernel_vec: Vec<u8> = File::open(&entry.image, image_fs_handle)?.try_into()?;
         let header = Header::from_slice(kernel_vec.as_slice()).ok_or_else(|| {
@@ -345,7 +344,7 @@ impl<'a> PreparedEntry<'a> {
         );
         
         Ok(PreparedEntry {
-            entry, loaded_kernel, multiboot_information, modules_vec,
+            loaded_kernel, multiboot_information, modules_vec,
         })
     }
     
