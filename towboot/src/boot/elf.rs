@@ -22,17 +22,23 @@ pub(super) struct OurElfLoader {
     allocations: BTreeMap<u64, Allocation>,
     virtual_entry_point: u64,
     physical_entry_point: Option<usize>,
+    /// whether we are going to exit Boot Services
+    /// This determines which parts of memory are safe to overwrite.
+    should_exit_boot_services: bool,
 }
 
 impl OurElfLoader {
     /// Create a new instance.
     ///
     /// The parameter is the virtual address of the entry point.
-    pub(super) const fn new(entry_point: u64) -> Self {
+    pub(super) const fn new(
+        entry_point: u64, should_exit_boot_services: bool,
+    ) -> Self {
         Self {
             allocations: BTreeMap::new(),
             virtual_entry_point: entry_point,
             physical_entry_point: None,
+            should_exit_boot_services,
         }
     }
     
@@ -45,7 +51,7 @@ impl OurElfLoader {
     ) -> Result<(), &'static str> {
         for program_header in &binary.program_headers {
             if program_header.p_type == elf::program_header::PT_LOAD {
-                self.allocate(program_header, quirks)?;
+                self.allocate(program_header, quirks, self.should_exit_boot_services)?;
                 self.load(program_header.p_vaddr, &data[program_header.file_range()]);
             }
         }
@@ -68,6 +74,7 @@ impl OurElfLoader {
         &mut self,
         header: &elf::program_header::ProgramHeader,
         quirks: &BTreeSet<Quirk>,
+        should_exit_boot_services: bool,
     ) -> Result<(), &'static str> {
         trace!("header: {header:?}");
         debug!(
@@ -77,7 +84,7 @@ impl OurElfLoader {
         let mut allocation = Allocation::new_at(
             header.p_paddr.try_into().unwrap(),
             header.p_memsz.try_into().unwrap(),
-            quirks,
+            quirks, should_exit_boot_services,
         )
         .map_err(|_e| "failed to allocate memory for the kernel")?;
         let mem_slice = allocation.as_mut_slice();

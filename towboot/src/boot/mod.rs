@@ -72,6 +72,7 @@ impl LoadedKernel {
     fn new_multiboot(
         kernel_bytes: &[u8], header: &Header, quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
+        let should_exit_boot_services = !quirks.contains(&Quirk::DontExitBootServices) && header.should_exit_boot_services();
         // TODO: Add support for AOut symbols? Do we really know this binary is AOut at this point?
         let addresses = header.get_load_addresses().unwrap();
         
@@ -88,6 +89,7 @@ impl LoadedKernel {
             addresses.load_addr().try_into().unwrap(),
             kernel_length,
             quirks,
+            should_exit_boot_services,
         )?;
         let kernel_buf = allocation.as_mut_slice();
         // copy from beginning of text to end of data segment and fill the rest with zeroes
@@ -104,7 +106,6 @@ impl LoadedKernel {
                 |e| EntryPoint::Multiboot(e as usize)
             ))
             .expect("failed to find an entry point to the kernel");
-        let should_exit_boot_services = !quirks.contains(&Quirk::DontExitBootServices) && header.should_exit_boot_services();
         
         Ok(Self {
             allocations: vec![allocation],
@@ -119,11 +120,12 @@ impl LoadedKernel {
     fn new_elf(
         header: &Header, kernel_bytes: &[u8], quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
+        let should_exit_boot_services = !quirks.contains(&Quirk::DontExitBootServices) && header.should_exit_boot_services();
         let mut binary = Elf::parse(kernel_bytes).map_err(|msg| {
             error!("failed to parse ELF structure of kernel: {msg}");
             Status::LOAD_ERROR
         })?;
-        let mut loader = OurElfLoader::new(binary.entry);
+        let mut loader = OurElfLoader::new(binary.entry, should_exit_boot_services);
         loader
             .load_elf(&binary, kernel_bytes, quirks)
             .map_err(|msg| {
@@ -136,7 +138,6 @@ impl LoadedKernel {
                 |e| EntryPoint::Multiboot(e as usize)
             ))
             .unwrap_or(EntryPoint::Multiboot(loader.entry_point()));
-        let should_exit_boot_services = !quirks.contains(&Quirk::DontExitBootServices) && header.should_exit_boot_services();
         Ok(Self {
             allocations: loader.into(), entry_point, load_base_address: None,
             should_exit_boot_services, symbols,

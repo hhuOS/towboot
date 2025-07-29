@@ -71,6 +71,7 @@ impl Allocation {
         address: usize,
         size: usize,
         quirks: &BTreeSet<Quirk>,
+        should_exit_boot_services: bool,
     ) -> Result<Self, Status>{
         let page_offset = address % PAGE_SIZE;
         if page_offset != 0 {
@@ -114,10 +115,14 @@ impl Allocation {
                 }
                 // if the allocation is only blocked by our code or data,
                 // allocate it somewhere else and move later
-                // TODO: or by Boot Services, but we'll have to determine if
-                // we're going to exit them
+                // This also applies to allocations of the Boot Services,
+                // but we need to check if we're going to exit them.
                 types_in_the_way.remove(&MemoryType::LOADER_CODE);
                 types_in_the_way.remove(&MemoryType::LOADER_DATA);
+                if should_exit_boot_services {
+                    types_in_the_way.remove(&MemoryType::BOOT_SERVICES_CODE);
+                    types_in_the_way.remove(&MemoryType::BOOT_SERVICES_DATA);
+                }
                 if types_in_the_way.is_empty() || quirks.contains(&Quirk::ForceOverwrite) {
                     warn!("going to allocate it somewhere else and try to move it later");
                     warn!("this might fail without notice");
