@@ -1,8 +1,11 @@
 //! File handling
 
+use core::cell::RefCell;
+
 use alloc::borrow::ToOwned;
 use alloc::collections::btree_set::BTreeSet;
 use alloc::format;
+use alloc::rc::Rc;
 use alloc::{vec::Vec, vec};
 use alloc::string::ToString;
 
@@ -17,8 +20,8 @@ use uefi::proto::media::file::{
     File as UefiFile, FileAttribute, FileInfo, FileMode, FileType, RegularFile
 };
 
+use super::mem::{Allocation, Allocator};
 use towboot_config::Quirk;
-use super::mem::Allocation;
 
 /// An opened file.
 pub(crate) struct File<'a> {
@@ -119,9 +122,9 @@ impl<'a> File<'a> {
     /// (The difference to `TryInto<Vec<u8>>` is that the allocated memory
     /// is page-aligned and under 4GB.)
     pub(crate) fn try_into_allocation(
-        mut self, quirks: &BTreeSet<Quirk>,
+        mut self, allocator: &Rc<RefCell<Allocator>>, quirks: &BTreeSet<Quirk>,
     ) -> Result<Allocation, Status> {
-        let mut allocation = Allocation::new_under_4gb(self.size, quirks)?;
+        let mut allocation = Allocation::new_under_4gb(allocator, self.size, quirks)?;
         let read_size = self.file.read(allocation.as_mut_slice())
         .map_err(|e| {
             error!("Failed to read from file '{}': {:?}", self.name, e);

@@ -2,12 +2,7 @@
 //!
 //! This means: loading kernel and modules, handling ELF files, video initialization and jumping
 
-use alloc::{
-    collections::btree_set::BTreeSet,
-    format,
-    vec,
-    vec::Vec,
-};
+use alloc::{collections::btree_set::BTreeSet, format, rc::Rc, vec, vec::Vec};
 #[cfg(target_arch = "x86_64")]
 use x86::{
     dtables::DescriptorTablePointer,
@@ -19,6 +14,7 @@ use x86::{
 
 use core::arch::asm;
 use core::arch::naked_asm;
+use core::cell::RefCell;
 use core::ffi::c_void;
 use core::ptr::NonNull;
 use uefi::prelude::*;
@@ -38,7 +34,7 @@ use goblin::elf::Elf;
 
 use towboot_config::{Entry, Quirk};
 use super::file::File;
-use super::mem::Allocation;
+use super::mem::{Allocation, Allocator};
 
 mod config_tables;
 mod elf;
@@ -59,18 +55,20 @@ impl LoadedKernel {
     /// Load a kernel from a vector.
     /// This requires that the Multiboot header has already been parsed.
     fn new(
-        kernel_bytes: &[u8], header: &Header, quirks: &BTreeSet<Quirk>,
+        kernel_bytes: &[u8], header: &Header,
+        allocator: &Rc<RefCell<Allocator>>, quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
         if header.get_load_addresses().is_some() && !quirks.contains(&Quirk::ForceElf) {
-            Self::new_multiboot(kernel_bytes, header, quirks)
+            Self::new_multiboot(kernel_bytes, header, allocator, quirks)
         } else {
-            Self::new_elf(header, kernel_bytes, quirks)
+            Self::new_elf(header, kernel_bytes, allocator, quirks)
         }
     }
     
     /// Load a kernel which has its addresses specified inside the Multiboot header.
     fn new_multiboot(
-        kernel_bytes: &[u8], header: &Header, quirks: &BTreeSet<Quirk>,
+        kernel_bytes: &[u8], header: &Header,
+        allocator: &Rc<RefCell<Allocator>>, quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
         let should_exit_boot_services = !quirks.contains(&Quirk::DontExitBootServices) && header.should_exit_boot_services();
         // TODO: Add support for AOut symbols? Do we really know this binary is AOut at this point?
@@ -86,6 +84,7 @@ impl LoadedKernel {
             kernel_bytes.len().try_into().unwrap()
         ).try_into().unwrap();
         let mut allocation = Allocation::new_at(
+            allocator,
             addresses.load_addr().try_into().unwrap(),
             kernel_length,
             quirks,
@@ -118,14 +117,15 @@ impl LoadedKernel {
     
     /// Load a kernel which uses ELF semantics.
     fn new_elf(
-        header: &Header, kernel_bytes: &[u8], quirks: &BTreeSet<Quirk>,
+        header: &Header, kernel_bytes: &[u8],
+        allocator: &Rc<RefCell<Allocator>>, quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
         let should_exit_boot_services = !quirks.contains(&Quirk::DontExitBootServices) && header.should_exit_boot_services();
         let mut binary = Elf::parse(kernel_bytes).map_err(|msg| {
             error!("failed to parse ELF structure of kernel: {msg}");
             Status::LOAD_ERROR
         })?;
-        let mut loader = OurElfLoader::new(binary.entry, should_exit_boot_services);
+        let mut loader = OurElfLoader::new(binary.entry, allocator, should_exit_boot_services);
         loader
             .load_elf(&binary, kernel_bytes, quirks)
             .map_err(|msg| {
@@ -315,13 +315,17 @@ impl PreparedEntry {
     pub(crate) fn new(
         entry: &Entry, image_fs_handle: Handle,
     ) -> Result<Self, Status> {
+        // track the allocations for this selected entry
+        // there's no need to keep it around,
+        // it gets dropped when all allocations have been dropped
+        let allocator = Rc::new(RefCell::new(Allocator::new()));
         let kernel_vec: Vec<u8> = File::open(&entry.image, image_fs_handle)?.try_into()?;
         let header = Header::from_slice(kernel_vec.as_slice()).ok_or_else(|| {
             error!("invalid Multiboot header");
             Status::LOAD_ERROR
         })?;
         debug!("loaded kernel {:?} to {:?}", header, kernel_vec.as_ptr());
-        let mut loaded_kernel = LoadedKernel::new(&kernel_vec, &header, &entry.quirks)?;
+        let mut loaded_kernel = LoadedKernel::new(&kernel_vec, &header, &allocator, &entry.quirks)?;
         core::mem::drop(kernel_vec);
         info!("kernel is loaded and bootable");
         
@@ -329,7 +333,7 @@ impl PreparedEntry {
         // just always use whole pages, that's easier for us
         let modules_vec: Vec<Allocation> = entry.modules.iter().map(|module|
             File::open(&module.image, image_fs_handle)
-            .and_then(|f| f.try_into_allocation(&entry.quirks))
+            .and_then(|f| f.try_into_allocation(&allocator, &entry.quirks))
         ).collect::<Result<Vec<_>, _>>()?;
         info!("loaded {} modules", modules_vec.len());
         for (index, module) in modules_vec.iter().enumerate() {

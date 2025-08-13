@@ -7,11 +7,14 @@
 //!
 //! Also, gathering memory map information for the kernel happens here.
 
+use core::cell::RefCell;
 use core::mem::size_of;
 use core::ptr::NonNull;
+use core::ops::Range;
 
 use alloc::boxed::Box;
 use alloc::collections::btree_set::BTreeSet;
+use alloc::rc::Rc;
 use alloc::vec::Vec;
 
 use uefi::prelude::*;
@@ -28,24 +31,77 @@ use towboot_config::Quirk;
 
 pub(super) const PAGE_SIZE: usize = 4096;
 
-/// Tracks our own allocations.
-#[derive(Debug)]
-pub(super) struct Allocation {
-    /// the actual start of the allocation; this will be the beginning of a page
-    ptr: NonNull<u8>,
-    /// how far into the page the allocation starts
-    offset: usize,
-    /// the length that was requested
-    pub len: usize,
-    pages: usize,
-    /// the address of memory where it should have been allocated
-    /// (only when it differs from ptr)
-    should_be_at: Option<u64>,
+/// This allocator allows us to allocate any amount of memory at any place in
+/// memory. This is needed because UEFI's allocator only allows us to get whole
+/// pages (at a specific place) or any amount of memory (at a random place).
+/// 
+/// How this works is that it allocates whole pages from the firmware and keeps
+/// track of the actual allocation internally.
+pub(crate) struct Allocator {
+    /// the pages that are allocated through the firmware
+    allocations: Vec<UefiAllocation>,
 }
 
-impl Drop for Allocation {
+impl Allocator {
+    /// Create a new, empty Allocator.
+    pub(crate) const fn new() -> Self {
+        Self { allocations: Vec::new() }
+    }
+}
+
+impl core::fmt::Debug for Allocator {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Allocator").finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug)]
+struct UefiAllocation {
+    /// the actual start of the allocation for UEFI; this will be the beginning of a page
+    ptr: NonNull<u8>,
+    /// how many pages have been allocated
+    pages: usize,
+    /// which parts of this are actually used
+    // TODO: check for conflicts
+    used: Vec<Range<NonNull<u8>>>,
+}
+
+impl UefiAllocation {
+    /// Create a new, empty allocation at a specific start address.
+    fn new_at(start: usize, pages: usize) -> Result<Self, Status> {
+        let ptr = allocate_pages(
+            AllocateType::Address(start.try_into().unwrap()),
+            MemoryType::LOADER_DATA,
+            pages,
+        ).map_err(|e| e.status())?;
+        Ok(Self { ptr, pages, used: Vec::new() })
+    }
+
+    /// Create a new, empty allocation anywhere.
+    fn new(pages: usize, quirks: &BTreeSet<Quirk>) -> Result<Self, Status> {
+        let ptr = allocate_pages(
+            AllocateType::MaxAddress(if quirks.contains(&Quirk::ModulesBelow200Mb) {
+                200 * 1024 * 1024
+            } else {
+                u32::MAX.into()
+            }),
+            MemoryType::LOADER_DATA,
+            pages,
+        ).map_err(|e| e.status())?;
+        Ok(Self { ptr, pages, used: Vec::new() })
+    }
+
+    /// Check if the specified address is part of this allocation.
+    fn contains(&self, address: usize) -> bool {
+        let start = self.ptr.as_ptr() as usize;
+        start <= address && start + self.pages * PAGE_SIZE > address
+    }
+}
+
+impl Drop for UefiAllocation {
     /// Free the associated memory.
     fn drop(&mut self) {
+        assert!(self.used.is_empty());
         // We can't free memory after we've exited boot services.
         // But this only happens in `PreparedEntry::boot` and this function doesn't return.
         unsafe { free_pages(self.ptr, self.pages) }
@@ -54,10 +110,52 @@ impl Drop for Allocation {
     }
 }
 
+/// Tracks our own allocations.
+/// These can start at any place in memory and can have any length.
+#[derive(Debug)]
+pub(super) struct Allocation {
+    /// the allocator where this was allocated from
+    allocator: Rc<RefCell<Allocator>>,
+    /// the start of the allocation
+    ptr: NonNull<u8>,
+    /// the length that was requested
+    pub len: usize,
+    /// the address of memory where it should have been allocated
+    /// (only when it differs from ptr)
+    should_be_at: Option<u64>,
+}
+
+impl Drop for Allocation {
+    fn drop(&mut self) {
+        // we need to find the underlying uefi allocation(s)
+        let mut allocator = self.allocator.borrow_mut();
+        let mut ua_index = 0;
+        while ua_index < allocator.allocations.len() {
+            let ua = &mut allocator.allocations[ua_index];
+            let mut used_index = 0;
+            // remove ourself from the uefi allocation
+            while used_index < ua.used.len() {
+                let ran = &ua.used[used_index];
+                // TODO: Allocation can span multiple UefiAllocations
+                if ran.start == self.ptr && ran.end == unsafe { self.ptr.add(self.len) } {
+                    ua.used.remove(used_index);
+                    continue;
+                }
+                used_index += 1;
+            }
+            // if it's empty, remove the whole uefi allocation
+            // this calls its drop handler, actually freeing the memory
+            if ua.used.is_empty() {
+                allocator.allocations.remove(ua_index);
+                continue;
+            }
+            ua_index += 1;
+        }
+    }
+}
+
 impl Allocation {
     /// Allocate memory at a specific position.
-    ///
-    /// Note: This will round up to whole pages.
     ///
     /// If the memory can't be allocated at the specified address,
     /// it will print a warning and allocate it somewhere else instead.
@@ -65,118 +163,135 @@ impl Allocation {
     /// [`move_to_where_it_should_be`], but please keep its safety implications in mind.
     /// This only works for our code and data by default, but this can be
     /// overridden with the `ForceOverwrite` quirk.
-    ///
-    /// [`move_to_where_it_should_be`]: struct.Allocation.html#method.move_to_where_it_should_be
     pub(crate) fn new_at(
+        allocator: &Rc<RefCell<Allocator>>,
         address: usize,
         size: usize,
         quirks: &BTreeSet<Quirk>,
         should_exit_boot_services: bool,
     ) -> Result<Self, Status>{
-        let page_offset = address % PAGE_SIZE;
-        if page_offset != 0 {
-            debug!("wasting {page_offset} bytes because the allocation is not page-aligned");
-        }
-        let page_start = address - page_offset;
-        let count_pages = (size + page_offset).div_ceil(PAGE_SIZE);
-        match allocate_pages(
-            AllocateType::Address(page_start.try_into().unwrap()),
-            MemoryType::LOADER_DATA,
-            count_pages,
-        ) {
-            Ok(ptr) => Ok(Self {
-                ptr,
-                offset: page_offset,
-                len: size,
-                pages: count_pages,
-                should_be_at: None,
-            }),
-            Err(e) => {
-                warn!("failed to allocate 0x{size:x} bytes of memory at 0x{address:x}: {e:?}");
-                // find out why that part of memory is occupied
-                let memory_map = get_memory_map();
-                let mut types_in_the_way = BTreeSet::new();
-                warn!("the following sections are in the way:");
-                for entry in memory_map.entries() {
-                    // if it's after the space we need, ignore it
-                    if entry.phys_start > (address + size).try_into().unwrap() {
-                        continue;
-                    }
-                    // if it's before the space we need, ignore it
-                    if entry.phys_start + entry.page_count * 4096 < address.try_into().unwrap() {
-                        continue;
-                    }
-                    // if it's empty, ignore it
-                    if entry.ty == MemoryType::CONVENTIONAL {
-                        continue;
-                    }
-                    warn!("{entry:x?}");
-                    types_in_the_way.insert(entry.ty);
-                }
-                // if the allocation is only blocked by our code or data,
-                // allocate it somewhere else and move later
-                // This also applies to allocations of the Boot Services,
-                // but we need to check if we're going to exit them.
-                types_in_the_way.remove(&MemoryType::LOADER_CODE);
-                types_in_the_way.remove(&MemoryType::LOADER_DATA);
-                if should_exit_boot_services {
-                    types_in_the_way.remove(&MemoryType::BOOT_SERVICES_CODE);
-                    types_in_the_way.remove(&MemoryType::BOOT_SERVICES_DATA);
-                }
-                if types_in_the_way.is_empty() || quirks.contains(&Quirk::ForceOverwrite) {
-                    warn!("going to allocate it somewhere else and try to move it later");
-                    warn!("this might fail without notice");
-                    Self::new_under_4gb(size, &BTreeSet::default()).map(|mut allocation| {
-                        allocation.should_be_at = Some(address.try_into().unwrap());
-                        allocation
+        // check if this falls into an existing allocation
+        // this should be just one, but we can't check this here
+        if let Some(ua) = allocator
+            .borrow_mut()
+            .allocations
+            .iter_mut()
+            .find(|u| u.contains(address))
+        {
+            // check if it fits
+            if ua.contains(address + size - 1) {
+                // note it as used
+                let ptr = NonNull::new(address as *mut u8).unwrap();
+                ua.used.push(Range {
+                    start: ptr, end: unsafe { ptr.add(size) },
+                });
+                Ok(Allocation {
+                    allocator: allocator.clone(), ptr, len: size,
+                    should_be_at: None,
+                })
+            } else {
+                // we need to allocate more memory
+                // TODO: Allocation can span multiple UefiAllocations
+                todo!()
+            }
+        } else {
+            // create a new allocation
+            let page_offset = address % PAGE_SIZE;
+            let page_start = address - page_offset;
+            let count_pages = (size + page_offset).div_ceil(PAGE_SIZE);
+            match UefiAllocation::new_at(page_start, count_pages) {
+                Ok(mut ua) => {
+                    let ptr = NonNull::new(address as *mut u8).unwrap();
+                    ua.used.push(Range {
+                        start: ptr, end: unsafe { ptr.add(size) },
+                    });
+                    allocator.borrow_mut().allocations.push(ua);
+                    Ok(Self {
+                        allocator: allocator.clone(), ptr, len: size,
+                        should_be_at: None,
                     })
-                } else {
-                    error!("Cannot allocate memory for the kernel, it might be too big.");
-                    warn!(
-                        "If you're in a virtual machine, you could try passing the ForceOverwrite quirk."
-                    );
-                    Err(Status::LOAD_ERROR)
+                },
+                Err(e) => {
+                    warn!("failed to allocate 0x{size:x} bytes of memory at 0x{address:x}: {e:?}");
+                    // find out why that part of memory is occupied
+                    let memory_map = get_memory_map();
+                    let mut types_in_the_way = BTreeSet::new();
+                    warn!("the following sections are in the way:");
+                    for entry in memory_map.entries() {
+                        // if it's after the space we need, ignore it
+                        if entry.phys_start > (address + size).try_into().unwrap() {
+                            continue;
+                        }
+                        // if it's before the space we need, ignore it
+                        if entry.phys_start + entry.page_count * 4096 < address.try_into().unwrap() {
+                            continue;
+                        }
+                        // if it's empty, ignore it
+                        if entry.ty == MemoryType::CONVENTIONAL {
+                            continue;
+                        }
+                        warn!("{entry:x?}");
+                        types_in_the_way.insert(entry.ty);
+                    }
+                    // if the allocation is only blocked by our code or data,
+                    // allocate it somewhere else and move later
+                    // This also applies to allocations of the Boot Services,
+                    // but we need to check if we're going to exit them.
+                    types_in_the_way.remove(&MemoryType::LOADER_CODE);
+                    types_in_the_way.remove(&MemoryType::LOADER_DATA);
+                    if should_exit_boot_services {
+                        types_in_the_way.remove(&MemoryType::BOOT_SERVICES_CODE);
+                        types_in_the_way.remove(&MemoryType::BOOT_SERVICES_DATA);
+                    }
+                    if types_in_the_way.is_empty() || quirks.contains(&Quirk::ForceOverwrite) {
+                        warn!("going to allocate it somewhere else and try to move it later");
+                        warn!("this might fail without notice");
+                        Self::new_under_4gb(allocator, size, &BTreeSet::default()).map(|mut allocation| {
+                            allocation.should_be_at = Some(address.try_into().unwrap());
+                            allocation
+                        })
+                    } else {
+                        error!("Cannot allocate memory for the kernel, it might be too big.");
+                        warn!(
+                            "If you're in a virtual machine, you could try passing the ForceOverwrite quirk."
+                        );
+                        Err(Status::LOAD_ERROR)
+                    }
                 }
             }
         }
     }
-    
+
     /// Allocate memory page-aligned below 4GB.
-    ///
-    /// Note: This will round up to whole pages.
-    pub(crate) fn new_under_4gb(size: usize, quirks: &BTreeSet<Quirk>) -> Result<Self, Status> {
+    pub(crate) fn new_under_4gb(
+        allocator: &Rc<RefCell<Allocator>>, size: usize,
+        quirks: &BTreeSet<Quirk>,
+    ) -> Result<Self, Status> {
         let count_pages = size.div_ceil(PAGE_SIZE);
-        let ptr = allocate_pages(
-                AllocateType::MaxAddress(if quirks.contains(&Quirk::ModulesBelow200Mb) {
-                    200 * 1024 * 1024
-                } else {
-                    u32::MAX.into()
-                }),
-                MemoryType::LOADER_DATA,
-                count_pages
-            )
+        let mut ua = UefiAllocation::new(count_pages, quirks)
             .map_err(|e| {
                 error!("failed to allocate {size} bytes of memory: {e:?}");
                 get_memory_map();
                 Status::LOAD_ERROR
             })?;
+        let ptr = ua.ptr;
+        ua.used.push(Range {
+            start: ptr, end: unsafe { ptr.add(size) },
+        });
+        allocator.borrow_mut().allocations.push(ua);
         Ok(Self {
-            ptr, offset: 0, len: size, pages: count_pages, should_be_at: None,
+            allocator: allocator.clone(), ptr, len: size, should_be_at: None,
         })
     }
-    
+
     /// Return a slice that references the associated memory.
     pub(crate) const fn as_mut_slice(&mut self) -> &mut [u8] {
-        unsafe { core::slice::from_raw_parts_mut(
-            self.ptr.as_ptr().add(self.offset),
-            self.len,
-        ) }
+        unsafe { core::slice::from_raw_parts_mut(self.ptr.as_ptr(), self.len) }
     }
     
     /// Get the pointer inside.
     pub(crate) fn as_ptr(&self) -> *const u8 {
-        assert!(self.offset < self.len);
-        unsafe { self.ptr.as_ptr().add(self.offset) }
+        self.ptr.as_ptr()
     }
     
     /// Move to the desired location.
@@ -192,15 +307,9 @@ impl Allocation {
             // checks already happened in new_at
             let dest: usize = a.try_into().unwrap();
             unsafe {
-                core::ptr::copy(
-                    self.ptr.as_ptr().add(self.offset),
-                    dest as *mut u8,
-                    self.len,
-                );
+                core::ptr::copy(self.ptr.as_ptr(), dest as *mut u8, self.len);
             }
-            self.ptr = unsafe {
-                NonNull::new(a as *mut u8).unwrap().sub(self.offset)
-            };
+            self.ptr = NonNull::new(a as *mut u8).unwrap();
             self.should_be_at = None;
         }
     }

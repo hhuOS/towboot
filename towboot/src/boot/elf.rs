@@ -1,7 +1,10 @@
 //! Handling of ELF files
 
+use core::cell::RefCell;
+
 use alloc::collections::btree_map::BTreeMap;
 use alloc::collections::btree_set::BTreeSet;
+use alloc::rc::Rc;
 use alloc::vec::Vec;
 
 use log::{trace, debug, warn};
@@ -14,11 +17,12 @@ use multiboot12::header::Header;
 use multiboot12::information::Symbols;
 use towboot_config::Quirk;
 
-use super::super::mem::Allocation;
+use super::super::mem::{Allocation, Allocator};
 
 /// Load ELF binaries.
 pub(super) struct OurElfLoader {
-    // maps virtual to physical addresses
+    allocator: Rc<RefCell<Allocator>>,
+    /// maps virtual to physical addresses
     allocations: BTreeMap<u64, Allocation>,
     virtual_entry_point: u64,
     physical_entry_point: Option<usize>,
@@ -31,10 +35,12 @@ impl OurElfLoader {
     /// Create a new instance.
     ///
     /// The parameter is the virtual address of the entry point.
-    pub(super) const fn new(
-        entry_point: u64, should_exit_boot_services: bool,
+    pub(super) fn new(
+        entry_point: u64, allocator: &Rc<RefCell<Allocator>>,
+        should_exit_boot_services: bool,
     ) -> Self {
         Self {
+            allocator: allocator.clone(),
             allocations: BTreeMap::new(),
             virtual_entry_point: entry_point,
             physical_entry_point: None,
@@ -82,6 +88,7 @@ impl OurElfLoader {
             header.p_memsz, header.p_flags, header.p_paddr, header.p_vaddr
         );
         let mut allocation = Allocation::new_at(
+            &self.allocator,
             header.p_paddr.try_into().unwrap(),
             header.p_memsz.try_into().unwrap(),
             quirks, should_exit_boot_services,
