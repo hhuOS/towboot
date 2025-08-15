@@ -62,7 +62,6 @@ struct UefiAllocation {
     /// how many pages have been allocated
     pages: usize,
     /// which parts of this are actually used
-    // TODO: check for conflicts
     used: Vec<Range<NonNull<u8>>>,
 }
 
@@ -95,6 +94,21 @@ impl UefiAllocation {
     fn contains(&self, address: usize) -> bool {
         let start = self.ptr.as_ptr() as usize;
         start <= address && start + self.pages * PAGE_SIZE > address
+    }
+    
+    /// Mark a portion of this allocation as used.
+    fn mark_used(&mut self, start: NonNull<u8>, len: usize) {
+        let range = Range {
+            start, end: unsafe { start.add(len) },
+        };
+        // check that it's actually inside this allocation
+        assert!(range.start >= self.ptr && range.end <= unsafe { self.ptr.add(self.pages * PAGE_SIZE) });
+        // check for conflicts
+        for other in &self.used {
+            assert!(other.start > range.end || range.end > other.start);
+        }
+        // then add
+        self.used.push(range);
     }
 }
 
@@ -182,9 +196,7 @@ impl Allocation {
             if ua.contains(address + size - 1) {
                 // note it as used
                 let ptr = NonNull::new(address as *mut u8).unwrap();
-                ua.used.push(Range {
-                    start: ptr, end: unsafe { ptr.add(size) },
-                });
+                ua.mark_used(ptr, size);
                 Ok(Allocation {
                     allocator: allocator.clone(), ptr, len: size,
                     should_be_at: None,
@@ -202,9 +214,7 @@ impl Allocation {
             match UefiAllocation::new_at(page_start, count_pages) {
                 Ok(mut ua) => {
                     let ptr = NonNull::new(address as *mut u8).unwrap();
-                    ua.used.push(Range {
-                        start: ptr, end: unsafe { ptr.add(size) },
-                    });
+                    ua.mark_used(ptr, size);
                     allocator.borrow_mut().allocations.push(ua);
                     Ok(Self {
                         allocator: allocator.clone(), ptr, len: size,
@@ -275,9 +285,7 @@ impl Allocation {
                 Status::LOAD_ERROR
             })?;
         let ptr = ua.ptr;
-        ua.used.push(Range {
-            start: ptr, end: unsafe { ptr.add(size) },
-        });
+        ua.mark_used(ptr, size);
         allocator.borrow_mut().allocations.push(ua);
         Ok(Self {
             allocator: allocator.clone(), ptr, len: size, should_be_at: None,
