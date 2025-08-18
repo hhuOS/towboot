@@ -23,7 +23,7 @@ use uefi::mem::memory_map::{
     MemoryDescriptor, MemoryMap, MemoryMapMut, MemoryMapOwned, MemoryType
 };
 
-use log::{debug, warn, error};
+use log::{debug, error, trace, warn};
 
 use towboot_config::Quirk;
 
@@ -98,6 +98,7 @@ impl UefiAllocation {
     
     /// Mark a portion of this allocation as used.
     fn mark_used(&mut self, start: NonNull<u8>, len: usize) {
+        trace!("marking {start:?}+{len} of {self:?} as used");
         let range = Range {
             start, end: unsafe { start.add(len) },
         };
@@ -150,8 +151,10 @@ impl Drop for Allocation {
             // remove ourself from the uefi allocation
             while used_index < ua.used.len() {
                 let ran = &ua.used[used_index];
-                // TODO: Allocation can span multiple UefiAllocations
-                if ran.start == self.ptr && ran.end == unsafe { self.ptr.add(self.len) } {
+                // Allocation can span multiple (two) UefiAllocations
+                // either it's in the front or in the back
+                if ran.start == self.ptr || ran.end == unsafe { self.ptr.add(self.len) } {
+                    trace!("removing {ran:?} from {ua:?}");
                     ua.used.remove(used_index);
                     continue;
                 }
@@ -160,6 +163,7 @@ impl Drop for Allocation {
             // if it's empty, remove the whole uefi allocation
             // this calls its drop handler, actually freeing the memory
             if ua.used.is_empty() {
+                trace!("removing {ua:?}");
                 allocator.allocations.remove(ua_index);
                 continue;
             }
@@ -184,9 +188,10 @@ impl Allocation {
         quirks: &BTreeSet<Quirk>,
         should_exit_boot_services: bool,
     ) -> Result<Self, Status>{
+        let ptr = NonNull::new(address as *mut u8).unwrap();
         // check if this falls into an existing allocation
         // this should be just one, but we can't check this here
-        if let Some(ua) = allocator
+        let (second_addr, second_size) = if let Some(ua) = allocator
             .borrow_mut()
             .allocations
             .iter_mut()
@@ -195,31 +200,35 @@ impl Allocation {
             // check if it fits
             if ua.contains(address + size - 1) {
                 // note it as used
-                let ptr = NonNull::new(address as *mut u8).unwrap();
                 ua.mark_used(ptr, size);
-                Ok(Allocation {
-                    allocator: allocator.clone(), ptr, len: size,
-                    should_be_at: None,
-                })
+                // we're basically done
+                (0, 0)
             } else {
-                // we need to allocate more memory
-                // TODO: Allocation can span multiple UefiAllocations
-                todo!()
+                // mark the end of this allocation as used
+                let first_len = (ua.pages * PAGE_SIZE) - (ptr.as_ptr() as usize - ua.ptr.as_ptr() as usize);
+                // this is remove later on, if `new_at` fails
+                ua.mark_used(ptr, first_len);
+                // but we still need to allocate more memory
+                let second_addr = address + first_len;
+                assert_eq!(second_addr % PAGE_SIZE, 0);
+                (second_addr, size - first_len)
             }
         } else {
+            // we need to create a new allocation
+            (address, size)
+        };
+        // do we need to create another allocation?
+        let types_in_the_way = if let Some(second_ptr) = NonNull::new(second_addr as *mut u8) {
             // create a new allocation
-            let page_offset = address % PAGE_SIZE;
-            let page_start = address - page_offset;
-            let count_pages = (size + page_offset).div_ceil(PAGE_SIZE);
+            let page_offset = second_addr % PAGE_SIZE;
+            let page_start = second_addr - page_offset;
+            let count_pages = (second_size + page_offset).div_ceil(PAGE_SIZE);
             match UefiAllocation::new_at(page_start, count_pages) {
                 Ok(mut ua) => {
-                    let ptr = NonNull::new(address as *mut u8).unwrap();
-                    ua.mark_used(ptr, size);
+                    ua.mark_used(second_ptr, second_size);
                     allocator.borrow_mut().allocations.push(ua);
-                    Ok(Self {
-                        allocator: allocator.clone(), ptr, len: size,
-                        should_be_at: None,
-                    })
+                    // successful
+                    None
                 },
                 Err(e) => {
                     warn!("failed to allocate 0x{size:x} bytes of memory at 0x{address:x}: {e:?}");
@@ -233,7 +242,7 @@ impl Allocation {
                             continue;
                         }
                         // if it's before the space we need, ignore it
-                        if entry.phys_start + entry.page_count * 4096 < address.try_into().unwrap() {
+                        if entry.phys_start + entry.page_count * (PAGE_SIZE as u64) < address.try_into().unwrap() {
                             continue;
                         }
                         // if it's empty, ignore it
@@ -253,22 +262,63 @@ impl Allocation {
                         types_in_the_way.remove(&MemoryType::BOOT_SERVICES_CODE);
                         types_in_the_way.remove(&MemoryType::BOOT_SERVICES_DATA);
                     }
-                    if types_in_the_way.is_empty() || quirks.contains(&Quirk::ForceOverwrite) {
-                        warn!("going to allocate it somewhere else and try to move it later");
-                        warn!("this might fail without notice");
-                        Self::new_under_4gb(allocator, size, &BTreeSet::default()).map(|mut allocation| {
-                            allocation.should_be_at = Some(address.try_into().unwrap());
-                            allocation
-                        })
-                    } else {
-                        error!("Cannot allocate memory for the kernel, it might be too big.");
-                        warn!(
-                            "If you're in a virtual machine, you could try passing the ForceOverwrite quirk."
-                        );
-                        Err(Status::LOAD_ERROR)
+                    if quirks.contains(&Quirk::ForceOverwrite) {
+                        warn!("ForceOverwrite quirk is enabled; ignoring those sections");
+                        types_in_the_way.clear();
                     }
+                    Some(types_in_the_way)
                 }
             }
+        } else {
+            // nothing to do, this always succeeds
+            None
+        };
+        // check if we encountered any obstacles
+        if let Some(types) = types_in_the_way {
+            // something was in the way
+            // in any of these cases, we need to remove the used-marking from before, if it exists
+            if address != second_addr {
+                let mut lock = allocator.borrow_mut();
+                let first_ua = lock
+                    .allocations
+                    .iter_mut()
+                    .find(|u| u.contains(address))
+                    .expect("failed to find the first allocation again");
+                let mut removed = false;
+                let mut index = 0;
+                while index < first_ua.used.len() {
+                    if first_ua.used[index].start == ptr {
+                        first_ua.used.remove(index);
+                        removed = true;
+                        break;
+                    }
+                    index += 1;
+                }
+                assert!(removed);
+            }
+            if types.is_empty() {
+                // but this wasn't anything important (eg. our data)
+                warn!("going to allocate it somewhere else and try to move it later");
+                warn!("this might fail without notice");
+                Self::new_under_4gb(allocator, size, &BTreeSet::default()).map(|mut allocation| {
+                    allocation.should_be_at = Some(address.try_into().unwrap());
+                    allocation
+                })
+            } else {
+                // this was something important, so abort
+                error!("Cannot allocate memory for the kernel, it might be too big.");
+                warn!(
+                    "If you're in a virtual machine, you could try passing the ForceOverwrite quirk."
+                );
+                Err(Status::LOAD_ERROR)
+            }
+        } else {
+            // we didn't find anything on the way and managed to allocate successfully
+            // return the new allocation
+            Ok(Self {
+                allocator: allocator.clone(), ptr, len: size,
+                should_be_at: None,
+            })
         }
     }
 
