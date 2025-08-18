@@ -348,7 +348,7 @@ impl Allocation {
     }
     
     /// Get the pointer inside.
-    pub(crate) fn as_ptr(&self) -> *const u8 {
+    pub(crate) const fn as_ptr(&self) -> *const u8 {
         self.ptr.as_ptr()
     }
     

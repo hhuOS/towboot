@@ -31,11 +31,11 @@ struct Build {
     #[argh(switch)]
     release: bool,
 
-    /// do not include i686 build
+    /// do not include `i686` build
     #[argh(switch)]
     no_i686: bool,
 
-    /// do not include x86_64 build
+    /// do not include `x86_64` build
     #[argh(switch)]
     no_x86_64: bool,
 

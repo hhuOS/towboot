@@ -164,7 +164,7 @@ pub struct BootImageCommand {
     #[argh(option, default = "PathBuf::from(\"image.img\")")]
     image: PathBuf,
 
-    /// use x86_64 instead of i686
+    /// use `x86_64` instead of `i686`
     #[argh(switch)]
     x86_64: bool,
 

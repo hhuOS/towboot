@@ -348,7 +348,7 @@ impl PreparedEntry {
             !entry.quirks.contains(&Quirk::DontExitBootServices),
         );
         
-        Ok(PreparedEntry {
+        Ok(Self {
             loaded_kernel, multiboot_information, modules_vec,
         })
     }
@@ -468,7 +468,7 @@ impl EntryPoint {
         }
     }
 
-    /// i686-specific part of the Multiboot machine state.
+    /// `i686`-specific part of the Multiboot machine state.
     #[cfg(target_arch = "x86")]
     fn jump_multiboot(entry_address: usize, signature: u32, info: &[u8]) -> ! {
         debug!("preparing machine state and jumping to 0x{entry_address:x}");
@@ -507,7 +507,7 @@ impl EntryPoint {
         }
     }
 
-    /// x86_64-specific part of the Multiboot machine state.
+    /// `x86_64`-specific part of the Multiboot machine state.
     #[cfg(target_arch = "x86_64")]
     fn jump_multiboot(entry_address: usize, signature: u32, info: &[u8]) -> ! {
         debug!("preparing machine state and jumping to 0x{entry_address:x}");
@@ -586,7 +586,7 @@ impl EntryPoint {
         }
     }
 
-    /// This last part is common for i686 and x86_64.
+    /// This last part is common for `i686` and `x86_64`.
     #[unsafe(naked)]
     extern "C" fn jump_multiboot_common() {
         naked_asm!(
