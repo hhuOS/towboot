@@ -3,7 +3,7 @@ use core::fmt::Write;
 use alloc::collections::btree_map::BTreeMap;
 use alloc::string::String;
 
-use uefi::prelude::*;
+use uefi::{prelude::*, print, println};
 use uefi::boot::{EventType, TimerTrigger, Tpl, create_event, set_timer, wait_for_event};
 use uefi::proto::console::text::{Input, Key, ScanCode};
 use uefi::system::{with_stdin, with_stdout};
@@ -134,12 +134,36 @@ fn select_entry(entries: &BTreeMap<String, Entry>) -> uefi::Result<&Entry> {
 /// This can help with reading an error message, because it might scroll away.
 pub(super) fn sleep(seconds: u8) {
     // This is safe because there is no callback.
-    let timer = unsafe { create_event(
+    match unsafe { create_event(
         EventType::TIMER, Tpl::APPLICATION, None, None
-    ) }.expect("failed to create timer");
-    set_timer(
-        &timer, seconds_to_relative(seconds)
-    ).expect("failed to set timer");
-    wait_for_event(&mut [timer])
-        .discard_errdata().expect("failed to sleep");
+    ) } {
+        // the correct way: asking the firmware to sleep
+        Ok(timer) => {
+            set_timer(
+                &timer, seconds_to_relative(seconds)
+            ).expect("failed to set timer");
+            wait_for_event(&mut [timer])
+                .discard_errdata().expect("failed to sleep");
+        },
+        // the fallback: just loop a few times
+        Err(_) => {
+            warn!("failed to create timer, falling back to a loop");
+            // it's not easy getting this slow enough
+            for _ in 0..seconds {
+                // this should take about a second
+                for i in 0..(1 << 26) {
+                    match i % (1 << 24) {
+                        0 => print!("."),
+                        2796202 => print!("o"),
+                        5592404 => print!("O"),
+                        8388606 => print!("o"),
+                        11184808 => print!("."),
+                        13981010 => print!(" "),
+                        _ => print!(""),
+                    }
+                }
+            }
+            println!("");
+        }
+    }
 }
