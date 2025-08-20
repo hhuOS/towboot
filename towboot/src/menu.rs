@@ -55,7 +55,7 @@ fn display_menu<'a>(
             EventType::TIMER, Tpl::APPLICATION, None, None
         ) }?;
         set_timer(
-            &timer, TimerTrigger::Relative(u64::from(timeout) * 10_000_000)
+            &timer, seconds_to_relative(timeout)
         )?;
         let key_event = with_stdin(|stdin| stdin.wait_for_key_event())
             .expect("to be able to wait for key events");
@@ -95,6 +95,11 @@ fn display_menu<'a>(
     }
 }
 
+/// Create a [`TimerTrigger::Relative`] that elapses in `seconds` seconds.
+fn seconds_to_relative(seconds: u8) -> TimerTrigger {
+    TimerTrigger::Relative(u64::from(seconds) * 10_000_000)
+}
+
 /// Try to select an entry.
 fn select_entry(entries: &BTreeMap<String, Entry>) -> uefi::Result<&Entry> {
     let mut value = String::new();
@@ -122,4 +127,19 @@ fn select_entry(entries: &BTreeMap<String, Entry>) -> uefi::Result<&Entry> {
         Ok(index) => entries.values().nth(index),
         Err(_) => entries.get(&value),
     }.ok_or(Status::INVALID_PARAMETER.into())
+}
+
+/// Sleep for a while.
+/// 
+/// This can help with reading an error message, because it might scroll away.
+pub(super) fn sleep(seconds: u8) {
+    // This is safe because there is no callback.
+    let timer = unsafe { create_event(
+        EventType::TIMER, Tpl::APPLICATION, None, None
+    ) }.expect("failed to create timer");
+    set_timer(
+        &timer, seconds_to_relative(seconds)
+    ).expect("failed to set timer");
+    wait_for_event(&mut [timer])
+        .discard_errdata().expect("failed to sleep");
 }

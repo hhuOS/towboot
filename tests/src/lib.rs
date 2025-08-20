@@ -74,7 +74,7 @@ fn build_and_boot(
         .stderr(Stdio::inherit())
         .arg("-display").arg("none")
         .spawn()?;
-    sleep(Duration::from_secs(5)); // TODO: kernels should probably terminate the VM
+    sleep(Duration::from_secs(10)); // TODO: kernels should probably terminate the VM
     qemu_process.kill()?; // there's no terminate here
     let qemu_output = qemu_process.wait_with_output()?;
     Ok(String::from_utf8(qemu_output.stdout)?)

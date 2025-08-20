@@ -98,6 +98,7 @@ fn main() -> Status {
         },
         Err(e) => {
             error!("failed to prepare the entry: {e:?}");
+            menu::sleep(10);
             e // give up
             // TODO: perhaps redisplay the menu or something like that
         },

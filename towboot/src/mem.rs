@@ -26,6 +26,7 @@ use uefi::mem::memory_map::{
 use log::{debug, error, trace, warn};
 
 use towboot_config::Quirk;
+use super::menu::sleep;
 
 // no multiboot import here as some of the types have the same name as the UEFI ones
 
@@ -232,6 +233,7 @@ impl Allocation {
                 },
                 Err(e) => {
                     warn!("failed to allocate 0x{size:x} bytes of memory at 0x{address:x}: {e:?}");
+                    sleep(1);
                     // find out why that part of memory is occupied
                     let memory_map = get_memory_map();
                     let mut types_in_the_way = BTreeSet::new();
