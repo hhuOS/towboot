@@ -2,6 +2,7 @@
 use std::error::Error;
 use std::fs;
 use std::env;
+use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -29,6 +30,7 @@ enum Command {
     BootImage(BootImageCommand),
     Image(ImageCommand),
     Install(InstallCommand),
+    Extract(ExtractCommand),
     Version(VersionCommand),
 }
 
@@ -153,6 +155,31 @@ impl InstallCommand {
 }
 
 #[derive(Debug, FromArgs)]
+#[argh(subcommand, name = "extract")]
+/// Extract the contained towboot executable.
+struct ExtractCommand {
+    /// use `x86_64` instead of `i686`
+    #[argh(switch)]
+    x86_64: bool,
+
+    #[argh(positional)]
+    /// the filename to save as
+    path: PathBuf,
+}
+
+impl ExtractCommand {
+    fn r#do(&self) -> Result<(), Box<dyn Error>> {
+        let code = if self.x86_64 {
+            towboot_x64::TOWBOOT
+        } else {
+            towboot_ia32::TOWBOOT
+        };
+        File::create_new(&self.path)?.write_all(code)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, FromArgs)]
 #[argh(subcommand, name = "version")]
 /// Display information about this application.
 struct VersionCommand {}
@@ -187,6 +214,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Command::BootImage(boot_image_command) => boot_image_command.r#do(),
         Command::Image(image_command) => image_command.r#do(),
         Command::Install(install_command) => install_command.r#do(),
+        Command::Extract(extract_command) => extract_command.r#do(),
         Command::Version(version_command) => version_command.r#do(),
     }
 }
