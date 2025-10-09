@@ -18,7 +18,7 @@ use alloc::rc::Rc;
 use alloc::vec::Vec;
 
 use uefi::prelude::*;
-use uefi::boot::{AllocateType, allocate_pages, free_pages, memory_map};
+use uefi::boot::{allocate_pages, free_pages, memory_map, stall, AllocateType};
 use uefi::mem::memory_map::{
     MemoryDescriptor, MemoryMap, MemoryMapMut, MemoryMapOwned, MemoryType
 };
@@ -26,7 +26,6 @@ use uefi::mem::memory_map::{
 use log::{debug, error, trace, warn};
 
 use towboot_config::Quirk;
-use super::menu::sleep;
 
 // no multiboot import here as some of the types have the same name as the UEFI ones
 
@@ -233,7 +232,7 @@ impl Allocation {
                 },
                 Err(e) => {
                     warn!("failed to allocate 0x{size:x} bytes of memory at 0x{address:x}: {e:?}");
-                    sleep(1);
+                    stall(1_000_000);
                     // find out why that part of memory is occupied
                     let memory_map = get_memory_map();
                     let mut types_in_the_way = BTreeSet::new();

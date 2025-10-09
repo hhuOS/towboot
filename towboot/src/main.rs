@@ -9,7 +9,7 @@ use core::str::FromStr;
 use alloc::string::ToString;
 
 use uefi::prelude::*;
-use uefi::boot::{image_handle, open_protocol_exclusive};
+use uefi::boot::{image_handle, open_protocol_exclusive, stall};
 use uefi::fs::PathBuf;
 use uefi::data_types::CString16;
 use uefi::proto::loaded_image::{LoadedImage, LoadOptionsError};
@@ -98,7 +98,7 @@ fn main() -> Status {
         },
         Err(e) => {
             error!("failed to prepare the entry: {e:?}");
-            menu::sleep(10);
+            stall(10 * 1_000_000);
             e // give up
             // TODO: perhaps redisplay the menu or something like that
         },
