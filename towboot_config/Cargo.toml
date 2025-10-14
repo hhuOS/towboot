@@ -10,9 +10,12 @@ edition = "2024"
 
 [features]
 default = ["options"]
-options = ["miniarg"]
+options = ["dep:miniarg"]
 
 [dependencies]
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 log = "0.4.4"
 miniarg = { version = "0.5", default-features = false, features = ["alloc", "derive"], optional = true }
+displaydoc = { version = "0.2", default-features = false }
+strum = { version = "0.27", default-features = false }
+strum_macros = "0.27"

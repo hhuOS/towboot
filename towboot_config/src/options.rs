@@ -1,5 +1,6 @@
+use core::fmt::Write;
 use alloc::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
-use alloc::fmt;
+use alloc::{fmt, format};
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
@@ -7,6 +8,7 @@ use log::{info, error, trace};
 use miniarg::{ArgumentIterator, Key};
 use serde::Deserialize;
 use serde::de::{IntoDeserializer, value};
+use strum::VariantArray;
 
 use super::{Config, Entry, Module, Quirk};
 
@@ -32,7 +34,7 @@ pub enum LoadOptionKey {
     LogLevel,
     /// Load a module with the given args. Can be specified multiple times.
     Module,
-    /// Enable a specific quirk. (Only applies when loading a kernel.)
+    /// Enable a specific quirk. (Only applies when loading a kernel, `-quirk help` shows all available quirks.)
     Quirk,
     /// Displays all available options and how to use them.
     Help,
@@ -75,6 +77,15 @@ pub fn parse_load_options(
                     LoadOptionKey::LogLevel => log_level = Some(value),
                     LoadOptionKey::Module => modules.push(value),
                     LoadOptionKey::Quirk => {
+                        if value == "help" || value == "list" {
+                            let mut quirks_help = String::new();
+                            for quirk in Quirk::VARIANTS {
+                                write!(quirks_help, "\n * {quirk:?}\n{quirk}")
+                                    .unwrap();
+                            }
+                            info!("Available quirks:{quirks_help}");
+                            return Ok(None)
+                        }
                         let parsed: Result<Quirk, value::Error> = Quirk::deserialize(
                             value.into_deserializer()
                         );
@@ -86,7 +97,9 @@ pub fn parse_load_options(
                         }
                     },
                     LoadOptionKey::Help => {
-                        info!("Usage:\n{}", LoadOptionKey::help_text());
+                        info!("Usage:{}", format!(
+                            "\n{}", LoadOptionKey::help_text()
+                        ));
                         return Ok(None)
                     }
                     #[cfg(target_os = "uefi")]

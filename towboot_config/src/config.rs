@@ -4,6 +4,7 @@ use alloc::vec::Vec;
 use alloc::string::String;
 
 use serde::{Deserialize, Serialize};
+use strum_macros::VariantArray;
 
 /// The main configuration struct
 #[derive(Deserialize, Debug, Serialize)]
@@ -57,17 +58,23 @@ pub struct Module {
 }
 
 /// Runtime options to override information in kernel images.
-#[derive(Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Deserialize, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, VariantArray, displaydoc::Display)]
 pub enum Quirk {
-    /// Do not exit Boot Services.
-    /// This starts the kernel with more privileges and less available memory.
-    /// In some cases this might also display more helpful error messages.
+    /**
+    Do not exit Boot Services.
+    This starts the kernel with more privileges and less available memory.
+    In some cases this might also display more helpful error messages.
+    */
     DontExitBootServices,
-    /// Treat the kernel always as an ELF file.
-    /// This ignores bit 16 of the kernel's Multiboot header.
+    /**
+    Treat the kernel always as an ELF file.
+    This ignores bit 16 of the kernel's Multiboot header.
+    */
     ForceElf,
-    /// Ignore the memory map when loading the kernel.
-    /// This might damage your hardware!
+    /**
+    Ignore the memory map when loading the kernel.
+    This might damage your hardware!
+    */
     ForceOverwrite,
     /// Ignore the kernel's preferred resolution and just keep the current one.
     KeepResolution,
