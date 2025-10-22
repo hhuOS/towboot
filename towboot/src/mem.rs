@@ -11,6 +11,7 @@ use core::cell::RefCell;
 use core::mem::size_of;
 use core::ptr::NonNull;
 use core::ops::Range;
+use core::time::Duration;
 
 use alloc::boxed::Box;
 use alloc::collections::btree_set::BTreeSet;
@@ -232,7 +233,7 @@ impl Allocation {
                 },
                 Err(e) => {
                     warn!("failed to allocate 0x{size:x} bytes of memory at 0x{address:x}: {e:?}");
-                    stall(1_000_000);
+                    stall(Duration::from_secs(1));
                     // find out why that part of memory is occupied
                     let memory_map = get_memory_map();
                     let mut types_in_the_way = BTreeSet::new();

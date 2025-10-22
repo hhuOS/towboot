@@ -6,6 +6,7 @@
 extern crate alloc;
 
 use core::str::FromStr;
+use core::time::Duration;
 use alloc::string::ToString;
 
 use uefi::prelude::*;
@@ -98,7 +99,7 @@ fn main() -> Status {
         },
         Err(e) => {
             error!("failed to prepare the entry: {e:?}");
-            stall(10 * 1_000_000);
+            stall(Duration::from_secs(10));
             e // give up
             // TODO: perhaps redisplay the menu or something like that
         },

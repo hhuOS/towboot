@@ -7,12 +7,7 @@ use multiboot12::information::InfoBuilder;
 use acpi::rsdp::Rsdp;
 use dmidecode::EntryPoint;
 use uefi::system::with_config_table;
-use uefi::table::cfg::{
-    ConfigTableEntry, ACPI_GUID, ACPI2_GUID, DEBUG_IMAGE_INFO_GUID,
-    DXE_SERVICES_GUID, HAND_OFF_BLOCK_LIST_GUID, LZMA_COMPRESS_GUID,
-    MEMORY_STATUS_CODE_RECORD_GUID, MEMORY_TYPE_INFORMATION_GUID, SMBIOS_GUID,
-    SMBIOS3_GUID,
-};
+use uefi::table::cfg::ConfigTableEntry;
 
 /// Go through all of the configuration tables.
 /// Some of them are interesting for Multiboot2.
@@ -23,13 +18,13 @@ pub(super) fn parse_for_multiboot(info_builder: &mut InfoBuilder) {
     debug!("going through configuration tables...");
     for table in config_tables {
         match table.guid {
-            ACPI_GUID | ACPI2_GUID => handle_acpi(&table, info_builder),
-            DEBUG_IMAGE_INFO_GUID => debug!("ignoring image debug info"),
-            DXE_SERVICES_GUID => debug!("ignoring dxe services table"),
-            HAND_OFF_BLOCK_LIST_GUID => debug!("ignoring hand-off block list"),
-            LZMA_COMPRESS_GUID => debug!("ignoring lzma filesystem"),
-            MEMORY_STATUS_CODE_RECORD_GUID | MEMORY_TYPE_INFORMATION_GUID => debug!("ignoring early memory info"),
-            SMBIOS_GUID | SMBIOS3_GUID => handle_smbios(&table, info_builder),
+            ConfigTableEntry::ACPI_GUID | ConfigTableEntry::ACPI2_GUID => handle_acpi(&table, info_builder),
+            ConfigTableEntry::DEBUG_IMAGE_INFO_GUID => debug!("ignoring image debug info"),
+            ConfigTableEntry::DXE_SERVICES_GUID => debug!("ignoring dxe services table"),
+            ConfigTableEntry::HAND_OFF_BLOCK_LIST_GUID => debug!("ignoring hand-off block list"),
+            ConfigTableEntry::LZMA_COMPRESS_GUID => debug!("ignoring lzma filesystem"),
+            ConfigTableEntry::MEMORY_STATUS_CODE_RECORD_GUID | ConfigTableEntry::MEMORY_TYPE_INFORMATION_GUID => debug!("ignoring early memory info"),
+            ConfigTableEntry::SMBIOS_GUID | ConfigTableEntry::SMBIOS3_GUID => handle_smbios(&table, info_builder),
             guid => debug!("ignoring table {guid}"),
         }
     }
@@ -45,7 +40,7 @@ fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
     }
 
     match table.guid {
-        ACPI_GUID => {
+        ConfigTableEntry::ACPI_GUID => {
             if rsdp.revision() != 0 {
                 warn!("expected RSDP version 0, but got {}", rsdp.revision());
             }
@@ -55,7 +50,7 @@ fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
                 rsdp.revision(), rsdp.rsdt_address(),
             );
         }
-        ACPI2_GUID => {
+        ConfigTableEntry::ACPI2_GUID => {
             if rsdp.revision() != 2 {
                 warn!("expected RSDP version 2, but got {}", rsdp.revision());
             }
@@ -90,8 +85,8 @@ fn handle_smbios(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
         Ok(entry_point) => {
             let version = entry_point.to_version();
             let should_be_version = match table.guid {
-                SMBIOS_GUID => 2,
-                SMBIOS3_GUID => 3,
+                ConfigTableEntry::SMBIOS_GUID => 2,
+                ConfigTableEntry::SMBIOS3_GUID => 3,
                 _ => panic!("'handle_smbios()' called with wrong config table entry")
             };
             if version.major != should_be_version {
