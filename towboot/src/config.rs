@@ -10,6 +10,7 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
 use log::error;
+use uefi::fs::Path;
 use uefi::prelude::*;
 
 use towboot_config::{Config, ConfigSource, parse_load_options};
@@ -44,10 +45,12 @@ fn version_info() -> String {
 ///
 /// Returns None if just a help text has been displayed.
 pub fn get(
-    image_fs_handle: Handle, load_options: &str,
+    image_fs_handle: Handle, cwd: &Path, load_options: &str,
 ) -> Result<Option<Config>, Status> {
     match parse_load_options(load_options, &version_info()) {
-        Ok(Some(ConfigSource::File(s))) => Ok(Some(read_file(image_fs_handle, &s)?)),
+        Ok(Some(ConfigSource::File(s))) => Ok(Some(read_file(
+            image_fs_handle, cwd, &s,
+        )?)),
         Ok(Some(ConfigSource::Given(c))) => Ok(Some(c)),
         Ok(None) => Ok(None),
         Err(()) => Err(Status::INVALID_PARAMETER),
@@ -55,8 +58,10 @@ pub fn get(
 }
 
 /// Try to read and parse the configuration from the given file.
-fn read_file(image_fs_handle: Handle, file_name: &str) -> Result<Config, Status> {
-    let bytes: Vec<u8> = File::open(file_name, image_fs_handle)?.try_into()?;
+fn read_file(image_fs_handle: Handle, cwd: &Path, file_name: &str) -> Result<Config, Status> {
+    let bytes: Vec<u8> = File::open(
+        file_name, image_fs_handle, cwd,
+    )?.try_into()?;
     let text = str::from_utf8(&bytes).map_err(|e| {
         error!("configuration file contains invalid bytes: {e:?}");
         Status::UNSUPPORTED

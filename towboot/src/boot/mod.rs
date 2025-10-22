@@ -17,7 +17,7 @@ use core::arch::naked_asm;
 use core::cell::RefCell;
 use core::ffi::c_void;
 use core::ptr::NonNull;
-use uefi::prelude::*;
+use uefi::{fs::Path, prelude::*};
 use uefi::boot::{exit_boot_services, image_handle, memory_map, MemoryType, ScopedProtocol};
 use uefi::mem::memory_map::{MemoryMap, MemoryMapMut};
 use uefi::proto::console::gop::GraphicsOutput;
@@ -313,13 +313,15 @@ impl PreparedEntry {
     /// The returned `PreparedEntry` can be used to actually boot.
     /// This is non-destructive and will always return.
     pub(crate) fn new(
-        entry: &Entry, image_fs_handle: Handle,
+        entry: &Entry, image_fs_handle: Handle, cwd: &Path,
     ) -> Result<Self, Status> {
         // track the allocations for this selected entry
         // there's no need to keep it around,
         // it gets dropped when all allocations have been dropped
         let allocator = Rc::new(RefCell::new(Allocator::new()));
-        let kernel_vec: Vec<u8> = File::open(&entry.image, image_fs_handle)?.try_into()?;
+        let kernel_vec: Vec<u8> = File::open(
+            &entry.image, image_fs_handle, cwd,
+        )?.try_into()?;
         let header = Header::from_slice(kernel_vec.as_slice()).ok_or_else(|| {
             error!("invalid Multiboot header");
             Status::LOAD_ERROR
@@ -332,7 +334,7 @@ impl PreparedEntry {
         // Load all modules, fail completely if one fails to load.
         // just always use whole pages, that's easier for us
         let modules_vec: Vec<Allocation> = entry.modules.iter().map(|module|
-            File::open(&module.image, image_fs_handle)
+            File::open(&module.image, image_fs_handle, cwd)
             .and_then(|f| f.try_into_allocation(&allocator, &entry.quirks))
         ).collect::<Result<Vec<_>, _>>()?;
         info!("loaded {} modules", modules_vec.len());

@@ -10,10 +10,11 @@ use core::time::Duration;
 use alloc::string::ToString;
 
 use uefi::prelude::*;
-use uefi::boot::{image_handle, open_protocol_exclusive, stall};
+use uefi::boot::{get_handle_for_protocol, image_handle, open_protocol_exclusive, stall};
 use uefi::fs::PathBuf;
 use uefi::data_types::CString16;
 use uefi::proto::loaded_image::{LoadedImage, LoadOptionsError};
+use uefi::proto::shell::Shell;
 
 use log::{debug, info, warn, error};
 
@@ -53,9 +54,20 @@ fn main() -> Status {
 
     // get the filesystem
     let image_fs_handle = loaded_image.device().expect("the image to be loaded from a device");
+    // get the current directory, else assume it's \
+    let cwd: PathBuf = get_handle_for_protocol::<Shell>()
+        .map(open_protocol_exclusive::<Shell>)
+        .flatten()
+        .map(|shell| shell.current_dir(None).map(CString16::from))
+        .flatten()
+        .unwrap_or_else(|e| {
+            debug!("failed to get current directory ({e:?}), assuming \\");
+            CString16::new()
+        })
+        .into();
 
     let mut config = match config::get(
-        image_fs_handle, load_options.as_deref().unwrap_or_default(),
+        image_fs_handle, &cwd, load_options.as_deref().unwrap_or_default(),
     ) {
         Ok(Some(c)) => c,
         Ok(None) => return Status::SUCCESS,
@@ -92,7 +104,7 @@ fn main() -> Status {
     debug!("okay, trying to load {entry_to_boot:?}");
     info!("loading {entry_to_boot}...");
     
-    match boot::PreparedEntry::new(entry_to_boot, image_fs_handle) {
+    match boot::PreparedEntry::new(entry_to_boot, image_fs_handle, &cwd) {
         Ok(e) => {
             info!("booting {entry_to_boot}...");
             e.boot();

@@ -9,9 +9,9 @@ use alloc::rc::Rc;
 use alloc::{vec::Vec, vec};
 use alloc::string::ToString;
 
-use log::{info, error};
+use log::{debug, info, error};
 
-use uefi::prelude::*;
+use uefi::{prelude::*, Char16};
 use uefi::boot::{find_handles, open_protocol_exclusive};
 use uefi::fs::{Path, PathBuf};
 use uefi::data_types::CString16;
@@ -34,22 +34,50 @@ impl<'a> File<'a> {
     /// Opens a file.
     ///
     /// The path can be:
-    /// * relative to the volume we're loaded from
+    /// * relative to the current working directory
+    /// * relative to the volume we were loaded from (if it starts with `\`)
     /// * on a different volume (if it starts with `fs?:`)
+    /// 
+    /// Relative paths in a configuration file are resolved relative to
+    /// `config.src` in the main function.
+    /// The current working directory may start with `fsX:\`.
     ///
     /// Possible errors:
     /// * `Status::INVALID_PARAMETER`: the volume identifier is invalid
     /// * `Status::NOT_FOUND`: the file does not exist
     /// * `Status::PROTOCOL_ERROR`: the file name is not a valid string
     /// * `Status::UNSUPPORTED`: the given path does exist, but it's a directory
-    pub(crate) fn open(name: &'a str, image_fs_handle: Handle) -> Result<Self, Status> {
+    pub(crate) fn open(
+        name: &'a str, image_fs_handle: Handle, cwd: &Path,
+    ) -> Result<Self, Status> {
         info!("loading file '{name}'...");
         let file_name = CString16::try_from(name)
             .map_err(|e| {
                 error!("filename is invalid because of {e:?}");
                 Status::PROTOCOL_ERROR
             })?;
+        // resolve paths relative to the shell's current directory
+        // cwd may start with "fsX:"
         let file_path = Path::new(&file_name);
+        let file_path_components = file_path.components();
+        let root = file_path
+            .components()
+            .next()
+            .expect("file name is empty")
+            .to_string();
+        let file_name = if file_name.iter().next() != Some(
+            &Char16::try_from('\\').unwrap()
+        ) && !root.starts_with("fs") && !root.ends_with(':') {
+            let mut file_path = PathBuf::new();
+            // relative to the root
+            file_path.push(cwd);
+            for c in file_path_components {
+                file_path.push(c.as_ref());
+            }
+            file_path.to_cstr16().to_owned()
+        } else { file_name };
+        let file_path = Path::new(&file_name);
+        // resolve absolute paths (fs0:\kernel.elf)
         let mut file_path_components = file_path.components();
         let (
             fs_handle, file_name,
@@ -69,6 +97,8 @@ impl<'a> File<'a> {
                     })?
                 ).ok_or(Status::NOT_FOUND)?;
                 let mut file_path = PathBuf::new();
+                // relative to the root
+                file_path.push(Path::new(&CString16::try_from("").unwrap()));
                 for c in file_path_components {
                     file_path.push(c.as_ref());
                 }
@@ -80,6 +110,7 @@ impl<'a> File<'a> {
         } else {
             (image_fs_handle, file_name)
         };
+        debug!("resolved file name to {image_fs_handle:?}:{file_name}");
         let mut fs = open_protocol_exclusive::<SimpleFileSystem>(fs_handle)
             .map_err(|e| e.status())?;
         let file_handle = match fs.open_volume().map_err(|e| e.status())?.open(
@@ -89,7 +120,7 @@ impl<'a> File<'a> {
         ) {
             Ok(file_handle) => file_handle,
             Err(e) => return {
-                error!("Failed to find file '{name}': {e:?}");
+                error!("Failed to find file '{file_name}': {e:?}");
                 Err(Status::NOT_FOUND)
             }
         };

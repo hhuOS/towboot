@@ -66,8 +66,7 @@ follows:
  * absolute if they start with a volume identifier (`fs?:`)
  * relative to the volume towboot itself is on if they start with a backslash (`\`)
  * relative to the configuration file
-
-Paths relative to the UEFI shell's current working directory are not supported, yet.
+ * relative to the UEFI shell's current working directory
 
 Paths for kernel and modules given on the commandline can't contain spaces,
 use a configuration file for this.

@@ -13,7 +13,7 @@ use strum::VariantArray;
 use super::{Config, Entry, Module, Quirk};
 
 /// The default path to the configuration file.
-pub const CONFIG_FILE: &str = "towboot.toml";
+pub const CONFIG_FILE: &str = "\\towboot.toml";
 
 /// Where to load the configuration from
 pub enum ConfigSource {
@@ -137,7 +137,7 @@ pub fn parse_load_options(
             timeout: Some(0),
             log_level: log_level.map(ToString::to_string),
             entries,
-            src: ".".to_string(), // TODO: put the CWD here
+            src: "cli".to_string(), // CWD
         })))
     } else if let Some(c) = config_file {
         Ok(Some(ConfigSource::File(c.to_string())))
