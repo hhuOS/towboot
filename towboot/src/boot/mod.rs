@@ -347,7 +347,7 @@ impl PreparedEntry {
         let multiboot_information = prepare_multiboot_information(
             entry, &header, loaded_kernel.load_base_address, &modules_vec,
             loaded_kernel.symbols_struct(), graphics_output,
-            !entry.quirks.contains(&Quirk::DontExitBootServices),
+            loaded_kernel.should_exit_boot_services,
         );
         
         Ok(Self {
