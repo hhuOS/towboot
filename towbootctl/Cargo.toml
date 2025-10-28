@@ -10,7 +10,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0"
-cached-path = "0.8"
+cached-path = "0.9"
 directories = "6"
 gpt = { version = "4.0", features = ["log"] }
 fscommon = "0.1"
