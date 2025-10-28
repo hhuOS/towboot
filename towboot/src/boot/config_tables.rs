@@ -46,7 +46,7 @@ fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
             }
             info_builder.set_rsdp_v1(
                 rsdp.signature(), rsdp.checksum(),
-                rsdp.oem_id().as_bytes()[0..6].try_into().unwrap(),
+                rsdp.oem_id().expect("failed to get OEM ID").as_bytes()[0..6].try_into().unwrap(),
                 rsdp.revision(), rsdp.rsdt_address(),
             );
         }
@@ -59,14 +59,14 @@ fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
                 warn!("RSDP revision is 0, forcing v1");
                 info_builder.set_rsdp_v1(
                     rsdp.signature(), rsdp.checksum(),
-                    rsdp.oem_id().as_bytes()[0..6].try_into().unwrap(),
+                    rsdp.oem_id().expect("failed to get OEM ID").as_bytes()[0..6].try_into().unwrap(),
                     rsdp.revision(), rsdp.rsdt_address(),
                 );
                 return;
             }
             info_builder.set_rsdp_v2(
                 rsdp.signature(), rsdp.checksum(),
-                rsdp.oem_id().as_bytes()[0..6].try_into().unwrap(),
+                rsdp.oem_id().expect("failed to get OEM ID").as_bytes()[0..6].try_into().unwrap(),
                 rsdp.revision(), rsdp.rsdt_address(), rsdp.length(),
                 rsdp.xsdt_address(), rsdp.ext_checksum(),
             );

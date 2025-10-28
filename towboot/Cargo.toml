@@ -13,7 +13,7 @@ default-target = "i686-unknown-uefi"
 
 [dependencies]
 uefi = { version = "0.36", features = ["alloc", "global_allocator", "logger", "panic_handler"] }
-acpi = { version = "5.0", default-features = false }
+acpi = { version = "6.0", default-features = false }
 dmidecode = { version = "1.0", default-features = false }
 x86 =  "0.52"
 
