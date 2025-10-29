@@ -1,17 +1,7 @@
 [package]
 name = "tests"
 edition = "2024"
-version.workspace = true
-authors.workspace = true
-license.workspace = true
-repository.workspace = true
+version = "0.1.0"
 
 [dependencies]
-anyhow = "1.0"
-ctor = "0.6"
-tempfile = "3.8"
-env_logger = { version = "0.11", default-features = false, features = ["auto-color"] }
-towboot_ia32 = { path = "../towboot_ia32" }
-towboot_x64 = { path = "../towboot_x64" }
-
-towbootctl = { path = "../towbootctl" }
+bootloader = { path = "../bootloader", artifact = "bin", target = "i686-unknown-uefi" }

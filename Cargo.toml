@@ -1,24 +1,6 @@
 [workspace]
 resolver = "2"
 members = [
-    "towboot",
-    "towboot_ia32",
-    "towboot_x64",
-    "xtask",
-    "towboot_config",
-    "towbootctl",
+    "bootloader",
     "tests",
 ]
-
-[workspace.package]
-# these apply to all crates
-version = "0.9.5"
-authors = ["Niklas Sombert <niklas.sombert@uni-duesseldorf.de>"]
-license = "MPL-2.0"
-repository = "https://github.com/hhuOS/towboot"
-
-[profile.release]
-# these settings are only really interesting for towbootctl,
-# but lto can't be set for just one crate
-strip = true
-lto = true
