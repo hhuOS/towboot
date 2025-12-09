@@ -401,7 +401,7 @@ pub(super) fn prepare_information(
     )>,
     efi_mmap: &uefi::mem::memory_map::MemoryMapOwned,
     mb_mmap_vec: &mut Vec<multiboot12::information::MemoryEntry>,
-    mb_efi_mmap_vec: &mut Vec<multiboot12::information::EfiMemoryDescriptor>,
+    mut mb_efi_mmap_vec: Option<&mut Vec<multiboot12::information::EfiMemoryDescriptor>>,
     boot_services_exited: bool,
 ) {
     // Descriptors are the ones from UEFI, Entries are the ones from Multiboot.
@@ -484,17 +484,19 @@ pub(super) fn prepare_information(
         size_of::<MemoryDescriptor>(),
         size_of::<multiboot12::information::EfiMemoryDescriptor>(),
     );
-    // We need to copy all entries, because we can't access `efi_mmap.buf`.
-    // It might be safer to create new `EFIMemoryDesc`s instead of transmuting.
-    efi_mmap.entries().zip(mb_efi_mmap_vec.iter_mut())
-        .for_each(
-            |(src, dst)|
-            *dst = unsafe { core::mem::transmute::<MemoryDescriptor, multiboot12::information::EfiMemoryDescriptor>(*src) }
-        );
+    if let Some(ref mut mb_vec) = mb_efi_mmap_vec {
+        // We need to copy all entries, because we can't access `efi_mmap.buf`.
+        // It might be safer to create new `EFIMemoryDesc`s instead of transmuting.
+        efi_mmap.entries().zip(mb_vec.iter_mut())
+            .for_each(
+                |(src, dst)|
+                *dst = unsafe { core::mem::transmute::<MemoryDescriptor, multiboot12::information::EfiMemoryDescriptor>(*src) }
+            );
+    }
     
     update_memory_info(
         info_bytes, lower.try_into().unwrap(), upper.try_into().unwrap(),
-        mb_mmap_vec.as_slice(), Some(mb_efi_mmap_vec.as_slice()),
+        mb_mmap_vec.as_slice(), mb_efi_mmap_vec.as_deref().map(Vec::as_slice),
     );
     // dropping this box breaks on Multiboot1, when Boot Services have been exited
     if boot_services_exited {

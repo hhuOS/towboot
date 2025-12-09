@@ -374,22 +374,28 @@ impl PreparedEntry {
         // Estimate how many entries there will be and add some.
         let estimated_count = map.entries().len() + 5;
         debug!("expecting {estimated_count} memory areas");
-        // Note that we're passing a slice of uefi.rs' MemoryDescriptors
-        // (which hopefully are the same as multiboot2's EFIMemoryDescs),
-        // and not the ones the firmware provides us with.
-        // (That's also why we can't set the version.)
-        // In the future, if uefi.rs might allow us to directly access
-        // the returned memory map (including the version!),
-        // we might want to pass that instead.
-        let mut mb_efi_mmap_vec = self.multiboot_information
-            .allocate_efi_memory_map_vec(estimated_count);
+        let mut mb_efi_mmap_vec = if self.loaded_kernel.should_exit_boot_services {
+            // Note that we're passing a slice of uefi.rs' MemoryDescriptors
+            // (which hopefully are the same as multiboot2's EFIMemoryDescs),
+            // and not the ones the firmware provides us with.
+            // (That's also why we can't set the version.)
+            // In the future, if uefi.rs might allow us to directly access
+            // the returned memory map (including the version!),
+            // we might want to pass that instead.
+            Some(
+                self.multiboot_information
+                .allocate_efi_memory_map_vec(estimated_count)
+            )
+        } else {
+            None
+        };
         let mut mb_mmap_vec = self.multiboot_information
             .allocate_memory_map_vec(estimated_count);
         self.multiboot_information.set_memory_bounds(Some((0, 0)));
         let (
             mut info, signature, update_memory_info,
         ) = self.multiboot_information.build();
-        debug!("passing signature {signature:x} to kernel...");
+        debug!("passing signature {:x} and info struct @{:?} to kernel...", signature, info.as_ptr());
         let mut memory_map = if self.loaded_kernel.should_exit_boot_services {
             info!("exiting boot services...");
             unsafe { exit_boot_services(None) }
@@ -402,7 +408,7 @@ impl PreparedEntry {
         memory_map.sort();
         super::mem::prepare_information(
             &mut info, update_memory_info, &memory_map,
-            &mut mb_mmap_vec, &mut mb_efi_mmap_vec,
+            &mut mb_mmap_vec, mb_efi_mmap_vec.as_mut(),
             self.loaded_kernel.should_exit_boot_services,
         );
         

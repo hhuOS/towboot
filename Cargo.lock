@@ -425,27 +425,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "derive_more"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
-dependencies = [
- "derive_more-impl",
-]
-
-[[package]]
-name = "derive_more-impl"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.108",
- "unicode-xid",
-]
-
-[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1253,25 +1232,13 @@ dependencies = [
 [[package]]
 name = "multiboot12"
 version = "0.1.0"
-source = "git+https://github.com/YtvwlD/multiboot12?tag=towboot-0.9.5#9e25962b16b25c21beab474658488f76459338b1"
+source = "git+https://github.com/YtvwlD/multiboot12?tag=towboot-0.11.0#8bd32a48a9720671b3f86975846a53f329ccc45a"
 dependencies = [
  "multiboot",
- "multiboot2 0.20.2",
+ "multiboot2",
  "multiboot2-header",
  "ouroboros",
  "update_cell",
-]
-
-[[package]]
-name = "multiboot2"
-version = "0.20.2"
-source = "git+https://github.com/YtvwlD/multiboot2?tag=towboot-0.9.5#f744a0a0bce2ef80de28b48b47d68098b18fc0c9"
-dependencies = [
- "bitflags 2.10.0",
- "derive_more",
- "log",
- "ptr_meta 0.2.0",
- "uefi-raw 0.5.2",
 ]
 
 [[package]]
@@ -1305,7 +1272,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0986ac90d9ecb9e241ada73a0b5da22c92e200161f015b4c40c461874912730"
 dependencies = [
  "log",
- "multiboot2 0.24.0",
+ "multiboot2",
  "multiboot2-common",
  "ptr_meta 0.3.1",
  "thiserror 2.0.17",
@@ -2366,17 +2333,6 @@ dependencies = [
 
 [[package]]
 name = "uefi-raw"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efa8716f52e8cab8bcedfd5052388a0f263b69fe5cc2561548dc6a530678333c"
-dependencies = [
- "bitflags 2.10.0",
- "ptr_meta 0.2.0",
- "uguid",
-]
-
-[[package]]
-name = "uefi-raw"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b463030b802e1265a3800fab24df95d3229c202c2e408832a206f05b4d1496ca"
@@ -2413,12 +2369,6 @@ name = "unicode-width"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4ac048d71ede7ee76d585517add45da530660ef4390e49b098733c6e897f254"
-
-[[package]]
-name = "unicode-xid"
-version = "0.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
 name = "update_cell"
