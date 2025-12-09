@@ -225,7 +225,9 @@ fn prepare_multiboot_information(
             module_entry.argv.as_deref()
         )
     }).collect();
-    info_builder.set_modules(Some(mb_modules));
+    if !mb_modules.is_empty() {
+        info_builder.set_modules(Some(mb_modules));
+    }
     info_builder.set_symbols(symbols);
     
     // Passing memory information happens after exiting BootServices,

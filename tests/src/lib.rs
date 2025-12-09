@@ -90,7 +90,7 @@ fn multiboot1() {
         println!("{}", stdout);
         assert!(stdout.contains("cmdline = test of a cmdline"));
         assert!(stdout.contains("boot_loader_name = towboot"));
-        assert!(stdout.contains("mods_count = 0"));
+        assert!(!stdout.contains("mods_count"));
         assert!(stdout.contains("mem_lower = 640KB"));
         assert!(stdout.ends_with("Halted."));
     }
