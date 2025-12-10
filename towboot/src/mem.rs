@@ -78,16 +78,37 @@ impl UefiAllocation {
     }
 
     /// Create a new, empty allocation anywhere.
+    /// 
+    /// If [`Quirk::LowerAllocations`] is set, try to place it as low as possible.
     fn new(pages: usize, quirks: &BTreeSet<Quirk>) -> Result<Self, Status> {
-        let ptr = allocate_pages(
-            AllocateType::MaxAddress(if quirks.contains(&Quirk::ModulesBelow200Mb) {
-                200 * 1024 * 1024
-            } else {
-                u32::MAX.into()
-            }),
-            MemoryType::LOADER_DATA,
-            pages,
-        ).map_err(|e| e.status())?;
+        let ptr = if quirks.contains(&Quirk::LowerAllocations) {
+            // the kernel assumes that modules are low in memory, try to do this
+            trace!("trying to allocate {pages} pages at low memory");
+            let mut start = PAGE_SIZE * (pages + 1);
+            loop {
+                match allocate_pages(
+                    AllocateType::MaxAddress(start.try_into().unwrap()),
+                    MemoryType::LOADER_DATA,
+                    pages,
+                ) {
+                    Ok(ptr) => break ptr,
+                    Err(e) => match e.status() {
+                        // try again at a higher address
+                        Status::OUT_OF_RESOURCES => start += PAGE_SIZE,
+                        s => return Err(s),
+                    },
+                }
+            }
+        } else {
+            trace!("trying to allocate {pages} pages anywhere");
+            // allocate anywhere in the first 4GB
+            allocate_pages(
+                AllocateType::MaxAddress(u32::MAX.into()),
+                MemoryType::LOADER_DATA,
+                pages,
+            ).map_err(|e| e.status())?
+        };
+        trace!("allocated {pages} pages at {ptr:?}");
         Ok(Self { ptr, pages, used: Vec::new() })
     }
 
