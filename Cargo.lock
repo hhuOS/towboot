@@ -1232,7 +1232,7 @@ dependencies = [
 [[package]]
 name = "multiboot12"
 version = "0.1.0"
-source = "git+https://github.com/YtvwlD/multiboot12?tag=towboot-0.11.0#8bd32a48a9720671b3f86975846a53f329ccc45a"
+source = "git+https://github.com/YtvwlD/multiboot12?tag=towboot-0.11.1#6386004cae03fdd66b0117cb9e541705f2aaef4a"
 dependencies = [
  "multiboot",
  "multiboot2",
