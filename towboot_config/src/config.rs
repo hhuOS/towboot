@@ -78,6 +78,6 @@ pub enum Quirk {
     ForceOverwrite,
     /// Ignore the kernel's preferred resolution and just keep the current one.
     KeepResolution,
-    /// Place modules below 200 MB.
-    ModulesBelow200Mb,
+    /// Try to place allocations for the kernel at the start of memory.
+    LowerAllocations,
 }

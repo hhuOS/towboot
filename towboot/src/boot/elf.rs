@@ -17,6 +17,8 @@ use multiboot12::header::Header;
 use multiboot12::information::Symbols;
 use towboot_config::Quirk;
 
+use crate::mem::MultibootAllocator;
+
 use super::super::mem::{Allocation, SegmentAllocator};
 
 /// Load ELF binaries.
@@ -146,17 +148,17 @@ impl From<OurElfLoader> for Vec<Allocation> {
 ///
 /// Returns a tuple of informations struct and vector containing the symbols.
 pub(super) fn symbols(
-    header: &Header, binary: &mut elf::Elf, data: &[u8]
-) -> (Symbols, Vec<u8>) {
+    header: &Header, binary: &mut elf::Elf, allocator: MultibootAllocator, data: &[u8],
+) -> (Symbols, Vec<u8, MultibootAllocator>) {
     // Let's just hope they fit into u32s.
     let num: u32 = binary.header.e_shnum.into();
     let size: u32 = binary.header.e_shentsize.into();
     
     // allocate memory to place the section headers and sections
-    let mut memory = Vec::with_capacity((
+    let mut memory = Vec::with_capacity_in((
         u64::from(size * num)
         + binary.section_headers.iter().filter(|s| s.sh_addr == 0).map(|s| s.sh_size).sum::<u64>()
-    ).try_into().unwrap());
+    ).try_into().unwrap(), allocator);
     let ptr = memory.as_ptr();
     
     // copy the symbols

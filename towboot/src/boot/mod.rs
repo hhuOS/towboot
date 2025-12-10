@@ -2,7 +2,7 @@
 //!
 //! This means: loading kernel and modules, handling ELF files, video initialization and jumping
 
-use alloc::{alloc::{Allocator, Global}, collections::btree_set::BTreeSet, format, rc::Rc, vec, vec::Vec};
+use alloc::{collections::btree_set::BTreeSet, format, rc::Rc, vec, vec::Vec};
 #[cfg(target_arch = "x86_64")]
 use x86::{
     dtables::DescriptorTablePointer,
@@ -33,6 +33,8 @@ use multiboot12::information::{
 use goblin::elf::Elf;
 
 use towboot_config::{Entry, Quirk};
+use crate::mem::MultibootAllocator;
+
 use super::file::File;
 use super::mem::{Allocation, SegmentAllocator};
 
@@ -48,7 +50,7 @@ struct LoadedKernel {
     entry_point: EntryPoint,
     load_base_address: Option<u32>,
     should_exit_boot_services: bool,
-    symbols: Option<(Symbols, Vec<u8>)>,
+    symbols: Option<(Symbols, Vec<u8, MultibootAllocator>)>,
 }
 
 impl LoadedKernel {
@@ -56,12 +58,14 @@ impl LoadedKernel {
     /// This requires that the Multiboot header has already been parsed.
     fn new(
         kernel_bytes: &[u8], header: &Header,
-        allocator: &Rc<RefCell<SegmentAllocator>>, quirks: &BTreeSet<Quirk>,
+        segment_allocator: &Rc<RefCell<SegmentAllocator>>,
+        multiboot_allocator: MultibootAllocator,
+        quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
         if header.get_load_addresses().is_some() && !quirks.contains(&Quirk::ForceElf) {
-            Self::new_multiboot(kernel_bytes, header, allocator, quirks)
+            Self::new_multiboot(kernel_bytes, header, segment_allocator, quirks)
         } else {
-            Self::new_elf(header, kernel_bytes, allocator, quirks)
+            Self::new_elf(header, kernel_bytes, segment_allocator, multiboot_allocator, quirks)
         }
     }
     
@@ -118,21 +122,25 @@ impl LoadedKernel {
     /// Load a kernel which uses ELF semantics.
     fn new_elf(
         header: &Header, kernel_bytes: &[u8],
-        allocator: &Rc<RefCell<SegmentAllocator>>, quirks: &BTreeSet<Quirk>,
+        segment_allocator: &Rc<RefCell<SegmentAllocator>>,
+        multiboot_allocator: MultibootAllocator,
+        quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
         let should_exit_boot_services = !quirks.contains(&Quirk::DontExitBootServices) && header.should_exit_boot_services();
         let mut binary = Elf::parse(kernel_bytes).map_err(|msg| {
             error!("failed to parse ELF structure of kernel: {msg}");
             Status::LOAD_ERROR
         })?;
-        let mut loader = OurElfLoader::new(binary.entry, allocator, should_exit_boot_services);
+        let mut loader = OurElfLoader::new(binary.entry, segment_allocator, should_exit_boot_services);
         loader
             .load_elf(&binary, kernel_bytes, quirks)
             .map_err(|msg| {
                 error!("failed to load kernel: {msg}");
                 Status::LOAD_ERROR
             })?;
-        let symbols = Some(elf::symbols(header, &mut binary, kernel_bytes));
+        let symbols = Some(elf::symbols(
+            header, &mut binary, multiboot_allocator, kernel_bytes,
+        ));
         let entry_point = get_kernel_uefi_entry(header, quirks)
             .or(header.get_entry_address().map(
                 |e| EntryPoint::Multiboot(e as usize)
@@ -204,13 +212,15 @@ fn get_kernel_uefi_entry(
 }
 
 /// Prepare information for the kernel.
-fn prepare_multiboot_information<A: Allocator>(
+fn prepare_multiboot_information(
     entry: &Entry, header: &Header, load_base_address: Option<u32>,
     modules: &[Allocation], symbols: Option<Symbols>,
     graphics_output: Option<ScopedProtocol<GraphicsOutput>>,
-    boot_services_exited: bool, allocator: A,
-) -> InfoBuilder<A> {
-    let mut info_builder = header.info_builder(allocator);
+    boot_services_exited: bool, allocator: MultibootAllocator,
+) -> InfoBuilder<MultibootAllocator> {
+    let mut info_builder = header.info_builder(
+        allocator.clone()
+    );
     
     // We don't have much information about the partition we loaded the kernel from.
     // There's the UEFI Handle, but the kernel probably won't understand that.
@@ -295,13 +305,14 @@ fn prepare_multiboot_information<A: Allocator>(
 /// a kernel, information and modules.
 /// 
 /// This is the main struct in this module.
-pub struct PreparedEntry<A: Allocator + 'static> {
+pub struct PreparedEntry {
     loaded_kernel: LoadedKernel,
-    multiboot_information: InfoBuilder<A>,
+    multiboot_information: InfoBuilder<MultibootAllocator>,
+    multiboot_allocator: MultibootAllocator,
     modules_vec: Vec<Allocation>,
 }
 
-impl PreparedEntry<Global> {
+impl PreparedEntry {
     /// Prepare an entry for boot.
     ///
     /// What this means:
@@ -320,7 +331,7 @@ impl PreparedEntry<Global> {
         // track the allocations for this selected entry
         // there's no need to keep it around,
         // it gets dropped when all allocations have been dropped
-        let allocator = Rc::new(RefCell::new(SegmentAllocator::new()));
+        let segment_allocator = Rc::new(RefCell::new(SegmentAllocator::new()));
         let kernel_vec: Vec<u8> = File::open(
             &entry.image, image_fs_handle, cwd,
         )?.try_into()?;
@@ -329,7 +340,11 @@ impl PreparedEntry<Global> {
             Status::LOAD_ERROR
         })?;
         debug!("loaded kernel {:?} to {:?}", header, kernel_vec.as_ptr());
-        let mut loaded_kernel = LoadedKernel::new(&kernel_vec, &header, &allocator, &entry.quirks)?;
+        let multiboot_allocator = MultibootAllocator::new(&entry.quirks);
+        let mut loaded_kernel = LoadedKernel::new(
+            &kernel_vec, &header, &segment_allocator,
+            multiboot_allocator.clone(), &entry.quirks,
+        )?;
         core::mem::drop(kernel_vec);
         info!("kernel is loaded and bootable");
         
@@ -337,7 +352,7 @@ impl PreparedEntry<Global> {
         // just always use whole pages, that's easier for us
         let modules_vec: Vec<Allocation> = entry.modules.iter().map(|module|
             File::open(&module.image, image_fs_handle, cwd)
-            .and_then(|f| f.try_into_allocation(&allocator, &entry.quirks))
+            .and_then(|f| f.try_into_allocation(&segment_allocator, &entry.quirks))
         ).collect::<Result<Vec<_>, _>>()?;
         info!("loaded {} modules", modules_vec.len());
         for (index, module) in modules_vec.iter().enumerate() {
@@ -349,11 +364,11 @@ impl PreparedEntry<Global> {
         let multiboot_information = prepare_multiboot_information(
             entry, &header, loaded_kernel.load_base_address, &modules_vec,
             loaded_kernel.symbols_struct(), graphics_output,
-            loaded_kernel.should_exit_boot_services, Global,
+            loaded_kernel.should_exit_boot_services, multiboot_allocator.clone(),
         );
         
         Ok(Self {
-            loaded_kernel, multiboot_information, modules_vec,
+            loaded_kernel, multiboot_information, multiboot_allocator, modules_vec,
         })
     }
     
@@ -396,7 +411,7 @@ impl PreparedEntry<Global> {
         self.multiboot_information.set_memory_bounds(Some((0, 0)));
         let (
             mut info, signature, update_memory_info,
-        ) = self.multiboot_information.build(Global);
+        ) = self.multiboot_information.build(self.multiboot_allocator);
         debug!("passing signature {:x} and info struct @{:?} to kernel...", signature, info.as_ptr());
         let mut memory_map = if self.loaded_kernel.should_exit_boot_services {
             info!("exiting boot services...");
