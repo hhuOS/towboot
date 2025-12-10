@@ -1,5 +1,6 @@
 //! Management of the video mode.
 
+use alloc::alloc::Allocator;
 use alloc::collections::btree_set::BTreeSet;
 use alloc::vec::Vec;
 
@@ -99,8 +100,8 @@ pub fn setup_video(
 }
 
 /// Pass the framebuffer information to the kernel.
-pub fn prepare_information(
-    multiboot: &mut InfoBuilder, mut graphics_output: ScopedProtocol<GraphicsOutput>,
+pub fn prepare_information<A: Allocator + Clone>(
+    multiboot: &mut InfoBuilder<A>, mut graphics_output: ScopedProtocol<GraphicsOutput>,
 ) {
     let address = graphics_output.frame_buffer().as_mut_ptr();
     let mode = graphics_output.current_mode_info();
@@ -144,8 +145,8 @@ pub fn prepare_information(
 }
 
 /// Converts UEFI's `PixelBitmask` to Multiboot's `ColorInfoRGB`.
-fn bitmask_to_color_info(
-    info_builder: &InfoBuilder, pixel_bitmask: PixelBitmask
+fn bitmask_to_color_info<A: Allocator + Clone>(
+    info_builder: &InfoBuilder<A>, pixel_bitmask: PixelBitmask
 ) -> ColorInfo {
     let (red_field_position, red_mask_size) = parse_color_bitmap(pixel_bitmask.red);
     let (green_field_position, green_mask_size) = parse_color_bitmap(pixel_bitmask.green);

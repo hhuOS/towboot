@@ -38,19 +38,19 @@ pub(super) const PAGE_SIZE: usize = 4096;
 /// 
 /// How this works is that it allocates whole pages from the firmware and keeps
 /// track of the actual allocation internally.
-pub(crate) struct Allocator {
+pub(crate) struct SegmentAllocator {
     /// the pages that are allocated through the firmware
     allocations: Vec<UefiAllocation>,
 }
 
-impl Allocator {
+impl SegmentAllocator {
     /// Create a new, empty Allocator.
     pub(crate) const fn new() -> Self {
         Self { allocations: Vec::new() }
     }
 }
 
-impl core::fmt::Debug for Allocator {
+impl core::fmt::Debug for SegmentAllocator {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Allocator").finish_non_exhaustive()
     }
@@ -131,7 +131,7 @@ impl Drop for UefiAllocation {
 #[derive(Debug)]
 pub(super) struct Allocation {
     /// the allocator where this was allocated from
-    allocator: Rc<RefCell<Allocator>>,
+    allocator: Rc<RefCell<SegmentAllocator>>,
     /// the start of the allocation
     ptr: NonNull<u8>,
     /// the length that was requested
@@ -183,7 +183,7 @@ impl Allocation {
     /// This only works for our code and data by default, but this can be
     /// overridden with the `ForceOverwrite` quirk.
     pub(crate) fn new_at(
-        allocator: &Rc<RefCell<Allocator>>,
+        allocator: &Rc<RefCell<SegmentAllocator>>,
         address: usize,
         size: usize,
         quirks: &BTreeSet<Quirk>,
@@ -326,7 +326,7 @@ impl Allocation {
 
     /// Allocate memory page-aligned below 4GB.
     pub(crate) fn new_under_4gb(
-        allocator: &Rc<RefCell<Allocator>>, size: usize,
+        allocator: &Rc<RefCell<SegmentAllocator>>, size: usize,
         quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
         let count_pages = size.div_ceil(PAGE_SIZE);

@@ -1,4 +1,5 @@
 //! Handle UEFI config tables.
+use alloc::alloc::Allocator;
 use alloc::slice;
 use alloc::vec::Vec;
 
@@ -11,7 +12,7 @@ use uefi::table::cfg::ConfigTableEntry;
 
 /// Go through all of the configuration tables.
 /// Some of them are interesting for Multiboot2.
-pub(super) fn parse_for_multiboot(info_builder: &mut InfoBuilder) {
+pub(super) fn parse_for_multiboot<A: Allocator + Clone>(info_builder: &mut InfoBuilder<A>) {
     // first, copy all config table pointers
     // TODO: remove this when with_config_table takes a FnMut
     let config_tables: Vec<ConfigTableEntry> = with_config_table(<[ConfigTableEntry]>::to_vec);
@@ -31,7 +32,7 @@ pub(super) fn parse_for_multiboot(info_builder: &mut InfoBuilder) {
 }
 
 /// Parse the ACPI RSDP and create the Multiboot struct for it.
-fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
+fn handle_acpi<A: Allocator + Clone>(table: &ConfigTableEntry, info_builder: &mut InfoBuilder<A>) {
     debug!("handling ACPI RSDP");
     let rsdp: Rsdp = unsafe { *(table.address.cast()) };
     if rsdp.validate().is_err() {
@@ -78,7 +79,7 @@ fn handle_acpi(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
 /// Copy the SMBIOS tables.
 /// This is a copy of the Entry Point and the Structure Table.
 /// Caveat: The Structure Table pointer in the Entry Point is not adjusted.
-fn handle_smbios(table: &ConfigTableEntry, info_builder: &mut InfoBuilder) {
+fn handle_smbios<A: Allocator + Clone>(table: &ConfigTableEntry, info_builder: &mut InfoBuilder<A>) {
     debug!("handling SMBIOS table");
     let bigger_slice = unsafe { slice::from_raw_parts(table.address.cast(), 128) };
     match EntryPoint::search(bigger_slice) {

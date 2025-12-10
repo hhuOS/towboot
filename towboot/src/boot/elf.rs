@@ -17,11 +17,11 @@ use multiboot12::header::Header;
 use multiboot12::information::Symbols;
 use towboot_config::Quirk;
 
-use super::super::mem::{Allocation, Allocator};
+use super::super::mem::{Allocation, SegmentAllocator};
 
 /// Load ELF binaries.
 pub(super) struct OurElfLoader {
-    allocator: Rc<RefCell<Allocator>>,
+    allocator: Rc<RefCell<SegmentAllocator>>,
     /// maps virtual to physical addresses
     allocations: BTreeMap<u64, Allocation>,
     virtual_entry_point: u64,
@@ -36,7 +36,7 @@ impl OurElfLoader {
     ///
     /// The parameter is the virtual address of the entry point.
     pub(super) fn new(
-        entry_point: u64, allocator: &Rc<RefCell<Allocator>>,
+        entry_point: u64, allocator: &Rc<RefCell<SegmentAllocator>>,
         should_exit_boot_services: bool,
     ) -> Self {
         Self {

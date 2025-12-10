@@ -20,7 +20,7 @@ use uefi::proto::media::file::{
     File as UefiFile, FileAttribute, FileInfo, FileMode, FileType, RegularFile
 };
 
-use super::mem::{Allocation, Allocator};
+use super::mem::{Allocation, SegmentAllocator};
 use towboot_config::Quirk;
 
 /// An opened file.
@@ -153,7 +153,7 @@ impl<'a> File<'a> {
     /// (The difference to `TryInto<Vec<u8>>` is that the allocated memory
     /// is page-aligned and under 4GB.)
     pub(crate) fn try_into_allocation(
-        mut self, allocator: &Rc<RefCell<Allocator>>, quirks: &BTreeSet<Quirk>,
+        mut self, allocator: &Rc<RefCell<SegmentAllocator>>, quirks: &BTreeSet<Quirk>,
     ) -> Result<Allocation, Status> {
         let mut allocation = Allocation::new_under_4gb(allocator, self.size, quirks)?;
         let read_size = self.file.read(allocation.as_mut_slice())
