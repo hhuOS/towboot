@@ -7,12 +7,14 @@
 //!
 //! Also, gathering memory map information for the kernel happens here.
 
+use core::alloc::Layout;
 use core::cell::RefCell;
 use core::mem::size_of;
 use core::ptr::NonNull;
 use core::ops::Range;
 use core::time::Duration;
 
+use alloc::alloc::{AllocError, Allocator, Global};
 use alloc::boxed::Box;
 use alloc::collections::btree_set::BTreeSet;
 use alloc::rc::Rc;
@@ -78,16 +80,37 @@ impl UefiAllocation {
     }
 
     /// Create a new, empty allocation anywhere.
-    fn new(pages: usize, quirks: &BTreeSet<Quirk>) -> Result<Self, Status> {
-        let ptr = allocate_pages(
-            AllocateType::MaxAddress(if quirks.contains(&Quirk::ModulesBelow200Mb) {
-                200 * 1024 * 1024
-            } else {
-                u32::MAX.into()
-            }),
-            MemoryType::LOADER_DATA,
-            pages,
-        ).map_err(|e| e.status())?;
+    /// 
+    /// If [`Quirk::LowerAllocations`] is set, try to place it as low as possible.
+    fn new(pages: usize, should_be_low: bool) -> Result<Self, Status> {
+        let ptr = if should_be_low {
+            // the kernel assumes that modules are low in memory, try to do this
+            trace!("trying to allocate {pages} pages at low memory");
+            let mut start = PAGE_SIZE * (pages + 1);
+            loop {
+                match allocate_pages(
+                    AllocateType::MaxAddress(start.try_into().unwrap()),
+                    MemoryType::LOADER_DATA,
+                    pages,
+                ) {
+                    Ok(ptr) => break ptr,
+                    Err(e) => match e.status() {
+                        // try again at a higher address
+                        Status::OUT_OF_RESOURCES => start += PAGE_SIZE,
+                        s => return Err(s),
+                    },
+                }
+            }
+        } else {
+            trace!("trying to allocate {pages} pages anywhere");
+            // allocate anywhere in the first 4GB
+            allocate_pages(
+                AllocateType::MaxAddress(u32::MAX.into()),
+                MemoryType::LOADER_DATA,
+                pages,
+            ).map_err(|e| e.status())?
+        };
+        trace!("allocated {pages} pages at {ptr:?}");
         Ok(Self { ptr, pages, used: Vec::new() })
     }
 
@@ -330,7 +353,9 @@ impl Allocation {
         quirks: &BTreeSet<Quirk>,
     ) -> Result<Self, Status> {
         let count_pages = size.div_ceil(PAGE_SIZE);
-        let mut ua = UefiAllocation::new(count_pages, quirks)
+        let mut ua = UefiAllocation::new(count_pages, quirks.contains(
+            &Quirk::LowerAllocations
+        ))
             .map_err(|e| {
                 error!("failed to allocate {size} bytes of memory: {e:?}");
                 get_memory_map();
@@ -371,6 +396,111 @@ impl Allocation {
             }
             self.ptr = NonNull::new(a as *mut u8).unwrap();
             self.should_be_at = None;
+        }
+    }
+}
+
+
+/// This allocator is used to create Multiboot information.
+#[derive(Clone)]
+pub(super) struct MultibootAllocator {
+    /// If this is set, just forward allocations to the global allocator.
+    /// If not, try to allocate as low as possible.
+    global: Option<Global>,
+    allocations: Rc<RefCell<Vec<UefiAllocation>>>,
+}
+
+impl MultibootAllocator {
+    pub(super) fn new(quirks: &BTreeSet<Quirk>) -> Self {
+        let global = if quirks.contains(&Quirk::LowerAllocations) {
+            None
+        } else {
+            Some(Global::default())
+        };
+        Self { global, allocations: Rc::new(RefCell::new(Vec::new())) }
+    }
+    
+    /// This is basically a bump allocator:
+    /// get (low) pages from the firmware, fill it with allocations,
+    /// get new ones if they're full
+    fn allocate_low(&self, layout: Layout) -> Result<NonNull<u8>, AllocError> {
+        // see if we got anything free in existing allocations
+        if let Some(last_allocation) = self.allocations.borrow_mut().last_mut() {
+            if let Some(last_used) = last_allocation.used.last() {
+                // align to 8 byte
+                // TODO: check alignment properly
+                let last_used_ptr = (last_used.end.as_ptr() as usize).next_multiple_of(8);
+                let free_at_end = (last_allocation.ptr.as_ptr() as usize) + last_allocation.pages * PAGE_SIZE - last_used_ptr;
+                if free_at_end >= layout.size() {
+                    let ptr = NonNull::new(last_used_ptr as *mut u8).unwrap();
+                    last_allocation.mark_used(ptr, layout.size());
+                    return Ok(ptr);
+                }
+            } else {
+                // we have no allocations inside of this page?
+                // ok, they might have gotten deallocated
+                if last_allocation.pages * PAGE_SIZE >= layout.size() {
+                    let ptr = last_allocation.ptr;
+                    assert!(ptr.is_aligned_to(8));
+                    last_allocation.mark_used(ptr, layout.size());
+                    return Ok(ptr);
+                }
+            }
+        }
+        // we have need a new page
+        let mut new_page = UefiAllocation::new(layout.size().div_ceil(PAGE_SIZE), true).map_err(|e| {
+            error!("failed to allocate: {e}");
+            AllocError {}
+        })?;
+        let ptr = new_page.ptr;
+        assert!(ptr.is_aligned_to(8));
+        new_page.mark_used(ptr, layout.size());
+        self.allocations.borrow_mut().push(new_page);
+        Ok(ptr)
+    }
+    
+    fn deallocate_low(&self, ptr: NonNull<u8>, _layout: Layout) {
+        let mut found = false;
+        // find the allocation this is part of
+        let mut allocations = self.allocations.borrow_mut();
+        for allocation_index in 0..allocations.len() {
+            let allocation = allocations.get_mut(allocation_index).unwrap();
+            if allocation.contains(ptr.as_ptr() as usize) {
+                for used_index in 0..allocation.used.len() {
+                    let used = allocation.used.get(used_index).unwrap();
+                    if used.contains(&ptr) {
+                        trace!("freeing {used:?}");
+                        allocation.used.remove(used_index);
+                        found = true;
+                        break;
+                    }
+                }
+                if allocation.used.is_empty() {
+                    allocations.remove(allocation_index);
+                }
+                break;
+            }
+        }
+        assert!(found);
+    }
+}
+
+unsafe impl Allocator for MultibootAllocator {
+    fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
+        if let Some(global) = self.global {
+            global.allocate(layout)
+        } else {
+            let ptr = self.allocate_low(layout)?;
+            trace!("returning {ptr:?} for {layout:?}");
+            Ok(NonNull::slice_from_raw_parts(ptr, layout.size()))
+        }
+    }
+
+    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
+        if let Some(global) = self.global {
+            unsafe { global.deallocate(ptr, layout) }
+        } else {
+            self.deallocate_low(ptr, layout);
         }
     }
 }

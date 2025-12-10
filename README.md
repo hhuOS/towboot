@@ -87,7 +87,7 @@ Available quirks are:
 * `ForceOverwrite`: ignore the memory map when loading the kernel
         (This might damage your hardware!)
 * `KeepResolution`: ignore the kernel's preferred resolution
-* `ModulesBelow200Mb`: keep allocations for modules below 200 MB
+* `LowerAllocations`: try to place allocations for the kernel at the start of memory
 
 ## development
 
