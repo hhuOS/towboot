@@ -96,6 +96,7 @@ pub fn create_image(
 
     let mut image_size = 0;
     for pair in &paths {
+        info!("adding {:?} as {:?}", pair.0, pair.1);
         let file = OpenOptions::new()
             .read(true)
             .open(PathBuf::from(&pair.0))?;
