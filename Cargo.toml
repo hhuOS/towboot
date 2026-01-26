@@ -8,6 +8,7 @@ members = [
     "towboot_config",
     "towbootctl",
     "tests",
+    "multiboot12",
 ]
 
 [workspace.package]

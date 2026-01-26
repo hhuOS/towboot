@@ -1,0 +1,20 @@
+[package]
+name = "multiboot12"
+version = "0.1.0"
+authors = ["Niklas Sombert <niklas@ytvwld.de>"]
+description = "An abstraction over multiboot and multiboot2"
+categories = ["no-std"]
+keywords = ["multiboot", "multiboot2", "kernel", "os", "boot", "bootloader"]
+readme = "README.md"
+edition = "2021"
+license = "MPL-2.0"
+repository = "https://github.com/YtvwlD/multiboot12"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+multiboot = "0.8"
+multiboot2 = "0.24"
+multiboot2-header = "0.7"
+ouroboros = "0.18"
+update_cell = "0.1"
