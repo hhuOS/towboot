@@ -121,7 +121,7 @@ fn select_entry(entries: &BTreeMap<String, Entry>) -> uefi::Result<&Entry> {
             }
         }
     }
-    with_stdout(|stdout| writeln!(stdout,)).unwrap();
+    with_stdout(|stdout| writeln!(stdout)).unwrap();
     // support lookup by both index and key
     match value.parse::<usize>() {
         Ok(index) => entries.values().nth(index),

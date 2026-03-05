@@ -47,6 +47,7 @@ impl<A: Allocator + Clone + 'static> InfoBuilder<A> {
         ))
     }
 
+    #[must_use]
     pub fn new_multiboot2() -> Self {
         Self::Multiboot2(UpdateCell::new(Multiboot2InformationBuilder::new()))
     }
@@ -59,7 +60,7 @@ impl<A: Allocator + Clone + 'static> InfoBuilder<A> {
                 let mut heads = bu.into_heads();
                 (
                     unsafe { core::slice::from_raw_parts(
-                        (&heads.info as *const MultibootInfo).cast::<u8>(),
+                        (&raw const heads.info).cast::<u8>(),
                         core::mem::size_of::<MultibootInfo>(),
                     ) }.to_vec_in(allocator),
                     MULTIBOOT_EAX_SIGNATURE,
@@ -101,13 +102,13 @@ impl<A: Allocator + Clone + 'static> InfoBuilder<A> {
                                 MemoryEntry::Multiboot(_)
                                     => panic!("wrong Multiboot version"),
                                 MemoryEntry::Multiboot2(src) => {
-                                    let destination = (destination as *const MemoryArea).cast_mut();
+                                    let destination = core::ptr::from_ref::<MemoryArea>(destination).cast_mut();
                                     unsafe { destination.write(*src) };
                                 },
                             }
                         );
                         let mem_info_tag = info.basic_memory_info_tag().unwrap();
-                        let mem_info_tag = (mem_info_tag as *const BasicMemoryInfoTag).cast_mut();
+                        let mem_info_tag = core::ptr::from_ref::<BasicMemoryInfoTag>(mem_info_tag).cast_mut();
                         unsafe { mem_info_tag.write(BasicMemoryInfoTag::new(lower, upper)) };
                         if let Some(mmap) = efi_mmap {
                             // we can't get the EFIMemoryMapTag if there is a BootServicesNotExitedTag
@@ -115,7 +116,7 @@ impl<A: Allocator + Clone + 'static> InfoBuilder<A> {
                                 mmap.iter().zip(
                                     efi_mmap_tag.memory_areas()
                                 ).for_each(|(src, dest)| {
-                                    let dest = (dest as *const EfiMemoryDescriptor).cast_mut();
+                                    let dest = core::ptr::from_ref::<EfiMemoryDescriptor>(dest).cast_mut();
                                     unsafe { dest.write(*src) };
                                 });
                             }
@@ -180,7 +181,7 @@ impl<A: Allocator + Clone + 'static> InfoBuilder<A> {
                 v.resize_with(count, || MemoryArea::new(0, 0, MemoryAreaType::Reserved));
                 c.update(|b| b.mmap(
                     MemoryMapTag::new(v.as_slice())
-                ))
+                ));
             },
         }
         let mut v = Vec::new();
@@ -200,7 +201,7 @@ impl<A: Allocator + Clone + 'static> InfoBuilder<A> {
                 v.resize(count, EfiMemoryDescriptor::default());
                 c.update(|b| b.efi_mmap(
                     EFIMemoryMapTag::new_from_descs(v.as_slice())
-                ))
+                ));
             },
         }
         let mut v = Vec::new();
@@ -242,7 +243,7 @@ impl<A: Allocator + Clone + 'static> InfoBuilder<A> {
         match self {
             Self::Multiboot(b) => b.with_wrap_mut(|w| w.set_command_line(cmdline)),
             Self::Multiboot2(cell) => if let Some(cmd) = cmdline {
-                cell.update(|b| b.cmdline(CommandLineTag::new(cmd)))
+                cell.update(|b| b.cmdline(CommandLineTag::new(cmd)));
             },
         }
     }
@@ -271,7 +272,7 @@ impl<A: Allocator + Clone + 'static> InfoBuilder<A> {
                 |w| w.set_memory_bounds(bounds)
             ),
             Self::Multiboot2(c) => if let Some((lower, upper)) = bounds {
-                c.update(|b| b.meminfo(BasicMemoryInfoTag::new(lower, upper)))
+                c.update(|b| b.meminfo(BasicMemoryInfoTag::new(lower, upper)));
             },
         }
     }
@@ -312,7 +313,7 @@ impl<A: Allocator + Clone + 'static> InfoBuilder<A> {
                         MemoryEntry::Multiboot(_) => panic!("wrong Multiboot version"),
                         MemoryEntry::Multiboot2(ma) => *ma,
                     }).collect();
-                    c.update(|b| b.mmap(MemoryMapTag::new(v.as_slice())))
+                    c.update(|b| b.mmap(MemoryMapTag::new(v.as_slice())));
             },
         }
     }
@@ -327,7 +328,7 @@ impl<A: Allocator + Clone + 'static> InfoBuilder<A> {
                             Module::Multiboot(m) => m,
                             Module::Multiboot2(_) => panic!("wrong Multiboot version"),
                         }).collect();
-                        w.set_modules(Some(v.as_slice()))
+                        w.set_modules(Some(v.as_slice()));
                     }
                 }
             ),
@@ -385,13 +386,13 @@ impl<A: Allocator + Clone + 'static> InfoBuilder<A> {
                 b.with_wrap_mut(|w| w.set_symbols(symbols.map(|s| match s {
                     Symbols::Multiboot(t) => t,
                     Symbols::Multiboot2(_) => panic!("wrong Multiboot version"),
-                })))
+                })));
             },
             Self::Multiboot2(c) => if let Some(syms) = symbols {
                 match syms {
                     Symbols::Multiboot(_) => panic!("wrong Multiboot version"),
                     Symbols::Multiboot2(sy) => if let Some(s) = sy {
-                        c.update(|b| b.elf_sections(s))
+                        c.update(|b| b.elf_sections(s));
                     }
                 }
             },
@@ -402,7 +403,7 @@ impl<A: Allocator + Clone + 'static> InfoBuilder<A> {
         match self {
             Self::Multiboot(_) => (), // not suppported on Multiboot1
             Self::Multiboot2(c) => if let Some(st) = systab {
-                c.update(|b| b.efi32(EFISdt32Tag::new(st)))
+                c.update(|b| b.efi32(EFISdt32Tag::new(st)));
             },
         }
     }
@@ -411,7 +412,7 @@ impl<A: Allocator + Clone + 'static> InfoBuilder<A> {
         match self {
             Self::Multiboot(_) => (), // not suppported on Multiboot1
             Self::Multiboot2(c) => if let Some(st) = systab {
-                c.update(|b| b.efi64(EFISdt64Tag::new(st)))
+                c.update(|b| b.efi64(EFISdt64Tag::new(st)));
             },
         }
     }
@@ -432,7 +433,7 @@ impl<A: Allocator> MultibootInfoBuilder<A> {
         self.with_mut(|f| {
             f.memory_map_vec.resize(count, MultibootMemoryEntry::default());
             f.wrap.set_memory_regions(Some((f.memory_map_vec.as_slice().as_ptr() as PAddr, count)));
-        })
+        });
     }
 
     fn set_memory_regions(&mut self, regions: Option<&[MemoryEntry]>) {
@@ -443,10 +444,10 @@ impl<A: Allocator> MultibootInfoBuilder<A> {
                     Self::copy_memory_regions(s.memory_map_vec, regs);
                     s.wrap.set_memory_regions(Some(
                         (s.memory_map_vec.as_slice().as_ptr() as PAddr, regs.len())
-                    ))
+                    ));
                 }
             }
-        )
+        );
     }
 
     /// Write the entries into the vec.

@@ -415,7 +415,7 @@ impl MultibootAllocator {
         let global = if quirks.contains(&Quirk::LowerAllocations) {
             None
         } else {
-            Some(Global::default())
+            Some(Global)
         };
         Self { global, allocations: Rc::new(RefCell::new(Vec::new())) }
     }

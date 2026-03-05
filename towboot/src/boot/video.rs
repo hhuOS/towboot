@@ -199,9 +199,7 @@ fn parse_color_bitmap(bitmask: u32) -> (u8, u8) {
     }
     // check whether there are remaining bits set
     for i in field_position+mask_size..31 {
-        if check_bit!(bitmask, i) {
-            panic!("color bitmask is not continuous");
-        }
+        assert!(!check_bit!(bitmask, i), "color bitmask is not continuous");
     }
     (field_position, mask_size)
 }

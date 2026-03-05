@@ -218,9 +218,7 @@ fn prepare_multiboot_information(
     graphics_output: Option<ScopedProtocol<GraphicsOutput>>,
     boot_services_exited: bool, allocator: MultibootAllocator,
 ) -> InfoBuilder<MultibootAllocator> {
-    let mut info_builder = header.info_builder(
-        allocator.clone()
-    );
+    let mut info_builder = header.info_builder(allocator);
     
     // We don't have much information about the partition we loaded the kernel from.
     // There's the UEFI Handle, but the kernel probably won't understand that.

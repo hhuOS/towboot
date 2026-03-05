@@ -58,10 +58,8 @@ fn main() -> Status {
     let image_fs_handle = loaded_image.device().expect("the image to be loaded from a device");
     // get the current directory, else assume it's \
     let cwd: PathBuf = get_handle_for_protocol::<Shell>()
-        .map(open_protocol_exclusive::<Shell>)
-        .flatten()
-        .map(|shell| shell.current_dir(None).map(CString16::from))
-        .flatten()
+        .and_then(open_protocol_exclusive::<Shell>)
+        .and_then(|shell| shell.current_dir(None).map(CString16::from))
         .unwrap_or_else(|e| {
             debug!("failed to get current directory ({e:?}), assuming \\");
             CString16::new()
