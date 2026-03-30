@@ -80,9 +80,12 @@ pub fn setup_video(
     if let Some(mode) = match wanted_resolution {
         Some((w, h)) => {
             modes.iter().find(|m|
+                // that is, it has the required resolution
                 m.info().resolution() == (w as usize, h as usize)
+                // and it can be accessed via a framebuffer
+                && m.info().pixel_format() != PixelFormat::BltOnly
             ).or_else(|| {
-                warn!("failed to find a matching video mode (kernel wants {w}x{h})");
+                warn!("failed to find a matching video mode (kernel wants a {w}x{h} framebuffer)");
                 None
             })
         },
@@ -103,6 +106,10 @@ pub fn setup_video(
 pub fn prepare_information<A: Allocator + Clone>(
     multiboot: &mut InfoBuilder<A>, mut graphics_output: ScopedProtocol<GraphicsOutput>,
 ) {
+    if graphics_output.current_mode_info().pixel_format() == PixelFormat::BltOnly {
+        warn!("current display mode does not support drawing via a framebuffer");
+        return;
+    }
     let address = graphics_output.frame_buffer().as_mut_ptr();
     let mode = graphics_output.current_mode_info();
     debug!("gop mode: {mode:?}");
