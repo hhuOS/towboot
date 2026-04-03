@@ -211,6 +211,12 @@ fn get_kernel_uefi_entry(
     }
 }
 
+/// Check whether the kernel is compatible to the firmware we are running on.
+#[cfg(target_arch = "aarch64")]
+fn get_kernel_uefi_entry(_header: &Header, _quirks: &BTreeSet<Quirk>) -> Option<EntryPoint> {
+    None
+}
+
 /// Prepare information for the kernel.
 fn prepare_multiboot_information(
     entry: &Entry, header: &Header, load_base_address: Option<u32>,
@@ -473,6 +479,7 @@ impl EntryPoint {
 
     /// Jump to the loaded kernel, UEFI-style, eg. just passing the information.
     /// This requires everything else to be ready and won't return.
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     fn jump_uefi(entry_address: usize, signature: u32, info: &[u8]) -> ! {
         debug!("jumping to 0x{entry_address:x}");
         unsafe {
@@ -489,6 +496,13 @@ impl EntryPoint {
                 options(noreturn),
             );
         }
+    }
+
+    /// Jump to the loaded kernel, UEFI-style, eg. just passing the information.
+    /// This requires everything else to be ready and won't return.
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    fn jump_uefi(_entry_address: usize, _signature: u32, _info: &[u8]) -> ! {
+        panic!("UEFI kernel handoff is not implemented on this architecture yet")
     }
 
     /// `i686`-specific part of the Multiboot machine state.
@@ -609,7 +623,13 @@ impl EntryPoint {
         }
     }
 
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    fn jump_multiboot(_entry_address: usize, _signature: u32, _info: &[u8]) -> ! {
+        panic!("Multiboot handoff is not implemented on this architecture yet")
+    }
+
     /// This last part is common for `i686` and `x86_64`.
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     #[unsafe(naked)]
     extern "C" fn jump_multiboot_common() {
         naked_asm!(
