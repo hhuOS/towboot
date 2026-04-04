@@ -54,8 +54,10 @@ pub fn setup_video(
         _ => None,
     };
     // just get the first one
-    let handles = find_handles::<GraphicsOutput>()
-        .expect("failed to list available graphics outputs");
+    let handles = find_handles::<GraphicsOutput>().unwrap_or_else(|e| {
+        warn!("failed to list available graphics outputs: {e:?}");
+        Vec::new()
+    });
     let handle = handles.first().or_else(|| {
         warn!("Failed to find a graphics output. Do you have a graphics card (and a driver)?");
         None

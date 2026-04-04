@@ -417,6 +417,12 @@ impl PreparedEntry {
             mut info, signature, update_memory_info,
         ) = self.multiboot_information.build(self.multiboot_allocator);
         debug!("passing signature {:x} and info struct @{:?} to kernel...", signature, info.as_ptr());
+        #[cfg(target_arch = "aarch64")]
+        for allocation in &mut self.loaded_kernel.allocations {
+            // On AArch64 QEMU/UEFI, deferred relocation after exiting Boot Services
+            // can fault on the destination page permissions.
+            unsafe { allocation.move_to_where_it_should_be() };
+        }
         let mut memory_map = if self.loaded_kernel.should_exit_boot_services {
             info!("exiting boot services...");
             unsafe { exit_boot_services(None) }
@@ -437,7 +443,10 @@ impl PreparedEntry {
             // It could be possible that we failed to allocate memory for the kernel in the correct
             // place before. Just copy it now to where is belongs.
             // This is *really* unsafe, please see the documentation comment for details.
-            unsafe { allocation.move_to_where_it_should_be() };
+            #[cfg(not(target_arch = "aarch64"))]
+            unsafe {
+                allocation.move_to_where_it_should_be()
+            };
         }
         // The kernel will need its code and data, so make sure it stays around indefinitely.
         core::mem::forget(self.loaded_kernel.allocations);
