@@ -19,7 +19,7 @@ use core::ffi::c_void;
 use core::ptr::NonNull;
 use uefi::{fs::Path, prelude::*};
 use uefi::boot::{exit_boot_services, image_handle, memory_map, MemoryType, ScopedProtocol};
-use uefi::mem::memory_map::{MemoryMap, MemoryMapMut};
+use uefi::mem::memory_map::{MemoryMap, MemoryMapMut, MemoryMapOwned};
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::table::system_table_raw;
 
@@ -305,6 +305,24 @@ fn prepare_multiboot_information(
     info_builder
 }
 
+#[cfg(target_arch = "aarch64")]
+unsafe fn exit_boot_services_explicit() -> Result<MemoryMapOwned, Status> {
+    let map = memory_map(MemoryType::LOADER_DATA).map_err(|e| e.status())?;
+    let key: usize = unsafe { core::mem::transmute_copy(&map.key()) };
+
+    let st = system_table_raw()
+        .expect("failed to get System Table")
+        .as_ptr();
+    let bt = unsafe { (*st).boot_services };
+
+    let status = unsafe { ((*bt).exit_boot_services)(image_handle().as_ptr(), key) };
+    if status != Status::SUCCESS {
+        return Err(status);
+    }
+
+    Ok(map)
+}
+
 /// An entry that has everything that's needed to boot it:
 /// a kernel, information and modules.
 /// 
@@ -423,15 +441,27 @@ impl PreparedEntry {
             // can fault on the destination page permissions.
             unsafe { allocation.move_to_where_it_should_be() };
         }
+
         let mut memory_map = if self.loaded_kernel.should_exit_boot_services {
             info!("exiting boot services...");
-            unsafe { exit_boot_services(None) }
+            #[cfg(target_arch = "aarch64")]
+            {
+                match unsafe { exit_boot_services_explicit() } {
+                    Ok(memory_map) => memory_map,
+                    Err(status) => panic!("raw ExitBootServices failed: {status:?}"),
+                }
+            }
+            #[cfg(not(target_arch = "aarch64"))]
+            unsafe {
+                exit_boot_services(None)
+            }
             // now, write! won't work anymore. Also, we can't allocate any memory.
         } else {
             let memory_map = memory_map(MemoryType::LOADER_DATA).unwrap();
             debug!("got {} memory areas", memory_map.entries().len());
             memory_map
         };
+        //panic!("reached before jump");
         memory_map.sort();
         super::mem::prepare_information(
             &mut info, update_memory_info, &memory_map,
@@ -511,7 +541,9 @@ impl EntryPoint {
     /// This requires everything else to be ready and won't return.
     #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
     fn jump_uefi(_entry_address: usize, _signature: u32, _info: &[u8]) -> ! {
-        panic!("UEFI kernel handoff is not implemented on this architecture yet")
+
+        loop{core::hint::spin_loop()}
+
     }
 
     /// `i686`-specific part of the Multiboot machine state.
