@@ -50,15 +50,24 @@ struct ImageCommand {
 impl ImageCommand {
     fn r#do(&self) -> Result<(), Box<dyn Error>> {
         let mut towboot_temp_ia32 = NamedTempFile::new()?;
-        towboot_temp_ia32.as_file_mut().write_all(towboot_ia32::TOWBOOT)?;
+        towboot_temp_ia32
+            .as_file_mut()
+            .write_all(towboot_ia32::TOWBOOT)?;
         let mut towboot_temp_x64 = NamedTempFile::new()?;
-        towboot_temp_x64.as_file_mut().write_all(towboot_x64::TOWBOOT)?;
+        towboot_temp_x64
+            .as_file_mut()
+            .write_all(towboot_x64::TOWBOOT)?;
+        let mut towboot_temp_aa64 = NamedTempFile::new()?;
+        towboot_temp_aa64
+            .as_file_mut()
+            .write_all(towboot_aa64::TOWBOOT)?;
 
         create_image(
             &self.target,
             &self.runtime_args,
             Some(&towboot_temp_ia32.into_temp_path()),
             Some(&towboot_temp_x64.into_temp_path()),
+            Some(&towboot_temp_aa64.into_temp_path()),
         )?;
 
         Ok(())
@@ -144,8 +153,18 @@ impl InstallCommand {
         }
         // add towboot itself
         // TODO: rename this maybe for non-removable installs?
-        fs::write(Path::join(&install_path, "BOOTIA32.efi"), towboot_ia32::TOWBOOT)?;
-        fs::write(Path::join(&install_path, "BOOTX64.efi"), towboot_x64::TOWBOOT)?;
+        fs::write(
+            Path::join(&install_path, "BOOTIA32.efi"),
+            towboot_ia32::TOWBOOT,
+        )?;
+        fs::write(
+            Path::join(&install_path, "BOOTX64.efi"),
+            towboot_x64::TOWBOOT,
+        )?;
+        fs::write(
+            Path::join(&install_path, "BOOTAA64.efi"),
+            towboot_aa64::TOWBOOT,
+        )?;
         if self.register {
             assert!(!self.removable);
             todo!("registration with the firmware is not supported, yet");
@@ -162,6 +181,10 @@ struct ExtractCommand {
     #[argh(switch)]
     x86_64: bool,
 
+    /// use `aarch64` instead of `i686`
+    #[argh(switch)]
+    aarch64: bool,
+
     #[argh(positional)]
     /// the filename to save as
     path: PathBuf,
@@ -169,7 +192,9 @@ struct ExtractCommand {
 
 impl ExtractCommand {
     fn r#do(&self) -> Result<(), Box<dyn Error>> {
-        let code = if self.x86_64 {
+        let code = if self.aarch64 {
+            towboot_aa64::TOWBOOT
+        } else if self.x86_64 {
             towboot_x64::TOWBOOT
         } else {
             towboot_ia32::TOWBOOT

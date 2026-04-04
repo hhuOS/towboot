@@ -27,6 +27,9 @@ pub const IA32_BOOT_PATH: &str = "EFI/Boot/bootia32.efi";
 /// Where to place the 64-bit EFI file
 pub const X64_BOOT_PATH: &str = "EFI/Boot/bootx64.efi";
 
+/// Where to place the AArch64 EFI file
+pub const AA64_BOOT_PATH: &str = "EFI/Boot/bootaa64.efi";
+
 /// Get the source and destination paths of all files referenced in the config.
 fn get_config_files(config: &mut Config) -> Vec<(PathBuf, PathBuf)> {
     let mut paths = Vec::<(PathBuf, PathBuf)>::new();
@@ -65,7 +68,11 @@ pub fn runtime_args_to_load_options(runtime_args: &[String]) -> String {
 
 /// Create an image, containing a configuration file, kernels, modules and towboot.
 pub fn create_image(
-    target: &Path, runtime_args: &[String], i686: Option<&Path>, x86_64: Option<&Path>,
+    target: &Path,
+    runtime_args: &[String],
+    i686: Option<&Path>,
+    x86_64: Option<&Path>,
+    aarch64: Option<&Path>,
 ) -> Result<Image, Box<dyn Error>> {
     info!("calculating image size");
     let mut paths = Vec::<(PathBuf, PathBuf)>::new();
@@ -92,6 +99,9 @@ pub fn create_image(
     }
     if let Some(src) = x86_64 {
         paths.push((PathBuf::from(src), PathBuf::from(X64_BOOT_PATH)));
+    }
+    if let Some(src) = aarch64 {
+        paths.push((PathBuf::from(src), PathBuf::from(AA64_BOOT_PATH)));
     }
 
     let mut image_size = 0;

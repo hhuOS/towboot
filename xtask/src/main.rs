@@ -79,7 +79,14 @@ impl Build {
         let x86_64: Option<PathBuf> = (!self.no_x86_64).then_some(
             ["target", "x86_64-unknown-uefi", build, "towboot.efi"].into_iter().collect()
         );
-        create_image(&self.target, &self.runtime_args, i686.as_deref(), x86_64.as_deref())?;
+        create_image(
+            &self.target,
+            &self.runtime_args,
+            i686.as_deref(),
+            x86_64.as_deref(),
+            //TODO: Add aarch64
+            None,
+        )?;
         Ok(())
     }
 }

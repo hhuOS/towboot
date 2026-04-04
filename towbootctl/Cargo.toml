@@ -25,6 +25,7 @@ towboot_config = { path = "../towboot_config" }
 argh = { version = "0.1", optional = true }
 env_logger = { version = "0.11", default-features = false, features = ["auto-color"], optional = true }
 towboot_ia32 = { path = "../towboot_ia32", optional = true }
+towboot_aa64 = { path = "../towboot_aa64", optional = true }
 towboot_x64 = { path = "../towboot_x64", optional = true }
 
 [build-dependencies]
@@ -32,9 +33,8 @@ built = { version = "0.8", features = ["git2"] }
 
 [features]
 args = ["argh"]
-binary = ["args", "env_logger", "towboot_ia32", "towboot_x64"]
+binary = ["args", "env_logger", "towboot_ia32", "towboot_aa64", "towboot_x64"]
 
 [[bin]]
 name = "towbootctl"
 required-features = ["binary"]
-

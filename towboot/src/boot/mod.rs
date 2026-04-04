@@ -19,7 +19,9 @@ use core::ffi::c_void;
 use core::ptr::NonNull;
 use uefi::{fs::Path, prelude::*};
 use uefi::boot::{exit_boot_services, image_handle, memory_map, MemoryType, ScopedProtocol};
-use uefi::mem::memory_map::{MemoryMap, MemoryMapMut, MemoryMapOwned};
+#[cfg(target_arch = "aarch64")]
+use uefi::mem::memory_map::MemoryMapOwned;
+use uefi::mem::memory_map::{MemoryMap, MemoryMapMut};
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::table::system_table_raw;
 

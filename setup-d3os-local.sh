@@ -21,5 +21,3 @@ print "Linking D3OS/towbootctl to local towbootctl..."
 ln -sf "${TOWBOOTCTL_BIN}" "${D3OS_TOWBOOTCTL_LINK}"
 
 print "Done. D3OS now uses your local towbootctl via: ${D3OS_TOWBOOTCTL_LINK}"
-print "You can keep using your normal D3OS commands, for example:"
-print "  cd ${D3OS_DIR} && cargo make --no-workspace image"
