@@ -1,0 +1,10 @@
+[package]
+name = "towboot_aa64"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2024"
+
+[dependencies]
+towboot = { path = "../towboot", artifact = "bin", target = "aarch64-unknown-uefi" }

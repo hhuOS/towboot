@@ -215,8 +215,13 @@ fn get_kernel_uefi_entry(
 
 /// Check whether the kernel is compatible to the firmware we are running on.
 #[cfg(target_arch = "aarch64")]
-fn get_kernel_uefi_entry(_header: &Header, _quirks: &BTreeSet<Quirk>) -> Option<EntryPoint> {
-    None
+fn get_kernel_uefi_entry(
+    header: &Header, _quirks: &BTreeSet<Quirk>,
+) -> Option<EntryPoint> {
+    if header.get_efi32_entry_address().is_some() || header.get_efi64_entry_address().is_some() {
+        warn!("ignoring x86 UEFI entry tags on aarch64; use the generic entry address instead");
+    }
+    header.get_entry_address().map(|e| EntryPoint::Uefi(e as usize))
 }
 
 /// Prepare information for the kernel.
@@ -541,11 +546,30 @@ impl EntryPoint {
 
     /// Jump to the loaded kernel, UEFI-style, eg. just passing the information.
     /// This requires everything else to be ready and won't return.
-    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    #[cfg(target_arch = "aarch64")]
+    fn jump_uefi(entry_address: usize, signature: u32, info: &[u8]) -> ! {
+        debug!("jumping to 0x{entry_address:x}");
+        unsafe {
+            core::arch::asm!(
+                "mov x0, {dtb}",
+                "mov x1, {bootinfo}",
+                "mov x2, {magic}",
+                "mov x3, xzr",
+                "br {entry}",
+                dtb = in(reg) 0usize,
+                bootinfo = in(reg) &raw const info[0],
+                magic = in(reg) u64::from(signature),
+                entry = in(reg) entry_address,
+                options(noreturn),
+            )
+        }
+    }
+
+    /// Jump to the loaded kernel, UEFI-style, eg. just passing the information.
+    /// This requires everything else to be ready and won't return.
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")))]
     fn jump_uefi(_entry_address: usize, _signature: u32, _info: &[u8]) -> ! {
-
-        loop{core::hint::spin_loop()}
-
+        panic!("UEFI kernel handoff is not implemented on this architecture yet")
     }
 
     /// `i686`-specific part of the Multiboot machine state.
@@ -669,6 +693,7 @@ impl EntryPoint {
     #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
     fn jump_multiboot(_entry_address: usize, _signature: u32, _info: &[u8]) -> ! {
         panic!("Multiboot handoff is not implemented on this architecture yet")
+        
     }
 
     /// This last part is common for `i686` and `x86_64`.
