@@ -4,7 +4,7 @@ jobs:
         # Make sure that everything works on the newest Ubuntu.
         runs-on: ubuntu-24.04
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
             - name: Install Rust
               uses: dtolnay/rust-toolchain@nightly
             - name: Cache Cargo
@@ -22,7 +22,7 @@ jobs:
                 sudo udevadm trigger --name-match=kvm
                 # https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
             - name: Run tests
-              uses: clechasseur/rs-cargo@v2
+              uses: clechasseur/rs-cargo@v5.0.4
               with:
                 command: test
                 args: --package tests
@@ -37,7 +37,7 @@ jobs:
         runs-on: ubuntu-22.04
         needs: test
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
             - name: Install Rust
               uses: dtolnay/rust-toolchain@nightly
             - name: Cache Cargo
@@ -47,32 +47,32 @@ jobs:
                 cache-all-crates: true
                 cache-on-failure: true
             - name: Build for i686
-              uses: clechasseur/rs-cargo@v2
+              uses: clechasseur/rs-cargo@v5.0.4
               with:
                   command: build
                   args: --package towboot --target i686-unknown-uefi
             - name: Upload i686 artifact
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: towboot-debug-i686.efi
                   path: target/i686-unknown-uefi/debug/towboot.efi
             - name: Build for x86_64
-              uses: clechasseur/rs-cargo@v2
+              uses: clechasseur/rs-cargo@v5.0.4
               with:
                   command: build
                   args: --package towboot --target x86_64-unknown-uefi
             - name: Upload x86_64 artifact
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: towboot-debug-x86_64.efi
                   path: target/x86_64-unknown-uefi/debug/towboot.efi
             - name: Build towbootctl for x86_64-linux
-              uses: clechasseur/rs-cargo@v2
+              uses: clechasseur/rs-cargo@v5.0.4
               with:
                   command: build
                   args: --package towbootctl --target x86_64-unknown-linux-gnu --features=binary
             - name: Upload x86_64-linux artifact
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: towbootctl-debug-x86_64-linux
                   path: target/x86_64-unknown-linux-gnu/debug/towbootctl
@@ -83,12 +83,12 @@ jobs:
               with:
                   targets: x86_64-pc-windows-gnu
             - name: Build towbootctl for x86_64-windows
-              uses: clechasseur/rs-cargo@v2
+              uses: clechasseur/rs-cargo@v5.0.4
               with:
                   command: build
                   args: --package towbootctl --target x86_64-pc-windows-gnu --features=binary
             - name: Upload x86_64-windows artifact
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: towbootctl-debug-x86_64-windows.exe
                   path: target/x86_64-pc-windows-gnu/debug/towbootctl.exe
@@ -100,7 +100,7 @@ jobs:
       runs-on: macos-latest
       needs: test
       steps:
-          - uses: actions/checkout@v4
+          - uses: actions/checkout@v6
           - name: Install Rust for x86_64-apple and aarch64-apple
             uses: dtolnay/rust-toolchain@nightly
             with:
@@ -112,19 +112,19 @@ jobs:
               cache-all-crates: true
               cache-on-failure: true
           - name: Build towbootctl for x86_64-apple
-            uses: clechasseur/rs-cargo@v2
+            uses: clechasseur/rs-cargo@v5.0.4
             with:
                 command: build
                 args: --package towbootctl --target x86_64-apple-darwin --features=binary
           - name: Build towbootctl for aarch64-apple
-            uses: clechasseur/rs-cargo@v2
+            uses: clechasseur/rs-cargo@v5.0.4
             with:
                 command: build
                 args: --package towbootctl --target aarch64-apple-darwin --features=binary
           - name: Build universal binary for macOS
             run: mkdir -p target/apple-darwin/debug && lipo -create -output target/apple-darwin/debug/towbootctl target/x86_64-apple-darwin/debug/towbootctl target/aarch64-apple-darwin/debug/towbootctl
           - name: Upload apple artifact
-            uses: actions/upload-artifact@v4
+            uses: actions/upload-artifact@v7
             with:
                   name: towbootctl-debug-macos
                   path: target/apple-darwin/debug/towbootctl

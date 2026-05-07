@@ -6,7 +6,7 @@ jobs:
         # Make sure that everything works on the newest Ubuntu.
         runs-on: ubuntu-24.04
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
             - name: Install qemu
               run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qemu-system-x86
             - name: Enable KVM group perms
@@ -16,7 +16,7 @@ jobs:
                 sudo udevadm trigger --name-match=kvm
                 # https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
             - name: Run tests
-              uses: clechasseur/rs-cargo@v2
+              uses: clechasseur/rs-cargo@v5.0.4
               with:
                 command: test
                 args: --package tests --release
@@ -31,19 +31,19 @@ jobs:
         runs-on: ubuntu-22.04
         needs: test
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
             - name: Build for i686
-              uses: clechasseur/rs-cargo@v2
+              uses: clechasseur/rs-cargo@v5.0.4
               with:
                   command: build
                   args: --package towboot --target i686-unknown-uefi --release
             - name: Build for x86_64
-              uses: clechasseur/rs-cargo@v2
+              uses: clechasseur/rs-cargo@v5.0.4
               with:
                   command: build
                   args: --package towboot --target x86_64-unknown-uefi --release
             - name: Build towbootctl for x86_64-linux
-              uses: clechasseur/rs-cargo@v2
+              uses: clechasseur/rs-cargo@v5.0.4
               with:
                   command: build
                   args: --package towbootctl --target x86_64-unknown-linux-gnu --features=binary --release
@@ -54,7 +54,7 @@ jobs:
               with:
                   targets: x86_64-pc-windows-gnu
             - name: Build towbootctl for x86_64-windows
-              uses: clechasseur/rs-cargo@v2
+              uses: clechasseur/rs-cargo@v5.0.4
               with:
                   command: build
                   args: --package towbootctl --target x86_64-pc-windows-gnu --features=binary --release
@@ -67,7 +67,7 @@ jobs:
             - name: Rename files (3)
               run: cp target/x86_64-pc-windows-gnu/release/towbootctl.exe towbootctl-$(git describe --always --tags)-x86_64-windows.exe
             - name: Publish release
-              uses: softprops/action-gh-release@v2
+              uses: softprops/action-gh-release@v3
               with:
                 files: |
                     towboot-*-i686.efi
@@ -84,18 +84,18 @@ jobs:
         runs-on: macos-latest
         needs: release
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
             - name: Install Rust for x86_64-apple and aarch64-apple
               uses: dtolnay/rust-toolchain@nightly
               with:
                 targets: x86_64-apple-darwin, aarch64-apple-darwin
             - name: Build towbootctl for x86_64-apple
-              uses: clechasseur/rs-cargo@v2
+              uses: clechasseur/rs-cargo@v5.0.4
               with:
                 command: build
                 args: --package towbootctl --target x86_64-apple-darwin --features=binary --release
             - name: Build towbootctl for aarch64-apple
-              uses: clechasseur/rs-cargo@v2
+              uses: clechasseur/rs-cargo@v5.0.4
               with:
                 command: build
                 args: --package towbootctl --target aarch64-apple-darwin --features=binary --release
