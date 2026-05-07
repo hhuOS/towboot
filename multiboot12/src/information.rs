@@ -103,13 +103,13 @@ impl<A: Allocator + Clone + 'static> InfoBuilder<A> {
                                     => panic!("wrong Multiboot version"),
                                 MemoryEntry::Multiboot2(src) => {
                                     let destination = core::ptr::from_ref::<MemoryArea>(destination).cast_mut();
-                                    unsafe { destination.write(*src) };
+                                    unsafe { destination.write_volatile(*src) };
                                 },
                             }
                         );
                         let mem_info_tag = info.basic_memory_info_tag().unwrap();
                         let mem_info_tag = core::ptr::from_ref::<BasicMemoryInfoTag>(mem_info_tag).cast_mut();
-                        unsafe { mem_info_tag.write(BasicMemoryInfoTag::new(lower, upper)) };
+                        unsafe { mem_info_tag.write_volatile(BasicMemoryInfoTag::new(lower, upper)) };
                         if let Some(mmap) = efi_mmap {
                             // we can't get the EFIMemoryMapTag if there is a BootServicesNotExitedTag
                             if let Some(efi_mmap_tag) = info.efi_memory_map_tag() {
@@ -117,7 +117,7 @@ impl<A: Allocator + Clone + 'static> InfoBuilder<A> {
                                     efi_mmap_tag.memory_areas()
                                 ).for_each(|(src, dest)| {
                                     let dest = core::ptr::from_ref::<EfiMemoryDescriptor>(dest).cast_mut();
-                                    unsafe { dest.write(*src) };
+                                    unsafe { dest.write_volatile(*src) };
                                 });
                             }
                         }
