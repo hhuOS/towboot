@@ -92,6 +92,10 @@ fn multiboot1() {
         assert!(stdout.contains("boot_loader_name = towboot"));
         assert!(!stdout.contains("mods_count"));
         assert!(stdout.contains("mem_lower = 640KB"));
+        assert!(stdout.contains(", type = 0x1")); // available memory
+        assert!(stdout.contains(", type = 0x2")); // reserved memory
+        assert!(stdout.contains(", type = 0x3")); // ACPI memory
+        assert!(stdout.contains(", type = 0x4")); // ACPI NVS memory
         assert!(stdout.ends_with("Halted."));
     }
 }
@@ -108,6 +112,10 @@ fn multiboot2() {
         assert!(stdout.contains("Boot loader name = towboot"));
         assert!(!stdout.contains("Module at"));
         assert!(stdout.contains("mem_lower = 640KB"));
+        assert!(stdout.contains(", type = 0x1")); // available memory
+        assert!(stdout.contains(", type = 0x2")); // reserved memory
+        assert!(stdout.contains(", type = 0x3")); // ACPI memory
+        assert!(stdout.contains(", type = 0x4")); // ACPI NVS memory
         assert!(stdout.ends_with("Halted."));
     }
 }
@@ -124,6 +132,10 @@ fn multiboot2_x64() {
     assert!(stdout.contains("Boot loader name = towboot"));
     assert!(!stdout.contains("Module at"));
     assert!(stdout.contains("mem_lower = 640KB"));
+    assert!(stdout.contains(", type = 0x1")); // available memory
+    assert!(stdout.contains(", type = 0x2")); // reserved memory
+    assert!(stdout.contains(", type = 0x3")); // ACPI memory
+    assert!(stdout.contains(", type = 0x4")); // ACPI NVS memory
     assert!(stdout.ends_with("Halted."));
     // it should not boot on i686
     let stdout = build_and_boot(
