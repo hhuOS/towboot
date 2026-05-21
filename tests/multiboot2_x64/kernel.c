@@ -63,23 +63,23 @@ void cmain(multiboot_uint32_t magic, multiboot_uint64_t addr)
   /*  Am I booted by a Multiboot-compliant boot loader? */
   if (magic != MULTIBOOT2_BOOTLOADER_MAGIC)
     {
-      printf ("Invalid magic number: 0x%x\n", magic);
+      printf ("Invalid magic number: 0x%x\n", (void*)magic);
       return;
     }
 
   if (addr & 7)
     {
-      printf ("Unaligned mbi: 0x%x\n", addr);
+      printf ("Unaligned mbi: 0x%x\n", (void*)addr);
       return;
     }
 
     size = *(multiboot_uint32_t *)addr;
-    printf("Announced mbi size 0x%x\n", size);
+    printf("Announced mbi size 0x%x\n", (void*)size);
     for (tag = (struct multiboot_tag *)(addr + 8);
          tag->type != MULTIBOOT_TAG_TYPE_END;
          tag = (struct multiboot_tag *)((multiboot_uint8_t *)tag + ((tag->size + 7) & ~7)))
     {
-      printf ("Tag 0x%x, Size 0x%x\n", tag->type, tag->size);
+      printf ("Tag 0x%x, Size 0x%x\n", (void*)tag->type, (void*)tag->size);
       switch (tag->type)
         {
         case MULTIBOOT_TAG_TYPE_CMDLINE:
@@ -92,20 +92,20 @@ void cmain(multiboot_uint32_t magic, multiboot_uint64_t addr)
           break;
         case MULTIBOOT_TAG_TYPE_MODULE:
           printf ("Module at 0x%x-0x%x. Command line %s\n",
-                  ((struct multiboot_tag_module *) tag)->mod_start,
-                  ((struct multiboot_tag_module *) tag)->mod_end,
-                  ((struct multiboot_tag_module *) tag)->cmdline);
+                  (void*)((struct multiboot_tag_module *) tag)->mod_start,
+                  (void*)((struct multiboot_tag_module *) tag)->mod_end,
+                  (void*)((struct multiboot_tag_module *) tag)->cmdline);
           break;
         case MULTIBOOT_TAG_TYPE_BASIC_MEMINFO:
           printf ("mem_lower = %uKB, mem_upper = %uKB\n",
-                  ((struct multiboot_tag_basic_meminfo *) tag)->mem_lower,
-                  ((struct multiboot_tag_basic_meminfo *) tag)->mem_upper);
+                  (void*)((struct multiboot_tag_basic_meminfo *) tag)->mem_lower,
+                  (void*)((struct multiboot_tag_basic_meminfo *) tag)->mem_upper);
           break;
         case MULTIBOOT_TAG_TYPE_BOOTDEV:
           printf ("Boot device 0x%x,%u,%u\n",
-                  ((struct multiboot_tag_bootdev *) tag)->biosdev,
-                  ((struct multiboot_tag_bootdev *) tag)->slice,
-                  ((struct multiboot_tag_bootdev *) tag)->part);
+                  (void*)((struct multiboot_tag_bootdev *) tag)->biosdev,
+                  (void*)((struct multiboot_tag_bootdev *) tag)->slice,
+                  (void*)((struct multiboot_tag_bootdev *) tag)->part);
           break;
         case MULTIBOOT_TAG_TYPE_MMAP:
           {
@@ -121,11 +121,11 @@ void cmain(multiboot_uint32_t magic, multiboot_uint64_t addr)
                     + ((struct multiboot_tag_mmap *) tag)->entry_size))
               printf (" base_addr = 0x%x%x,"
                       " length = 0x%x%x, type = 0x%x\n",
-                      (unsigned) (mmap->addr >> 32),
-                      (unsigned) (mmap->addr & 0xffffffff),
-                      (unsigned) (mmap->len >> 32),
-                      (unsigned) (mmap->len & 0xffffffff),
-                      (unsigned) mmap->type);
+                      (void*) (mmap->addr >> 32),
+                      (void*) (mmap->addr & 0xffffffff),
+                      (void*) (mmap->len >> 32),
+                      (void*) (mmap->len & 0xffffffff),
+                      (void*) mmap->type);
           }
           break;
         case MULTIBOOT_TAG_TYPE_FRAMEBUFFER:
@@ -221,7 +221,7 @@ void cmain(multiboot_uint32_t magic, multiboot_uint64_t addr)
     }
   tag = (struct multiboot_tag *) ((multiboot_uint8_t *) tag 
                                   + ((tag->size + 7) & ~7));
-  printf ("Total mbi size 0x%x\n", (unsigned) tag - addr);
+  printf ("Total mbi size 0x%x\n", (void*) tag - addr);
 }    
 
 /*  Clear the screen and initialize VIDEO, XPOS and YPOS. */
