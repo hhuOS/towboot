@@ -19,7 +19,7 @@ jobs:
               uses: clechasseur/rs-cargo@v5.0.4
               with:
                 command: test
-                args: --package tests --release
+                args: --release
     release:
         # Applications linked against glibc only work on that version of glibc
         # (or newer ones), so this is effectively the oldest version the release
