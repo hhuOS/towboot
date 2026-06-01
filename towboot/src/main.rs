@@ -9,12 +9,14 @@ extern crate alloc;
 
 use core::str::FromStr;
 use core::time::Duration;
+use alloc::borrow::ToOwned;
 use alloc::string::ToString;
 
 use uefi::prelude::*;
 use uefi::boot::{get_handle_for_protocol, image_handle, open_protocol_exclusive, stall};
 use uefi::fs::PathBuf;
 use uefi::data_types::CString16;
+use uefi::proto::device_path::text::{AllowShortcuts, DisplayOnly};
 use uefi::proto::loaded_image::{LoadedImage, LoadOptionsError};
 use uefi::proto::shell::Shell;
 
@@ -56,13 +58,28 @@ fn main() -> Status {
 
     // get the filesystem
     let image_fs_handle = loaded_image.device().expect("the image to be loaded from a device");
-    // get the current directory, else assume it's \
+    // get the current directory from the shell, else assume use the folder where we are placed at
     let cwd: PathBuf = get_handle_for_protocol::<Shell>()
         .and_then(open_protocol_exclusive::<Shell>)
         .and_then(|shell| shell.current_dir(None).map(CString16::from))
         .unwrap_or_else(|e| {
-            debug!("failed to get current directory ({e:?}), assuming \\");
-            CString16::new()
+            debug!("failed to get current directory from the shell ({e:?}), trying to get the path of the towboot binary");
+            loaded_image
+                .file_path()
+                .map(|dp|
+                    PathBuf::from(dp
+                        .to_string(DisplayOnly(false), AllowShortcuts(true))
+                        .expect("failed to format path of the towboot binary")
+                    )
+                        .parent()
+                        .unwrap_or_default() // root directory
+                        .to_cstr16()
+                        .to_owned()
+                )
+                .unwrap_or_else(|| {
+                    warn!("failed to get current directory from the path of the towboot binary, assuming \\");
+                    CString16::new()
+                })
         })
         .into();
 

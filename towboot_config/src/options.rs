@@ -13,7 +13,7 @@ use strum::VariantArray;
 use super::{Config, Entry, Module, Quirk};
 
 /// The default path to the configuration file.
-pub const CONFIG_FILE: &str = "\\towboot.toml";
+pub const CONFIG_FILE: &str = "towboot.toml";
 
 /// Where to load the configuration from
 pub enum ConfigSource {

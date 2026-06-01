@@ -13,7 +13,7 @@ place towboot and its configuration:
 This is the easiest one: It works for all architectures and requires no
 configuration of the system.
 Simply place the 32-bit build at `\EFI\boot\bootia32.efi`, the 64-bit build at
-`\EFI\boot\bootx64.efi` and a configuration file at `\towboot.toml` on the ESP.
+`\EFI\boot\bootx64.efi` and a configuration file at `\EFI\boot\towboot.toml` on the ESP.
 
 You can also use the provided `towbootctl` binary to do this.
 
@@ -29,7 +29,7 @@ to the target directory.
 
 Place an appropriate build at `\EFI\yourOS\towboot.efi` and the configuration
 at `\EFI\yourOS\towboot.toml` on the ESP and add a boot option for
-`\EFI\yourOS\towboot.efi -c \EFI\yourOS\towboot.toml`.
+`\EFI\yourOS\towboot.efi`.
 
 towbootctl can help you a bit with this:
 

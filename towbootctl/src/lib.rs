@@ -12,7 +12,7 @@ use argh::FromArgs;
 use log::info;
 use tempfile::{NamedTempFile, TempPath};
 
-use towboot_config::Config;
+use towboot_config::{CONFIG_FILE, Config};
 
 mod bochs;
 pub mod config;
@@ -21,11 +21,14 @@ mod image;
 use bochs::bochsrc;
 use image::Image;
 
+/// Where to place the boot files
+pub const BOOT_PATH: &str = "EFI/boot";
+
 /// Where to place the 32-bit EFI file
-pub const IA32_BOOT_PATH: &str = "EFI/Boot/bootia32.efi";
+pub const IA32_BOOT_FILE: &str = "bootia32.efi";
 
 /// Where to place the 64-bit EFI file
-pub const X64_BOOT_PATH: &str = "EFI/Boot/bootx64.efi";
+pub const X64_BOOT_FILE: &str = "bootx64.efi";
 
 /// Get the source and destination paths of all files referenced in the config.
 fn get_config_files(config: &mut Config) -> Vec<(PathBuf, PathBuf)> {
@@ -33,11 +36,12 @@ fn get_config_files(config: &mut Config) -> Vec<(PathBuf, PathBuf)> {
     let mut config_path = PathBuf::from(config.src.clone());
     config_path.pop();
 
-    // go through all needed files; including them (but without the original path)
+    // go through all needed files; including them (but with the original path replaced)
     for src_file in config.needed_files() {
         let src_path = config_path.join(PathBuf::from(&src_file));
         let dst_file = src_path.file_name().unwrap();
-        let dst_path = PathBuf::from(&dst_file);
+        let mut dst_path = PathBuf::from(BOOT_PATH);
+        dst_path.push(&dst_file);
         src_file.clear();
         src_file.push_str(dst_file.to_str().unwrap());
         paths.push((src_path, dst_path));
@@ -83,15 +87,21 @@ pub fn create_image(
         config_file.as_file_mut().write_all(
             toml::to_string(&config)?.as_bytes()
         )?;
-        paths.push((PathBuf::from(config_file.path()), PathBuf::from("towboot.toml")));
+        let mut dest = PathBuf::from(BOOT_PATH);
+        dest.push(CONFIG_FILE);
+        paths.push((PathBuf::from(config_file.path()), dest));
     }
 
     // add towboot itself
     if let Some(src) = i686 {
-        paths.push((PathBuf::from(src), PathBuf::from(IA32_BOOT_PATH)));
+        let mut dest = PathBuf::from(BOOT_PATH);
+        dest.push(IA32_BOOT_FILE);
+        paths.push((PathBuf::from(src), dest));
     }
     if let Some(src) = x86_64 {
-        paths.push((PathBuf::from(src), PathBuf::from(X64_BOOT_PATH)));
+        let mut dest = PathBuf::from(BOOT_PATH);
+        dest.push(X64_BOOT_FILE);
+        paths.push((PathBuf::from(src), dest));
     }
 
     let mut image_size = 0;

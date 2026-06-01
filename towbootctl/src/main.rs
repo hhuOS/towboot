@@ -119,22 +119,14 @@ impl InstallCommand {
                 for src_file in config.needed_files() {
                     let src_path = config_path.join(PathBuf::from(&src_file));
                     let dst_file = src_path.file_name().unwrap();
-                    let mut dst_path = if self.removable {
-                        self.esp_path.clone()
-                    } else {
-                        install_path.clone()
-                    };
+                    let mut dst_path = install_path.clone();
                     dst_path.push(dst_file);
                     src_file.clear();
                     src_file.push_str(dst_file.to_str().unwrap());
                     fs::copy(&src_path, &dst_path)?;
                 }
                 // write the configuration itself
-                let mut config_path = if self.removable {
-                    self.esp_path.clone()
-                } else {
-                    install_path.clone()
-                };
+                let mut config_path = install_path.clone();
                 config_path.push("towboot.toml");
                 fs::write(&config_path, toml::to_string(&config)?)?;
             } else {
