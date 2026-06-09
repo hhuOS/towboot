@@ -1934,8 +1934,6 @@ dependencies = [
  "ctor",
  "env_logger",
  "tempfile",
- "towboot_ia32",
- "towboot_x64",
  "towbootctl",
 ]
 
@@ -2636,6 +2634,7 @@ dependencies = [
  "argh",
  "env_logger",
  "log",
+ "tempfile",
  "towbootctl",
 ]
 

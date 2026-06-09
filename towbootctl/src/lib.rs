@@ -30,6 +30,11 @@ pub const IA32_BOOT_FILE: &str = "bootia32.efi";
 /// Where to place the 64-bit EFI file
 pub const X64_BOOT_FILE: &str = "bootx64.efi";
 
+/// the re-exported towboot binary for i686-unknown-uefi
+pub const IA32_IMAGE: &[u8] = towboot_ia32::TOWBOOT;
+/// the re-exported towboot binary for x86_64-unknown-uefi
+pub const X64_IMAGE: &[u8] = towboot_x64::TOWBOOT;
+
 /// Get the source and destination paths of all files referenced in the config.
 fn get_config_files(config: &mut Config) -> Vec<(PathBuf, PathBuf)> {
     let mut paths = Vec::<(PathBuf, PathBuf)>::new();

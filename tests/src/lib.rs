@@ -9,7 +9,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use tempfile::NamedTempFile;
-use towbootctl::{boot_image, create_image};
+use towbootctl::{IA32_IMAGE, X64_IMAGE, boot_image, create_image};
 
 #[derive(PartialEq, Clone, Copy)]
 enum Arch {
@@ -32,9 +32,9 @@ fn build_and_boot(
 ) -> Result<String, Box<dyn Error>> {
     // get towboot
     let mut towboot_temp_ia32 = NamedTempFile::new()?;
-    towboot_temp_ia32.as_file_mut().write_all(towboot_ia32::TOWBOOT)?;
+    towboot_temp_ia32.as_file_mut().write_all(IA32_IMAGE)?;
     let mut towboot_temp_x64 = NamedTempFile::new()?;
-    towboot_temp_x64.as_file_mut().write_all(towboot_x64::TOWBOOT)?;
+    towboot_temp_x64.as_file_mut().write_all(X64_IMAGE)?;
     let towboot_temp_ia32_path = towboot_temp_ia32.into_temp_path();
     let towboot_temp_x64_path = towboot_temp_x64.into_temp_path();
     let i686: Option<&Path> = matches!(towboot_arch, Arch::I686)
