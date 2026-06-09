@@ -2634,7 +2634,6 @@ dependencies = [
  "argh",
  "env_logger",
  "log",
- "tempfile",
  "towbootctl",
 ]
 

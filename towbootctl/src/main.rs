@@ -8,9 +8,8 @@ use std::path::{Path, PathBuf};
 
 use argh::{FromArgs, from_env};
 use log::info;
-use tempfile::NamedTempFile;
 
-use towbootctl::{BootImageCommand, create_image, config, runtime_args_to_load_options};
+use towbootctl::{BootImageCommand, ImageCommand, config, runtime_args_to_load_options};
 
 #[allow(dead_code)]
 mod built_info {
@@ -32,37 +31,6 @@ enum Command {
     Install(InstallCommand),
     Extract(ExtractCommand),
     Version(VersionCommand),
-}
-
-#[derive(Debug, FromArgs)]
-#[argh(subcommand, name = "image")]
-/// Build a bootable image containing towboot, kernels and their modules.
-struct ImageCommand {
-    /// where to place the image
-    #[argh(option, default = "PathBuf::from(\"image.img\")")]
-    target: PathBuf,
-
-    /// runtime options to pass to towboot
-    #[argh(positional, greedy)]
-    runtime_args: Vec<String>,
-}
-
-impl ImageCommand {
-    fn r#do(&self) -> Result<(), Box<dyn Error>> {
-        let mut towboot_temp_ia32 = NamedTempFile::new()?;
-        towboot_temp_ia32.as_file_mut().write_all(towboot_ia32::TOWBOOT)?;
-        let mut towboot_temp_x64 = NamedTempFile::new()?;
-        towboot_temp_x64.as_file_mut().write_all(towboot_x64::TOWBOOT)?;
-
-        create_image(
-            &self.target,
-            &self.runtime_args,
-            Some(&towboot_temp_ia32.into_temp_path()),
-            Some(&towboot_temp_x64.into_temp_path()),
-        )?;
-
-        Ok(())
-    }
 }
 
 #[derive(Debug, FromArgs)]

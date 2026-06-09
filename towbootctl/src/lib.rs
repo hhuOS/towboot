@@ -74,7 +74,7 @@ pub fn runtime_args_to_load_options(runtime_args: &[String]) -> String {
 
 /// Create an image, containing a configuration file, kernels, modules and towboot.
 pub fn create_image(
-    target: &Path, runtime_args: &[String], i686: Option<&Path>, x86_64: Option<&Path>,
+    target: &Path, runtime_args: &[String],
 ) -> Result<Image, Box<dyn Error>> {
     info!("calculating image size");
     let mut paths = Vec::<(PathBuf, PathBuf)>::new();
@@ -98,16 +98,19 @@ pub fn create_image(
     }
 
     // add towboot itself
-    if let Some(src) = i686 {
-        let mut dest = PathBuf::from(BOOT_PATH);
-        dest.push(IA32_BOOT_FILE);
-        paths.push((PathBuf::from(src), dest));
-    }
-    if let Some(src) = x86_64 {
-        let mut dest = PathBuf::from(BOOT_PATH);
-        dest.push(X64_BOOT_FILE);
-        paths.push((PathBuf::from(src), dest));
-    }
+    let mut temp_ia32 = NamedTempFile::new()?;
+    temp_ia32.as_file_mut().write_all(IA32_IMAGE)?;
+    let temp_ia32_path = temp_ia32.into_temp_path();
+    let mut ia32_dest = PathBuf::from(BOOT_PATH);
+    ia32_dest.push(IA32_BOOT_FILE);
+    paths.push((temp_ia32_path.to_path_buf(), ia32_dest));
+    
+    let mut temp_x64 = NamedTempFile::new()?;
+    temp_x64.as_file_mut().write_all(X64_IMAGE)?;
+    let temp_x64_path = temp_x64.into_temp_path();
+    let mut x64_dest = PathBuf::from(BOOT_PATH);
+    x64_dest.push(X64_BOOT_FILE);
+    paths.push((temp_x64_path.to_path_buf(), x64_dest));
 
     let mut image_size = 0;
     for pair in &paths {
@@ -169,6 +172,28 @@ pub fn boot_image(
         }
         (qemu, vec![])
     })
+}
+
+#[cfg(feature = "args")]
+#[derive(Debug, FromArgs)]
+#[argh(subcommand, name = "image")]
+/// Build a bootable image containing towboot, kernels and their modules.
+pub struct ImageCommand {
+    /// where to place the image
+    #[argh(option, default = "PathBuf::from(\"image.img\")")]
+    target: PathBuf,
+
+    /// runtime options to pass to towboot
+    #[argh(positional, greedy)]
+    runtime_args: Vec<String>,
+}
+
+impl ImageCommand {
+    pub fn r#do(&self) -> Result<(), Box<dyn Error>> {
+        create_image(&self.target, &self.runtime_args)?;
+
+        Ok(())
+    }
 }
 
 #[cfg(feature = "args")]

@@ -115,13 +115,12 @@ By default, this is a debug build for `i686-unknown-uefi`.
 You can change this by appending `--release`
 or by setting `--target x86_64_unknown_uefi` (for example).
 
-Running `cargo xtask build` will do that and also create a disk image,
+Running `cargo xtask image` will do that and also create a disk image,
 so just may just want to run this. To boot the resulting image with QEMU,
 you can use `cargo xtask boot-image`.
 
-You can configure whether to create a `debug` or `release` build for
-either `i686` or `x86_64`, whether to enable KVM or wait for a GDB to attach
-by specifying command line options.
+You can configure whether to boot a `i686` or `x86_64` machine, whether to
+enable KVM or wait for a GDB to attach by specifying command line options.
 
 You can also run towbootctl directly from the source directory (building it will
 also build towboot, in turn):
