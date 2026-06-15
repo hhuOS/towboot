@@ -1,8 +1,6 @@
 //! This crate offers functionality to use towboot for your own operating system.
 #![cfg_attr(feature = "args", feature(exit_status_error))]
 use std::error::Error;
-use std::fs::OpenOptions;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -10,7 +8,7 @@ use anyhow::anyhow;
 #[cfg(feature = "args")]
 use argh::FromArgs;
 use log::info;
-use tempfile::{NamedTempFile, TempPath};
+use tempfile::TempPath;
 
 use towboot_config::{CONFIG_FILE, Config};
 
@@ -19,7 +17,7 @@ pub mod config;
 mod firmware;
 mod image;
 use bochs::bochsrc;
-use image::Image;
+use image::{Image, Source};
 
 /// Where to place the boot files
 pub const BOOT_PATH: &str = "EFI/boot";
@@ -36,8 +34,8 @@ pub const IA32_IMAGE: &[u8] = towboot_ia32::TOWBOOT;
 pub const X64_IMAGE: &[u8] = towboot_x64::TOWBOOT;
 
 /// Get the source and destination paths of all files referenced in the config.
-fn get_config_files(config: &mut Config) -> Vec<(PathBuf, PathBuf)> {
-    let mut paths = Vec::<(PathBuf, PathBuf)>::new();
+fn get_config_files(config: &mut Config) -> Vec<(Source, PathBuf)> {
+    let mut paths = Vec::<(Source, PathBuf)>::new();
     let mut config_path = PathBuf::from(config.src.clone());
     config_path.pop();
 
@@ -49,7 +47,7 @@ fn get_config_files(config: &mut Config) -> Vec<(PathBuf, PathBuf)> {
         dst_path.push(&dst_file);
         src_file.clear();
         src_file.push_str(dst_file.to_str().unwrap());
-        paths.push((src_path, dst_path));
+        paths.push((Source::File(src_path), dst_path));
     }
 
     paths
@@ -77,11 +75,10 @@ pub fn create_image(
     target: &Path, runtime_args: &[String],
 ) -> Result<Image, Box<dyn Error>> {
     info!("calculating image size");
-    let mut paths = Vec::<(PathBuf, PathBuf)>::new();
+    let mut paths = Vec::<(Source, PathBuf)>::new();
 
     // generate a configuration file from the load options
     let load_options = runtime_args_to_load_options(runtime_args);
-    let mut config_file = NamedTempFile::new()?;
     if let Some(mut config) = config::get(&load_options)? {
         // get paths to all files referenced by config
         // this also sets the correct config file paths inside the image
@@ -89,36 +86,30 @@ pub fn create_image(
         paths.append(&mut config_paths);
 
         // generate temp config file
-        config_file.as_file_mut().write_all(
-            toml::to_string(&config)?.as_bytes()
-        )?;
+        let config_bytes = toml::to_string(&config)?.into_bytes();
         let mut dest = PathBuf::from(BOOT_PATH);
         dest.push(CONFIG_FILE);
-        paths.push((PathBuf::from(config_file.path()), dest));
+        paths.push((Source::Memory(config_bytes), dest));
     }
 
     // add towboot itself
-    let mut temp_ia32 = NamedTempFile::new()?;
-    temp_ia32.as_file_mut().write_all(IA32_IMAGE)?;
-    let temp_ia32_path = temp_ia32.into_temp_path();
     let mut ia32_dest = PathBuf::from(BOOT_PATH);
     ia32_dest.push(IA32_BOOT_FILE);
-    paths.push((temp_ia32_path.to_path_buf(), ia32_dest));
+    paths.push((Source::Memory(IA32_IMAGE.to_vec()), ia32_dest));
     
-    let mut temp_x64 = NamedTempFile::new()?;
-    temp_x64.as_file_mut().write_all(X64_IMAGE)?;
-    let temp_x64_path = temp_x64.into_temp_path();
     let mut x64_dest = PathBuf::from(BOOT_PATH);
     x64_dest.push(X64_BOOT_FILE);
-    paths.push((temp_x64_path.to_path_buf(), x64_dest));
+    paths.push((Source::Memory(X64_IMAGE.to_vec()), x64_dest));
 
-    let mut image_size = 0;
+    let mut image_size: u64 = 0;
     for pair in &paths {
-        info!("adding {:?} as {:?}", pair.0, pair.1);
-        let file = OpenOptions::new()
-            .read(true)
-            .open(PathBuf::from(&pair.0))?;
-        image_size += file.metadata()?.len();
+        match pair.0 {
+            Source::File(ref path_buf) => info!(
+                "adding {} as {:?}", path_buf.display(), pair.1,
+            ),
+            Source::Memory(ref _bytes) => info!("adding {:?}", pair.1),
+        }
+        image_size += pair.0.len().expect("failed to get file size");
     }
 
     info!(
@@ -128,7 +119,7 @@ pub fn create_image(
     );
     let mut image = Image::new(target, image_size)?;
     for pair in paths {
-        image.add_file(pair.0.as_path(), pair.1.as_path())?;
+        image.add_file(pair.0, pair.1.as_path())?;
     }
 
     Ok(image)
@@ -188,6 +179,7 @@ pub struct ImageCommand {
     runtime_args: Vec<String>,
 }
 
+#[cfg(feature = "args")]
 impl ImageCommand {
     pub fn r#do(&self) -> Result<(), Box<dyn Error>> {
         create_image(&self.target, &self.runtime_args)?;
