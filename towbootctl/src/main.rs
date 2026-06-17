@@ -91,11 +91,13 @@ impl InstallCommand {
                     dst_path.push(dst_file);
                     src_file.clear();
                     src_file.push_str(dst_file.to_str().unwrap());
+                    info!("copying {} to {}", src_path.display(), dst_path.display());
                     fs::copy(&src_path, &dst_path)?;
                 }
                 // write the configuration itself
                 let mut config_path = install_path.clone();
                 config_path.push("towboot.toml");
+                info!("writing {}", config_path.display());
                 fs::write(&config_path, toml::to_string(&config)?)?;
             } else {
                 // Exit if the options were just -help.
@@ -104,8 +106,12 @@ impl InstallCommand {
         }
         // add towboot itself
         // TODO: rename this maybe for non-removable installs?
-        fs::write(Path::join(&install_path, "BOOTIA32.efi"), towboot_ia32::TOWBOOT)?;
-        fs::write(Path::join(&install_path, "BOOTX64.efi"), towboot_x64::TOWBOOT)?;
+        let ia32_path = Path::join(&install_path, "BOOTIA32.efi");
+        info!("writing {}", ia32_path.display());
+        fs::write(ia32_path, towboot_ia32::TOWBOOT)?;
+        let x64_path = Path::join(&install_path, "BOOTX64.efi");
+        info!("writing {}", x64_path.display());
+        fs::write(x64_path, towboot_x64::TOWBOOT)?;
         if self.register {
             assert!(!self.removable);
             todo!("registration with the firmware is not supported, yet");
