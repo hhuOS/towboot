@@ -1,6 +1,7 @@
 //! This crate offers functionality to use towboot for your own operating system.
 #![cfg_attr(feature = "args", feature(exit_status_error))]
 use std::error::Error;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -8,7 +9,7 @@ use anyhow::anyhow;
 #[cfg(feature = "args")]
 use argh::FromArgs;
 use log::info;
-use tempfile::TempPath;
+use tempfile::{NamedTempFile, TempPath};
 
 use towboot_config::{CONFIG_FILE, Config};
 
@@ -28,13 +29,15 @@ pub const IA32_BOOT_FILE: &str = "bootia32.efi";
 /// Where to place the 64-bit EFI file
 pub const X64_BOOT_FILE: &str = "bootx64.efi";
 
+/// Where to place the AArch64 EFI file
+pub const AA64_BOOT_FILE: &str = "bootaa64.efi";
+
 /// the re-exported towboot binary for i686-unknown-uefi
 pub const IA32_IMAGE: &[u8] = towboot_ia32::TOWBOOT;
 /// the re-exported towboot binary for x86_64-unknown-uefi
 pub const X64_IMAGE: &[u8] = towboot_x64::TOWBOOT;
-
-/// Where to place the AArch64 EFI file
-pub const AA64_BOOT_PATH: &str = "EFI/Boot/bootaa64.efi";
+/// the re-exported towboot binary for aarch64-unknown-uefi
+pub const AA64_IMAGE: &[u8] = towboot_aa64::TOWBOOT;
 
 /// The firmware architecture used to boot an image.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,10 +115,9 @@ pub fn create_image(
     x64_dest.push(X64_BOOT_FILE);
     paths.push((Source::Memory(X64_IMAGE.to_vec()), x64_dest));
 
-    //TODO: does not fit after merch
-    if let Some(src) = aarch64 {
-        paths.push((PathBuf::from(src), PathBuf::from(AA64_BOOT_PATH)));
-    }
+    let mut aa64_dest = PathBuf::from(BOOT_PATH);
+    aa64_dest.push(AA64_BOOT_FILE);
+    paths.push((Source::Memory(AA64_IMAGE.to_vec()), aa64_dest));
 
     let mut image_size: u64 = 0;
     for pair in &paths {

@@ -2088,7 +2088,7 @@ dependencies = [
 
 [[package]]
 name = "towboot_aa64"
-version = "0.11.0"
+version = "0.11.1"
 dependencies = [
  "towboot",
 ]

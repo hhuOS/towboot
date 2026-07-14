@@ -74,7 +74,7 @@ fn multiboot1() {
     for arch in [Arch::I686, Arch::X86_64] {
         let stdout = build_and_boot(
             &PathBuf::from("multiboot1"),
-            arch, arch, arch,
+            arch, arch,
         ).expect("failed to run");
         println!("{}", stdout);
         assert!(stdout.contains("cmdline = test of a cmdline"));
@@ -94,7 +94,7 @@ fn multiboot2() {
     for arch in [Arch::I686, Arch::X86_64] {
         let stdout = build_and_boot(
             &PathBuf::from("multiboot2"),
-            arch, arch, arch
+            arch, arch,
         ).expect("failed to run");
         println!("{}", stdout);
         assert!(stdout.contains("Command line = test of a cmdline"));
@@ -114,7 +114,7 @@ fn multiboot2_x64() {
     // it should boot on x86_64
     let stdout = build_and_boot(
         &PathBuf::from("multiboot2_x64"),
-        Arch::X86_64, Arch::X86_64, Arch::X86_64,
+        Arch::X86_64, Arch::X86_64,
     ).expect("failed to run");
     println!("{}", stdout);
     assert!(stdout.contains("Command line = test of a cmdline"));
@@ -129,7 +129,7 @@ fn multiboot2_x64() {
     // it should not boot on i686
     let stdout = build_and_boot(
         &PathBuf::from("multiboot2_x64"),
-        Arch::I686, Arch::I686, Arch::I686,
+        Arch::I686, Arch::I686,
     ).expect("failed to run");
     println!("{}", stdout);
     assert!(stdout.contains("The kernel supports 64-bit UEFI systems, but we're running on 32-bit"));

@@ -112,11 +112,9 @@ impl InstallCommand {
         let x64_path = Path::join(&install_path, "BOOTX64.efi");
         info!("writing {}", x64_path.display());
         fs::write(x64_path, towboot_x64::TOWBOOT)?;
-        //TODO: doesnt match merge
-        fs::write(
-            Path::join(&install_path, "BOOTAA64.efi"),
-            towboot_aa64::TOWBOOT,
-        )?;
+        let aa64_path = Path::join(&install_path, "BOOTAA64.efi");
+        info!("writing {}", aa64_path.display());
+        fs::write(aa64_path, towboot_aa64::TOWBOOT)?;
         if self.register {
             assert!(!self.removable);
             todo!("registration with the firmware is not supported, yet");

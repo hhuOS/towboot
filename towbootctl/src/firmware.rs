@@ -12,7 +12,7 @@ use directories::ProjectDirs;
 
 const OVMF_X64_URL: &str = "https://retrage.github.io/edk2-nightly/bin/RELEASEX64_OVMF.fd";
 const OVMF_IA32_URL: &str = "https://retrage.github.io/edk2-nightly/bin/RELEASEIa32_OVMF.fd";
-
+//TODO: Need to try again with the nightly. didnt work for now
 const AARCH64_CODE_PATHS: &[&str] = &[
     "/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
     "/usr/share/AAVMF/AAVMF_CODE.fd",
