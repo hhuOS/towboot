@@ -13,7 +13,7 @@ place towboot and its configuration:
 This is the easiest one: It works for all architectures and requires no
 configuration of the system.
 Simply place the 32-bit build at `\EFI\boot\bootia32.efi`, the 64-bit build at
-`\EFI\boot\bootx64.efi` and a configuration file at `\towboot.toml` on the ESP.
+`\EFI\boot\bootx64.efi` and a configuration file at `\EFI\boot\towboot.toml` on the ESP.
 
 You can also use the provided `towbootctl` binary to do this.
 
@@ -29,7 +29,7 @@ to the target directory.
 
 Place an appropriate build at `\EFI\yourOS\towboot.efi` and the configuration
 at `\EFI\yourOS\towboot.toml` on the ESP and add a boot option for
-`\EFI\yourOS\towboot.efi -c \EFI\yourOS\towboot.toml`.
+`\EFI\yourOS\towboot.efi`.
 
 towbootctl can help you a bit with this:
 
@@ -115,13 +115,12 @@ By default, this is a debug build for `i686-unknown-uefi`.
 You can change this by appending `--release`
 or by setting `--target x86_64_unknown_uefi` (for example).
 
-Running `cargo xtask build` will do that and also create a disk image,
+Running `cargo xtask image` will do that and also create a disk image,
 so just may just want to run this. To boot the resulting image with QEMU,
 you can use `cargo xtask boot-image`.
 
-You can configure whether to create a `debug` or `release` build for
-either `i686` or `x86_64`, whether to enable KVM or wait for a GDB to attach
-by specifying command line options.
+You can configure whether to boot a `i686` or `x86_64` machine, whether to
+enable KVM or wait for a GDB to attach by specifying command line options.
 
 You can also run towbootctl directly from the source directory (building it will
 also build towboot, in turn):

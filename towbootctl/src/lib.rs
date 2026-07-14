@@ -1,9 +1,6 @@
 //! This crate offers functionality to use towboot for your own operating system.
 #![cfg_attr(feature = "args", feature(exit_status_error))]
 use std::error::Error;
-use std::fs;
-use std::fs::OpenOptions;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -11,22 +8,30 @@ use anyhow::anyhow;
 #[cfg(feature = "args")]
 use argh::FromArgs;
 use log::info;
-use tempfile::{NamedTempFile, TempPath};
+use tempfile::TempPath;
 
-use towboot_config::Config;
+use towboot_config::{CONFIG_FILE, Config};
 
 mod bochs;
 pub mod config;
 mod firmware;
 mod image;
 use bochs::bochsrc;
-use image::Image;
+use image::{Image, Source};
+
+/// Where to place the boot files
+pub const BOOT_PATH: &str = "EFI/boot";
 
 /// Where to place the 32-bit EFI file
-pub const IA32_BOOT_PATH: &str = "EFI/Boot/bootia32.efi";
+pub const IA32_BOOT_FILE: &str = "bootia32.efi";
 
 /// Where to place the 64-bit EFI file
-pub const X64_BOOT_PATH: &str = "EFI/Boot/bootx64.efi";
+pub const X64_BOOT_FILE: &str = "bootx64.efi";
+
+/// the re-exported towboot binary for i686-unknown-uefi
+pub const IA32_IMAGE: &[u8] = towboot_ia32::TOWBOOT;
+/// the re-exported towboot binary for x86_64-unknown-uefi
+pub const X64_IMAGE: &[u8] = towboot_x64::TOWBOOT;
 
 /// Where to place the AArch64 EFI file
 pub const AA64_BOOT_PATH: &str = "EFI/Boot/bootaa64.efi";
@@ -40,19 +45,20 @@ pub enum Architecture {
 }
 
 /// Get the source and destination paths of all files referenced in the config.
-fn get_config_files(config: &mut Config) -> Vec<(PathBuf, PathBuf)> {
-    let mut paths = Vec::<(PathBuf, PathBuf)>::new();
+fn get_config_files(config: &mut Config) -> Vec<(Source, PathBuf)> {
+    let mut paths = Vec::<(Source, PathBuf)>::new();
     let mut config_path = PathBuf::from(config.src.clone());
     config_path.pop();
 
-    // go through all needed files; including them (but without the original path)
+    // go through all needed files; including them (but with the original path replaced)
     for src_file in config.needed_files() {
         let src_path = config_path.join(PathBuf::from(&src_file));
         let dst_file = src_path.file_name().unwrap();
-        let dst_path = PathBuf::from(&dst_file);
+        let mut dst_path = PathBuf::from(BOOT_PATH);
+        dst_path.push(&dst_file);
         src_file.clear();
         src_file.push_str(dst_file.to_str().unwrap());
-        paths.push((src_path, dst_path));
+        paths.push((Source::File(src_path), dst_path));
     }
 
     paths
@@ -77,18 +83,13 @@ pub fn runtime_args_to_load_options(runtime_args: &[String]) -> String {
 
 /// Create an image, containing a configuration file, kernels, modules and towboot.
 pub fn create_image(
-    target: &Path,
-    runtime_args: &[String],
-    i686: Option<&Path>,
-    x86_64: Option<&Path>,
-    aarch64: Option<&Path>,
+    target: &Path, runtime_args: &[String],
 ) -> Result<Image, Box<dyn Error>> {
     info!("calculating image size");
-    let mut paths = Vec::<(PathBuf, PathBuf)>::new();
+    let mut paths = Vec::<(Source, PathBuf)>::new();
 
     // generate a configuration file from the load options
     let load_options = runtime_args_to_load_options(runtime_args);
-    let mut config_file = NamedTempFile::new()?;
     if let Some(mut config) = config::get(&load_options)? {
         // get paths to all files referenced by config
         // this also sets the correct config file paths inside the image
@@ -96,30 +97,35 @@ pub fn create_image(
         paths.append(&mut config_paths);
 
         // generate temp config file
-        config_file.as_file_mut().write_all(
-            toml::to_string(&config)?.as_bytes()
-        )?;
-        paths.push((PathBuf::from(config_file.path()), PathBuf::from("towboot.toml")));
+        let config_bytes = toml::to_string(&config)?.into_bytes();
+        let mut dest = PathBuf::from(BOOT_PATH);
+        dest.push(CONFIG_FILE);
+        paths.push((Source::Memory(config_bytes), dest));
     }
 
     // add towboot itself
-    if let Some(src) = i686 {
-        paths.push((PathBuf::from(src), PathBuf::from(IA32_BOOT_PATH)));
-    }
-    if let Some(src) = x86_64 {
-        paths.push((PathBuf::from(src), PathBuf::from(X64_BOOT_PATH)));
-    }
+    let mut ia32_dest = PathBuf::from(BOOT_PATH);
+    ia32_dest.push(IA32_BOOT_FILE);
+    paths.push((Source::Memory(IA32_IMAGE.to_vec()), ia32_dest));
+
+    let mut x64_dest = PathBuf::from(BOOT_PATH);
+    x64_dest.push(X64_BOOT_FILE);
+    paths.push((Source::Memory(X64_IMAGE.to_vec()), x64_dest));
+
+    //TODO: does not fit after merch
     if let Some(src) = aarch64 {
         paths.push((PathBuf::from(src), PathBuf::from(AA64_BOOT_PATH)));
     }
 
-    let mut image_size = 0;
+    let mut image_size: u64 = 0;
     for pair in &paths {
-        info!("adding {:?} as {:?}", pair.0, pair.1);
-        let file = OpenOptions::new()
-            .read(true)
-            .open(PathBuf::from(&pair.0))?;
-        image_size += file.metadata()?.len();
+        match pair.0 {
+            Source::File(ref path_buf) => info!(
+                "adding {} as {:?}", path_buf.display(), pair.1,
+            ),
+            Source::Memory(ref _bytes) => info!("adding {:?}", pair.1),
+        }
+        image_size += pair.0.len().expect("failed to get file size");
     }
 
     info!(
@@ -129,7 +135,7 @@ pub fn create_image(
     );
     let mut image = Image::new(target, image_size)?;
     for pair in paths {
-        image.add_file(pair.0.as_path(), pair.1.as_path())?;
+        image.add_file(pair.0, pair.1.as_path())?;
     }
 
     Ok(image)
@@ -222,6 +228,29 @@ pub fn boot_image(
         }
         (qemu, temp_files)
     })
+}
+
+#[cfg(feature = "args")]
+#[derive(Debug, FromArgs)]
+#[argh(subcommand, name = "image")]
+/// Build a bootable image containing towboot, kernels and their modules.
+pub struct ImageCommand {
+    /// where to place the image
+    #[argh(option, default = "PathBuf::from(\"image.img\")")]
+    target: PathBuf,
+
+    /// runtime options to pass to towboot
+    #[argh(positional, greedy)]
+    runtime_args: Vec<String>,
+}
+
+#[cfg(feature = "args")]
+impl ImageCommand {
+    pub fn r#do(&self) -> Result<(), Box<dyn Error>> {
+        create_image(&self.target, &self.runtime_args)?;
+
+        Ok(())
+    }
 }
 
 #[cfg(feature = "args")]

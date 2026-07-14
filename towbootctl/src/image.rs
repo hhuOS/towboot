@@ -3,7 +3,7 @@ use std::error::Error;
 use std::collections::BTreeMap;
 use std::fs::{File, OpenOptions};
 use std::io::{Write, Read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use fscommon::StreamSlice;
 use gpt::{GptConfig, disk::LogicalBlockSize, mbr::ProtectiveMBR, partition_types};
@@ -58,9 +58,8 @@ impl Image {
     }
 
     /// Copy a file from the local filesystem to the image.
-    pub fn add_file(&mut self, source: &Path, dest: &Path) -> Result<(), Box<dyn Error>> {
-        debug!("adding {} as {}", source.display(), dest.display());
-        let mut source_file = File::open(source)?;
+    pub fn add_file(&mut self, source: Source, dest: &Path) -> Result<(), Box<dyn Error>> {
+        debug!("adding {}", dest.display());
         let mut dir = self.fs.root_dir();
         let components: Vec<_> = dest.components().collect();
         let (file_name, dir_names) = components.split_last().unwrap();
@@ -70,9 +69,38 @@ impl Image {
         let mut dest_file = dir.create_file(
             file_name.as_os_str().to_str().unwrap()
         )?;
-        let mut buf = Vec::new();
-        source_file.read_to_end(&mut buf)?;
+        let buf = match source {
+            Source::File(path_buf) => {
+                let mut bytes = Vec::new();
+                let mut source_file = File::open(path_buf)?;
+                source_file.read_to_end(&mut bytes)?;
+                bytes
+            },
+            Source::Memory(bytes) => bytes,
+        };
         dest_file.write_all(&buf)?;
         Ok(())
+    }
+}
+
+/// A file to add to the image.
+pub enum Source {
+    File(PathBuf),
+    Memory(Vec<u8>),
+}
+
+impl Source {
+    /// Get the size in bytes.
+    pub fn len(&self) -> std::io::Result<u64> {
+        Ok(match self {
+            Source::File(path_buf) => {
+                OpenOptions::new()
+                    .read(true)
+                    .open(PathBuf::from(path_buf))?
+                    .metadata()?
+                    .len()
+            },
+            Source::Memory(bytes) => bytes.len().try_into().unwrap(),
+        })
     }
 }

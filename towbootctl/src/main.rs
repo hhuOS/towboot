@@ -8,9 +8,8 @@ use std::path::{Path, PathBuf};
 
 use argh::{FromArgs, from_env};
 use log::info;
-use tempfile::NamedTempFile;
 
-use towbootctl::{BootImageCommand, create_image, config, runtime_args_to_load_options};
+use towbootctl::{BootImageCommand, ImageCommand, config, runtime_args_to_load_options};
 
 #[allow(dead_code)]
 mod built_info {
@@ -32,46 +31,6 @@ enum Command {
     Install(InstallCommand),
     Extract(ExtractCommand),
     Version(VersionCommand),
-}
-
-#[derive(Debug, FromArgs)]
-#[argh(subcommand, name = "image")]
-/// Build a bootable image containing towboot, kernels and their modules.
-struct ImageCommand {
-    /// where to place the image
-    #[argh(option, default = "PathBuf::from(\"image.img\")")]
-    target: PathBuf,
-
-    /// runtime options to pass to towboot
-    #[argh(positional, greedy)]
-    runtime_args: Vec<String>,
-}
-
-impl ImageCommand {
-    fn r#do(&self) -> Result<(), Box<dyn Error>> {
-        let mut towboot_temp_ia32 = NamedTempFile::new()?;
-        towboot_temp_ia32
-            .as_file_mut()
-            .write_all(towboot_ia32::TOWBOOT)?;
-        let mut towboot_temp_x64 = NamedTempFile::new()?;
-        towboot_temp_x64
-            .as_file_mut()
-            .write_all(towboot_x64::TOWBOOT)?;
-        let mut towboot_temp_aa64 = NamedTempFile::new()?;
-        towboot_temp_aa64
-            .as_file_mut()
-            .write_all(towboot_aa64::TOWBOOT)?;
-
-        create_image(
-            &self.target,
-            &self.runtime_args,
-            Some(&towboot_temp_ia32.into_temp_path()),
-            Some(&towboot_temp_x64.into_temp_path()),
-            Some(&towboot_temp_aa64.into_temp_path()),
-        )?;
-
-        Ok(())
-    }
 }
 
 #[derive(Debug, FromArgs)]
@@ -128,23 +87,17 @@ impl InstallCommand {
                 for src_file in config.needed_files() {
                     let src_path = config_path.join(PathBuf::from(&src_file));
                     let dst_file = src_path.file_name().unwrap();
-                    let mut dst_path = if self.removable {
-                        self.esp_path.clone()
-                    } else {
-                        install_path.clone()
-                    };
+                    let mut dst_path = install_path.clone();
                     dst_path.push(dst_file);
                     src_file.clear();
                     src_file.push_str(dst_file.to_str().unwrap());
+                    info!("copying {} to {}", src_path.display(), dst_path.display());
                     fs::copy(&src_path, &dst_path)?;
                 }
                 // write the configuration itself
-                let mut config_path = if self.removable {
-                    self.esp_path.clone()
-                } else {
-                    install_path.clone()
-                };
+                let mut config_path = install_path.clone();
                 config_path.push("towboot.toml");
+                info!("writing {}", config_path.display());
                 fs::write(&config_path, toml::to_string(&config)?)?;
             } else {
                 // Exit if the options were just -help.
@@ -153,14 +106,13 @@ impl InstallCommand {
         }
         // add towboot itself
         // TODO: rename this maybe for non-removable installs?
-        fs::write(
-            Path::join(&install_path, "BOOTIA32.efi"),
-            towboot_ia32::TOWBOOT,
-        )?;
-        fs::write(
-            Path::join(&install_path, "BOOTX64.efi"),
-            towboot_x64::TOWBOOT,
-        )?;
+        let ia32_path = Path::join(&install_path, "BOOTIA32.efi");
+        info!("writing {}", ia32_path.display());
+        fs::write(ia32_path, towboot_ia32::TOWBOOT)?;
+        let x64_path = Path::join(&install_path, "BOOTX64.efi");
+        info!("writing {}", x64_path.display());
+        fs::write(x64_path, towboot_x64::TOWBOOT)?;
+        //TODO: doesnt match merge
         fs::write(
             Path::join(&install_path, "BOOTAA64.efi"),
             towboot_aa64::TOWBOOT,

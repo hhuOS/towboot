@@ -1,13 +1,9 @@
-#![feature(exit_status_error)]
 use std::env;
 use std::error::Error;
-use std::path::PathBuf;
-use std::process;
 
 use argh::{FromArgs, from_env};
-use log::info;
 
-use towbootctl::{BootImageCommand, create_image};
+use towbootctl::{BootImageCommand, ImageCommand};
 
 #[derive(Debug, FromArgs)]
 /// Top-level command.
@@ -19,80 +15,8 @@ struct Cli {
 #[derive(Debug, FromArgs)]
 #[argh(subcommand)]
 enum Command {
-    Build(Build),
+    Image(ImageCommand),
     BootImage(BootImageCommand),
-}
-
-#[derive(Debug, FromArgs)]
-#[argh(subcommand, name = "build")]
-/// Build a bootable image containing, towboot, kernels and their modules.
-struct Build {
-    /// do release builds
-    #[argh(switch)]
-    release: bool,
-
-    /// do not include `i686` build
-    #[argh(switch)]
-    no_i686: bool,
-
-    /// do not include `x86_64` build
-    #[argh(switch)]
-    no_x86_64: bool,
-
-    /// do not include `aarch64` build
-    #[argh(switch)]
-    no_aarch64: bool,
-
-    /// where to place the image
-    #[argh(option, default = "PathBuf::from(\"image.img\")")]
-    target: PathBuf,
-
-    /// runtime options to pass to towboot
-    #[argh(positional, greedy)]
-    runtime_args: Vec<String>,
-}
-
-impl Build {
-    fn r#do(self) -> Result<(), Box<dyn Error>> {
-        for (enabled, architecture, target) in [
-            (!self.no_i686, "i686", "i686-unknown-uefi"),
-            (!self.no_x86_64, "x86_64", "x86_64-unknown-uefi"),
-            (!self.no_aarch64, "aarch64", "aarch64-unknown-uefi"),
-        ] {
-            if enabled {
-                info!("building for {architecture}");
-                let mut cargo_command = process::Command::new("cargo");
-                cargo_command
-                    .arg("build")
-                    .arg("--package")
-                    .arg("towboot")
-                    .arg("--target")
-                    .arg(target);
-                if self.release {
-                    cargo_command.arg("--release");
-                }
-                cargo_command.status()?.exit_ok()?;
-            }
-        }
-        let build = if self.release { "release" } else { "debug" };
-        let i686: Option<PathBuf> = (!self.no_i686).then_some(
-            ["target", "i686-unknown-uefi", build, "towboot.efi"].into_iter().collect()
-        );
-        let x86_64: Option<PathBuf> = (!self.no_x86_64).then_some(
-            ["target", "x86_64-unknown-uefi", build, "towboot.efi"].into_iter().collect()
-        );
-        let aarch64: Option<PathBuf> = (!self.no_aarch64).then_some(
-            ["target", "aarch64-unknown-uefi", build, "towboot.efi"].into_iter().collect()
-        );
-        create_image(
-            &self.target,
-            &self.runtime_args,
-            i686.as_deref(),
-            x86_64.as_deref(),
-            aarch64.as_deref(),
-        )?;
-        Ok(())
-    }
 }
 
 /// This gets started from the command line.
@@ -103,7 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
     let args: Cli = from_env();
     match args.command {
-        Command::Build(build) => build.r#do(),
+        Command::Image(image) => image.r#do(),
         Command::BootImage(boot_image) => boot_image.r#do(),
     }
 }
