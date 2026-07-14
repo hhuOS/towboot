@@ -64,14 +64,20 @@ pub fn setup_video(
     })?;
     // Opening a protocol non-exclusively is unsafe, but otherwise we won't get
     // to see any new log messages.
-    let mut output: ScopedProtocol<GraphicsOutput> = unsafe { open_protocol(
+    let mut output: ScopedProtocol<GraphicsOutput> = match unsafe { open_protocol(
         OpenProtocolParams {
             handle: *handle,
             agent: image_handle(),
             controller: None,
         },
         OpenProtocolAttributes::GetProtocol,
-    ).ok() }?;
+    ) } {
+        Ok(output) => output,
+        Err(err) => {
+            warn!("failed to open GOP protocol: {err:?}");
+            return None;
+        }
+    };
     let modes: Vec<Mode> = output.modes().collect();
     debug!(
         "available video modes: {:?}",

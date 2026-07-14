@@ -39,6 +39,10 @@ struct Build {
     #[argh(switch)]
     no_x86_64: bool,
 
+    /// do not include `aarch64` build
+    #[argh(switch)]
+    no_aarch64: bool,
+
     /// where to place the image
     #[argh(option, default = "PathBuf::from(\"image.img\")")]
     target: PathBuf,
@@ -50,27 +54,25 @@ struct Build {
 
 impl Build {
     fn r#do(self) -> Result<(), Box<dyn Error>> {
-        let mut cargo_command = process::Command::new("cargo");
-        cargo_command
-            .arg("build")
-            .arg("--package")
-            .arg("towboot");
-        if self.release {
-            cargo_command.arg("--release");
-        }
-        if !self.no_i686 {
-            info!("building for i686, pass --no-i686 to skip this");
-            cargo_command
-                .arg("--target")
-                .arg("i686-unknown-uefi")
-                .status()?.exit_ok()?;
-        }
-        if !self.no_x86_64 {
-            info!("building for x86_64, pass --no-x86-64 to skip this");
-            cargo_command
-                .arg("--target")
-                .arg("x86_64-unknown-uefi")
-                .status()?.exit_ok()?;
+        for (enabled, architecture, target) in [
+            (!self.no_i686, "i686", "i686-unknown-uefi"),
+            (!self.no_x86_64, "x86_64", "x86_64-unknown-uefi"),
+            (!self.no_aarch64, "aarch64", "aarch64-unknown-uefi"),
+        ] {
+            if enabled {
+                info!("building for {architecture}");
+                let mut cargo_command = process::Command::new("cargo");
+                cargo_command
+                    .arg("build")
+                    .arg("--package")
+                    .arg("towboot")
+                    .arg("--target")
+                    .arg(target);
+                if self.release {
+                    cargo_command.arg("--release");
+                }
+                cargo_command.status()?.exit_ok()?;
+            }
         }
         let build = if self.release { "release" } else { "debug" };
         let i686: Option<PathBuf> = (!self.no_i686).then_some(
@@ -79,13 +81,15 @@ impl Build {
         let x86_64: Option<PathBuf> = (!self.no_x86_64).then_some(
             ["target", "x86_64-unknown-uefi", build, "towboot.efi"].into_iter().collect()
         );
+        let aarch64: Option<PathBuf> = (!self.no_aarch64).then_some(
+            ["target", "aarch64-unknown-uefi", build, "towboot.efi"].into_iter().collect()
+        );
         create_image(
             &self.target,
             &self.runtime_args,
             i686.as_deref(),
             x86_64.as_deref(),
-            //TODO: Add aarch64
-            None,
+            aarch64.as_deref(),
         )?;
         Ok(())
     }

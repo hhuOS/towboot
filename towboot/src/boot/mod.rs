@@ -12,13 +12,17 @@ use x86::{
     },
 };
 
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use core::arch::asm;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use core::arch::naked_asm;
 use core::cell::RefCell;
 use core::ffi::c_void;
 use core::ptr::NonNull;
 use uefi::{fs::Path, prelude::*};
-use uefi::boot::{exit_boot_services, image_handle, memory_map, MemoryType, ScopedProtocol};
+#[cfg(not(target_arch = "aarch64"))]
+use uefi::boot::exit_boot_services;
+use uefi::boot::{image_handle, memory_map, MemoryType, ScopedProtocol};
 #[cfg(target_arch = "aarch64")]
 use uefi::mem::memory_map::MemoryMapOwned;
 use uefi::mem::memory_map::{MemoryMap, MemoryMapMut};
@@ -288,7 +292,7 @@ fn prepare_multiboot_information(
         info_builder.set_efi_image_handle32(
             (image_handle_ptr as usize).try_into().unwrap()
         );
-    } else if cfg!(target_arch = "x86_64") {
+    } else if cfg!(any(target_arch = "x86_64", target_arch = "aarch64")) {
         info_builder.set_system_table_x64(Some(
             (systab_ptr as usize).try_into().unwrap()
         ));
@@ -476,11 +480,11 @@ impl PreparedEntry {
             self.loaded_kernel.should_exit_boot_services,
         );
         
+        #[cfg(not(target_arch = "aarch64"))]
         for allocation in &mut self.loaded_kernel.allocations {
             // It could be possible that we failed to allocate memory for the kernel in the correct
             // place before. Just copy it now to where is belongs.
             // This is *really* unsafe, please see the documentation comment for details.
-            #[cfg(not(target_arch = "aarch64"))]
             unsafe {
                 allocation.move_to_where_it_should_be()
             };
