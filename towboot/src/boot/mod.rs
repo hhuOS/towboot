@@ -36,7 +36,7 @@ use multiboot12::information::{
     Module, InfoBuilder, Symbols
 };
 
-use goblin::elf::Elf;
+use goblin::elf::{Elf, header};
 
 use towboot_config::{Entry, Quirk};
 use crate::mem::MultibootAllocator;
@@ -137,6 +137,30 @@ impl LoadedKernel {
             error!("failed to parse ELF structure of kernel: {msg}");
             Status::LOAD_ERROR
         })?;
+        // check if this binary is compiled for this machine
+        match binary.header.e_machine {
+            // this case is just here to get better warnings
+            #[cfg(target_arch = "x86")]
+            header::EM_X86_64 => {
+                warn!("trying to boot a 64-bit kernel on 32-bit firmware, this may fail");
+                // TODO: we can actually support this by switching CPU modes
+            },
+            // this is the correct one
+            #[cfg(target_arch = "x86")]
+            header::EM_386 => {},
+            #[cfg(target_arch = "x86_64")]
+            header::EM_386 | header::EM_X86_64 => {},
+            #[cfg(target_arch = "aarch64")]
+            header::EM_AARCH64 => {},
+            // this is the error case
+            other => {
+                error!(
+                    "kernel machine type {} is not supported on this platform",
+                    header::machine_to_str(other),
+                );
+                return Err(Status::UNSUPPORTED);
+            },
+        }
         let mut loader = OurElfLoader::new(binary.entry, segment_allocator, should_exit_boot_services);
         loader
             .load_elf(&binary, kernel_bytes, quirks)
