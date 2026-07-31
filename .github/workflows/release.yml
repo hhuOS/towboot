@@ -42,6 +42,11 @@ jobs:
               with:
                   command: build
                   args: --package towboot --target x86_64-unknown-uefi --release
+            - name: Build for aarch64
+              uses: clechasseur/rs-cargo@v5.0.4
+              with:
+                  command: build
+                  args: --package towboot --target aarch64-unknown-uefi --release
             - name: Build towbootctl for x86_64-linux
               uses: clechasseur/rs-cargo@v5.0.4
               with:
@@ -62,9 +67,11 @@ jobs:
               run: cp target/i686-unknown-uefi/release/towboot.efi towboot-$(git describe --always --tags)-i686.efi
             - name: Rename files (2)
               run: cp target/x86_64-unknown-uefi/release/towboot.efi towboot-$(git describe --always --tags)-x86_64.efi
-            - name: Rename files (2)
-              run: cp target/x86_64-unknown-linux-gnu/release/towbootctl towbootctl-$(git describe --always --tags)-x86_64-linux
             - name: Rename files (3)
+              run: cp target/aarch64-unknown-uefi/release/towboot.efi towboot-$(git describe --always --tags)-aarch64.efi
+            - name: Rename files (4)
+              run: cp target/x86_64-unknown-linux-gnu/release/towbootctl towbootctl-$(git describe --always --tags)-x86_64-linux
+            - name: Rename files (5)
               run: cp target/x86_64-pc-windows-gnu/release/towbootctl.exe towbootctl-$(git describe --always --tags)-x86_64-windows.exe
             - name: Publish release
               uses: softprops/action-gh-release@v3
@@ -72,6 +79,7 @@ jobs:
                 files: |
                     towboot-*-i686.efi
                     towboot-*-x86_64.efi
+                    towboot-*-aarch64.efi
                     towbootctl-*-x86_64-linux
                     towbootctl-*-x86_64-windows.exe
               env:
