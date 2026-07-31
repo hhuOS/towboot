@@ -321,7 +321,7 @@ impl Allocation {
                 }
                 assert!(removed);
             }
-            if types.is_empty() {
+            if types.is_empty() && cfg!(not(target_arch = "aarch64")) {
                 // but this wasn't anything important (eg. our data)
                 warn!("going to allocate it somewhere else and try to move it later");
                 warn!("this might fail without notice");
