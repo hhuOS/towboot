@@ -577,16 +577,14 @@ impl EntryPoint {
     #[cfg(target_arch = "aarch64")]
     fn jump_uefi(entry_address: usize, signature: u32, info: &[u8]) -> ! {
         debug!("jumping to 0x{entry_address:x}");
+        // The Multiboot spec does not mention aarch64.
+        // Instead on reinventing the wheel, just choose x0 and x1 as Simpleboot did:
+        // https://gitlab.com/bztsrc/simpleboot/-/blob/f5fa29fe6613dc20b3729e769c68f9435daa15d1/docs/ABI.md#boot-information-passed-to-your-kernel
         unsafe {
             core::arch::asm!(
-                "mov x0, {dtb}",
-                "mov x1, {bootinfo}",
-                "mov x2, {magic}",
-                "mov x3, xzr",
                 "br {entry}",
-                dtb = in(reg) 0usize,
-                bootinfo = in(reg) &raw const info[0],
-                magic = in(reg) u64::from(signature),
+                in("x0") u64::from(signature),
+                in("x1") &raw const info[0],
                 entry = in(reg) entry_address,
                 options(noreturn),
             )
