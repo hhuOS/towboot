@@ -54,22 +54,30 @@ pub fn setup_video(
         _ => None,
     };
     // just get the first one
-    let handles = find_handles::<GraphicsOutput>()
-        .expect("failed to list available graphics outputs");
+    let handles = find_handles::<GraphicsOutput>().unwrap_or_else(|e| {
+        warn!("failed to list available graphics outputs: {e:?}");
+        Vec::new()
+    });
     let handle = handles.first().or_else(|| {
         warn!("Failed to find a graphics output. Do you have a graphics card (and a driver)?");
         None
     })?;
     // Opening a protocol non-exclusively is unsafe, but otherwise we won't get
     // to see any new log messages.
-    let mut output: ScopedProtocol<GraphicsOutput> = unsafe { open_protocol(
+    let mut output: ScopedProtocol<GraphicsOutput> = match unsafe { open_protocol(
         OpenProtocolParams {
             handle: *handle,
             agent: image_handle(),
             controller: None,
         },
         OpenProtocolAttributes::GetProtocol,
-    ).ok() }?;
+    ) } {
+        Ok(output) => output,
+        Err(err) => {
+            warn!("failed to open GOP protocol: {err:?}");
+            return None;
+        }
+    };
     let modes: Vec<Mode> = output.modes().collect();
     debug!(
         "available video modes: {:?}",

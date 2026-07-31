@@ -8,7 +8,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use tempfile::NamedTempFile;
-use towbootctl::{boot_image, create_image};
+use towbootctl::{Architecture, boot_image, create_image};
 
 #[derive(PartialEq, Clone, Copy)]
 enum Arch {
@@ -48,7 +48,11 @@ fn build_and_boot(
     let (mut qemu_command, _temp_files) = boot_image(
         None,
         &image_path,
-        matches!(machine_arch, Arch::X86_64),
+        if matches!(machine_arch, Arch::X86_64) {
+            Architecture::X86_64
+        } else {
+            Architecture::I686
+        },
         false,
         true, // the firmware seems to boot only on KVM
         false,

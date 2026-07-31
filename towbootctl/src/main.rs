@@ -112,6 +112,9 @@ impl InstallCommand {
         let x64_path = Path::join(&install_path, "BOOTX64.efi");
         info!("writing {}", x64_path.display());
         fs::write(x64_path, towboot_x64::TOWBOOT)?;
+        let aa64_path = Path::join(&install_path, "BOOTAA64.efi");
+        info!("writing {}", aa64_path.display());
+        fs::write(aa64_path, towboot_aa64::TOWBOOT)?;
         if self.register {
             assert!(!self.removable);
             todo!("registration with the firmware is not supported, yet");
@@ -128,6 +131,10 @@ struct ExtractCommand {
     #[argh(switch)]
     x86_64: bool,
 
+    /// use `aarch64` instead of `i686`
+    #[argh(switch)]
+    aarch64: bool,
+
     #[argh(positional)]
     /// the filename to save as
     path: PathBuf,
@@ -135,7 +142,9 @@ struct ExtractCommand {
 
 impl ExtractCommand {
     fn r#do(&self) -> Result<(), Box<dyn Error>> {
-        let code = if self.x86_64 {
+        let code = if self.aarch64 {
+            towboot_aa64::TOWBOOT
+        } else if self.x86_64 {
             towboot_x64::TOWBOOT
         } else {
             towboot_ia32::TOWBOOT

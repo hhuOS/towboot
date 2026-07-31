@@ -2087,6 +2087,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "towboot_aa64"
+version = "0.11.1"
+dependencies = [
+ "towboot",
+]
+
+[[package]]
 name = "towboot_config"
 version = "0.11.1"
 dependencies = [
@@ -2128,6 +2135,7 @@ dependencies = [
  "log",
  "tempfile",
  "toml",
+ "towboot_aa64",
  "towboot_config",
  "towboot_ia32",
  "towboot_x64",

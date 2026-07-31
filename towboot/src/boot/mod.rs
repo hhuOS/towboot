@@ -12,13 +12,19 @@ use x86::{
     },
 };
 
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use core::arch::asm;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use core::arch::naked_asm;
 use core::cell::RefCell;
 use core::ffi::c_void;
 use core::ptr::NonNull;
 use uefi::{fs::Path, prelude::*};
-use uefi::boot::{exit_boot_services, image_handle, memory_map, MemoryType, ScopedProtocol};
+#[cfg(not(target_arch = "aarch64"))]
+use uefi::boot::exit_boot_services;
+use uefi::boot::{image_handle, memory_map, MemoryType, ScopedProtocol};
+#[cfg(target_arch = "aarch64")]
+use uefi::mem::memory_map::MemoryMapOwned;
 use uefi::mem::memory_map::{MemoryMap, MemoryMapMut};
 use uefi::proto::console::gop::GraphicsOutput;
 use uefi::table::system_table_raw;
@@ -211,6 +217,17 @@ fn get_kernel_uefi_entry(
     }
 }
 
+/// Check whether the kernel is compatible to the firmware we are running on.
+#[cfg(target_arch = "aarch64")]
+fn get_kernel_uefi_entry(
+    header: &Header, _quirks: &BTreeSet<Quirk>,
+) -> Option<EntryPoint> {
+    if header.get_efi32_entry_address().is_some() || header.get_efi64_entry_address().is_some() {
+        warn!("ignoring x86 UEFI entry tags on aarch64; use the generic entry address instead");
+    }
+    header.get_entry_address().map(|e| EntryPoint::Uefi(e as usize))
+}
+
 /// Prepare information for the kernel.
 fn prepare_multiboot_information(
     entry: &Entry, header: &Header, load_base_address: Option<u32>,
@@ -275,7 +292,7 @@ fn prepare_multiboot_information(
         info_builder.set_efi_image_handle32(
             (image_handle_ptr as usize).try_into().unwrap()
         );
-    } else if cfg!(target_arch = "x86_64") {
+    } else if cfg!(any(target_arch = "x86_64", target_arch = "aarch64")) {
         info_builder.set_system_table_x64(Some(
             (systab_ptr as usize).try_into().unwrap()
         ));
@@ -297,6 +314,24 @@ fn prepare_multiboot_information(
     }
     
     info_builder
+}
+
+#[cfg(target_arch = "aarch64")]
+unsafe fn exit_boot_services_explicit() -> Result<MemoryMapOwned, Status> {
+    let map = memory_map(MemoryType::LOADER_DATA).map_err(|e| e.status())?;
+    let key: usize = unsafe { core::mem::transmute_copy(&map.key()) };
+
+    let st = system_table_raw()
+        .expect("failed to get System Table")
+        .as_ptr();
+    let bt = unsafe { (*st).boot_services };
+
+    let status = unsafe { ((*bt).exit_boot_services)(image_handle().as_ptr(), key) };
+    if status != Status::SUCCESS {
+        return Err(status);
+    }
+
+    Ok(map)
 }
 
 /// An entry that has everything that's needed to boot it:
@@ -411,15 +446,33 @@ impl PreparedEntry {
             mut info, signature, update_memory_info,
         ) = self.multiboot_information.build(self.multiboot_allocator);
         debug!("passing signature {:x} and info struct @{:?} to kernel...", signature, info.as_ptr());
+        #[cfg(target_arch = "aarch64")]
+        for allocation in &mut self.loaded_kernel.allocations {
+            // On AArch64 QEMU/UEFI, deferred relocation after exiting Boot Services
+            // can fault on the destination page permissions.
+            unsafe { allocation.move_to_where_it_should_be() };
+        }
+
         let mut memory_map = if self.loaded_kernel.should_exit_boot_services {
             info!("exiting boot services...");
-            unsafe { exit_boot_services(None) }
+            #[cfg(target_arch = "aarch64")]
+            {
+                match unsafe { exit_boot_services_explicit() } {
+                    Ok(memory_map) => memory_map,
+                    Err(status) => panic!("raw ExitBootServices failed: {status:?}"),
+                }
+            }
+            #[cfg(not(target_arch = "aarch64"))]
+            unsafe {
+                exit_boot_services(None)
+            }
             // now, write! won't work anymore. Also, we can't allocate any memory.
         } else {
             let memory_map = memory_map(MemoryType::LOADER_DATA).unwrap();
             debug!("got {} memory areas", memory_map.entries().len());
             memory_map
         };
+        //panic!("reached before jump");
         memory_map.sort();
         super::mem::prepare_information(
             &mut info, update_memory_info, &memory_map,
@@ -427,11 +480,14 @@ impl PreparedEntry {
             self.loaded_kernel.should_exit_boot_services,
         );
         
+        #[cfg(not(target_arch = "aarch64"))]
         for allocation in &mut self.loaded_kernel.allocations {
             // It could be possible that we failed to allocate memory for the kernel in the correct
             // place before. Just copy it now to where is belongs.
             // This is *really* unsafe, please see the documentation comment for details.
-            unsafe { allocation.move_to_where_it_should_be() };
+            unsafe {
+                allocation.move_to_where_it_should_be()
+            };
         }
         // The kernel will need its code and data, so make sure it stays around indefinitely.
         core::mem::forget(self.loaded_kernel.allocations);
@@ -473,6 +529,7 @@ impl EntryPoint {
 
     /// Jump to the loaded kernel, UEFI-style, eg. just passing the information.
     /// This requires everything else to be ready and won't return.
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     fn jump_uefi(entry_address: usize, signature: u32, info: &[u8]) -> ! {
         debug!("jumping to 0x{entry_address:x}");
         unsafe {
@@ -489,6 +546,34 @@ impl EntryPoint {
                 options(noreturn),
             );
         }
+    }
+
+    /// Jump to the loaded kernel, UEFI-style, eg. just passing the information.
+    /// This requires everything else to be ready and won't return.
+    #[cfg(target_arch = "aarch64")]
+    fn jump_uefi(entry_address: usize, signature: u32, info: &[u8]) -> ! {
+        debug!("jumping to 0x{entry_address:x}");
+        unsafe {
+            core::arch::asm!(
+                "mov x0, {dtb}",
+                "mov x1, {bootinfo}",
+                "mov x2, {magic}",
+                "mov x3, xzr",
+                "br {entry}",
+                dtb = in(reg) 0usize,
+                bootinfo = in(reg) &raw const info[0],
+                magic = in(reg) u64::from(signature),
+                entry = in(reg) entry_address,
+                options(noreturn),
+            )
+        }
+    }
+
+    /// Jump to the loaded kernel, UEFI-style, eg. just passing the information.
+    /// This requires everything else to be ready and won't return.
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")))]
+    fn jump_uefi(_entry_address: usize, _signature: u32, _info: &[u8]) -> ! {
+        panic!("UEFI kernel handoff is not implemented on this architecture yet")
     }
 
     /// `i686`-specific part of the Multiboot machine state.
@@ -609,7 +694,14 @@ impl EntryPoint {
         }
     }
 
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    fn jump_multiboot(_entry_address: usize, _signature: u32, _info: &[u8]) -> ! {
+        panic!("Multiboot handoff is not implemented on this architecture yet")
+        
+    }
+
     /// This last part is common for `i686` and `x86_64`.
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     #[unsafe(naked)]
     extern "C" fn jump_multiboot_common() {
         naked_asm!(
