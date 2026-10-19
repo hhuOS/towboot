@@ -20,7 +20,7 @@ jobs:
               with:
                 command: test
                 args: --release
-    release:
+    release-x86:
         # Applications linked against glibc only work on that version of glibc
         # (or newer ones), so this is effectively the oldest version the release
         # is going to run on.
@@ -84,13 +84,39 @@ jobs:
                     towbootctl-*-x86_64-windows.exe
               env:
                 GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    release-aarch64:
+        # Applications linked against glibc only work on that version of glibc
+        # (or newer ones), so this is effectively the oldest version the release
+        # is going to run on.
+        # In theory, this should be the oldest supported version of Ubuntu
+        # according to <https://github.com/actions/runner-images#available-images>,
+        # but Ubuntu 20.04 has OpenSSL 1.1 which newer ones don't have, so we need
+        # to go with at least 22.04.
+        # 
+        # We also can't cross-compile from x86_64 because of OpenSSL.
+        runs-on: ubuntu-22.04-arm
+        needs: release-x86
+        steps:
+            - uses: actions/checkout@v6
+            - name: Build towbootctl for aarch64-linux
+              uses: clechasseur/rs-cargo@v5.0.4
+              with:
+                  command: build
+                  args: --package towbootctl --target aarch64-unknown-linux-gnu --features=binary --release
+            - name: Upload aarch64 binary to release
+              uses: svenstaro/upload-release-action@v2
+              with:
+                repo_token: ${{ secrets.GITHUB_TOKEN }}
+                file: target/aarch64-unknown-linux-gnu/release/towbootctl
+                asset_name: towbootctl-${{ github.ref_name }}-aarch64-linux
+                tag: ${{ github.ref }}
     release-macos:
         # We could cross-compile from Linux instead,
         # but we'd still need the Xcode Command Line Tools.
         # Downloading them requires logging in with an Apple ID,
         # which is not possible in the CI. The macOS runners include it.
         runs-on: macos-latest
-        needs: release
+        needs: release-x86
         steps:
             - uses: actions/checkout@v6
             - name: Install Rust for x86_64-apple and aarch64-apple
