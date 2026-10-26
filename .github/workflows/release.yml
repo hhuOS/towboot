@@ -4,7 +4,7 @@ on:
 jobs:
     test:
         # Make sure that everything works on the newest Ubuntu.
-        runs-on: ubuntu-24.04
+        runs-on: ubuntu-26.04
         steps:
             - uses: actions/checkout@v6
             - name: Install qemu
