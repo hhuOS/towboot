@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-#![feature(allocator_api)]
 #![feature(pointer_is_aligned_to)]
 
 //! towboot – a bootloader for Multiboot kernels on UEFI systems
