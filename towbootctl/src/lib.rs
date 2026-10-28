@@ -39,6 +39,8 @@ pub const X64_IMAGE: &[u8] = towboot_x64::TOWBOOT;
 /// the re-exported towboot binary for aarch64-unknown-uefi
 pub const AA64_IMAGE: &[u8] = towboot_aa64::TOWBOOT;
 
+const UEFI_FLASH_SIZE: u64 = 64 * 1024 * 1024;
+
 /// The firmware architecture used to boot an image.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Architecture {
@@ -184,19 +186,26 @@ pub fn boot_image(
             } else {
                 firmware::aarch64()?
             };
-            let vars = NamedTempFile::new()?;
+            let mut code = NamedTempFile::new()?;
+            fs::copy(&firmware_code, code.path())?;
+            code.as_file_mut().set_len(UEFI_FLASH_SIZE).expect("failed to enlarge UEFI code");
+            let code_path = code.into_temp_path();
+            let mut vars = NamedTempFile::new()?;
             fs::copy(&firmware_vars_template, vars.path())?;
-            temp_files.push(vars.into_temp_path());
+            vars.as_file_mut().set_len(UEFI_FLASH_SIZE).expect("failed to enlarge UEFI vars");
+            let vars_path = vars.into_temp_path();
             let mut qemu = Command::new("qemu-system-aarch64");
             qemu
                 .arg("-machine").arg("virt")
                 .arg("-cpu").arg("cortex-a57")
                 .arg("-m").arg("256")
                 .arg("-serial").arg("stdio")
-                .arg("-drive").arg(format!("if=pflash,format=raw,readonly=on,file={}", firmware_code.display()))
-                .arg("-drive").arg(format!("if=pflash,format=raw,file={}", temp_files.last().unwrap().display()))
+                .arg("-drive").arg(format!("if=pflash,format=raw,readonly=on,file={}", code_path.display()))
+                .arg("-drive").arg(format!("if=pflash,format=raw,file={}", vars_path.display()))
                 .arg("-drive").arg(format!("driver=raw,if=none,id=boot,file.filename={}", image.display()))
                 .arg("-device").arg("virtio-blk-device,drive=boot");
+            temp_files.push(code_path);
+            temp_files.push(vars_path);
             qemu
         } else {
             let firmware_path = if let Some(path) = firmware {

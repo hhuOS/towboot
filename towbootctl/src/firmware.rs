@@ -12,6 +12,8 @@ use directories::ProjectDirs;
 
 const OVMF_X64_URL: &str = "https://retrage.github.io/edk2-nightly/bin/RELEASEX64_OVMF.fd";
 const OVMF_IA32_URL: &str = "https://retrage.github.io/edk2-nightly/bin/RELEASEIa32_OVMF.fd";
+const OVMF_AARCH64_CODE_URL: &str = "https://retrage.github.io/edk2-nightly/bin/RELEASEAARCH64_QEMU_EFI.fd";
+const OVMF_AARCH64_VARS_URL: &str = "https://retrage.github.io/edk2-nightly/bin/RELEASEAARCH64_QEMU_VARS.fd";
 //TODO: Need to try again with the nightly. didnt work for now
 const AARCH64_CODE_PATHS: &[&str] = &[
     "/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
@@ -53,10 +55,9 @@ fn first_existing(paths: &[&str]) -> Result<PathBuf> {
         .ok_or_else(|| anyhow!("failed to find local AArch64 firmware in common locations"))
 }
 
-/// Get local edk2 firmware paths for AArch64.
+/// Get edk2 firmware paths for AArch64.
 pub fn aarch64() -> Result<(PathBuf, PathBuf)> {
-    Ok((
-        first_existing(AARCH64_CODE_PATHS)?,
-        first_existing(AARCH64_VARS_PATHS)?,
-    ))
+    let code = get_firmware(OVMF_AARCH64_CODE_URL)?;
+    let vars = get_firmware(OVMF_AARCH64_VARS_URL)?;
+    Ok((code, vars))
 }
