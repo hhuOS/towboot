@@ -8,7 +8,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use tempfile::NamedTempFile;
-use towbootctl::{Architecture, boot_image, create_image};
+use towbootctl::{Architecture, WantedFirmware, boot_image, create_image};
 
 #[derive(PartialEq, Clone, Copy)]
 enum Arch {
@@ -46,7 +46,7 @@ fn build_and_boot(
     // boot it
     assert!(firmware_arch == machine_arch); // TODO
     let (mut qemu_command, _temp_files) = boot_image(
-        None,
+        WantedFirmware::NightlyOvmf,
         &image_path,
         if matches!(machine_arch, Arch::X86_64) {
             Architecture::X86_64

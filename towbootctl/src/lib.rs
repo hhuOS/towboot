@@ -1,15 +1,14 @@
 //! This crate offers functionality to use towboot for your own operating system.
 #![cfg_attr(feature = "args", feature(exit_status_error))]
 use std::error::Error;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::anyhow;
 #[cfg(feature = "args")]
 use argh::FromArgs;
-use log::info;
-use tempfile::{NamedTempFile, TempPath};
+use log::{debug, info};
+use tempfile::TempPath;
 
 use towboot_config::{CONFIG_FILE, Config};
 
@@ -19,6 +18,9 @@ mod firmware;
 mod image;
 use bochs::bochsrc;
 use image::{Image, Source};
+pub use firmware::WantedFirmware;
+use firmware::ExistingFirmware;
+
 
 /// Where to place the boot files
 pub const BOOT_PATH: &str = "EFI/boot";
@@ -38,8 +40,6 @@ pub const IA32_IMAGE: &[u8] = towboot_ia32::TOWBOOT;
 pub const X64_IMAGE: &[u8] = towboot_x64::TOWBOOT;
 /// the re-exported towboot binary for aarch64-unknown-uefi
 pub const AA64_IMAGE: &[u8] = towboot_aa64::TOWBOOT;
-
-const UEFI_FLASH_SIZE: u64 = 64 * 1024 * 1024;
 
 /// The firmware architecture used to boot an image.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -147,91 +147,73 @@ pub fn create_image(
 
 /// Boot a built image, returning the running process.
 pub fn boot_image(
-    firmware: Option<&Path>, image: &Path, architecture: Architecture, use_bochs: bool,
-    use_kvm: bool, use_gdb: bool,
+    firmware: WantedFirmware, image: &Path,
+    architecture: Architecture, use_bochs: bool, use_kvm: bool, use_gdb: bool,
 ) -> Result<(Command, Vec<TempPath>), Box<dyn Error>> {
     info!("getting firmware");
+    let fw = firmware.get(architecture)?;
+    debug!("resolved firmware to {fw:?}");
     Ok(if use_bochs {
         if architecture == Architecture::Aarch64 {
             return Err(anyhow!("Bochs is not supported for AArch64").into());
         }
-        let firmware_path = if let Some(path) = firmware {
-            if !path.exists() {
-                return Err(anyhow!("given firmware path does not exist").into());
-            }
-            path.to_path_buf()
-        } else if architecture == Architecture::X86_64 {
-            firmware::x64()?
-        } else {
-            firmware::ia32()?
-        };
         info!("spawning Bochs");
         if use_kvm {
             return Err(anyhow!("can't do KVM in Bochs").into());
         }
-        let config = bochsrc(&firmware_path, image, use_gdb)?.into_temp_path();
-        let mut bochs = Command::new("bochs");
-        bochs.arg("-qf").arg(config.as_os_str());
-        (bochs, vec![config])
+        if let ExistingFirmware::Combined(fw_path) = fw {
+            let config = bochsrc(&fw_path, image, use_gdb)?.into_temp_path();
+            let mut bochs = Command::new("bochs");
+            bochs.arg("-qf").arg(config.as_os_str());
+            (bochs, vec![config])
+        } else {
+            return Err(anyhow!("Bochs needs a firmware with combined code and vars, try --firmware nightly").into());
+        }
     } else {
         info!("spawning QEMU");
         let mut temp_files = vec![];
-        let mut qemu = if architecture == Architecture::Aarch64 {
-            let (firmware_code, firmware_vars_template) = if let Some(path) = firmware {
-                if !path.exists() {
-                    return Err(anyhow!("given firmware path does not exist").into());
-                }
-                let (_, vars) = firmware::aarch64()?;
-                (path.to_path_buf(), vars)
-            } else {
-                firmware::aarch64()?
-            };
-            let mut code = NamedTempFile::new()?;
-            fs::copy(&firmware_code, code.path())?;
-            code.as_file_mut().set_len(UEFI_FLASH_SIZE).expect("failed to enlarge UEFI code");
-            let code_path = code.into_temp_path();
-            let mut vars = NamedTempFile::new()?;
-            fs::copy(&firmware_vars_template, vars.path())?;
-            vars.as_file_mut().set_len(UEFI_FLASH_SIZE).expect("failed to enlarge UEFI vars");
-            let vars_path = vars.into_temp_path();
-            let mut qemu = Command::new("qemu-system-aarch64");
+        let mut qemu = Command::new(match architecture {
+            Architecture::I686 => "qemu-system-i386",
+            Architecture::X86_64 => "qemu-system-x86_64",
+            Architecture::Aarch64 => "qemu-system-aarch64",
+        });
+        // aarch64-specific qemu flags
+        if architecture == Architecture::Aarch64 {
             qemu
                 .arg("-machine").arg("virt")
                 .arg("-cpu").arg("cortex-a57")
-                .arg("-m").arg("256")
-                .arg("-serial").arg("stdio")
-                .arg("-drive").arg(format!("if=pflash,format=raw,readonly=on,file={}", code_path.display()))
-                .arg("-drive").arg(format!("if=pflash,format=raw,file={}", vars_path.display()))
                 .arg("-drive").arg(format!("driver=raw,if=none,id=boot,file.filename={}", image.display()))
                 .arg("-device").arg("virtio-blk-device,drive=boot");
-            temp_files.push(code_path);
-            temp_files.push(vars_path);
-            qemu
-        } else {
-            let firmware_path = if let Some(path) = firmware {
-                if !path.exists() {
-                    return Err(anyhow!("given firmware path does not exist").into());
-                }
-                path.to_path_buf()
-            } else if architecture == Architecture::X86_64 {
-                firmware::x64()?
-            } else {
-                firmware::ia32()?
-            };
-            let mut qemu = Command::new(if architecture == Architecture::X86_64 {
-                "qemu-system-x86_64"
-            } else {
-                "qemu-system-i386"
-            });
-            qemu
-                .arg("-m").arg("256")
-                .arg("-hda").arg(image)
-                .arg("-serial").arg("stdio")
-                .arg("-bios").arg(firmware_path);
+        }
+        // x86-specific qemu flags
+        if matches!(architecture, Architecture::I686 | Architecture::X86_64) {
+            qemu.arg("-hda").arg(image);
             if use_kvm {
+                // TODO: can we do kvm on aarch64?
                 qemu.arg("-machine").arg("pc,accel=kvm");
             }
-            qemu
+        }
+        // common parameters
+        qemu
+            .arg("-m").arg("256")
+            .arg("-serial").arg("stdio");
+        // add the firmware
+        match fw {
+            ExistingFirmware::Combined(firmware_path) => {
+                qemu.arg("-bios").arg(firmware_path);
+            },
+            ExistingFirmware::CodeAndVars(code, vars) => {
+                qemu
+                    .arg("-drive").arg(format!(
+                        "if=pflash,format=raw,readonly=on,file={}",
+                        code.display(),
+                    ))
+                    .arg("-drive").arg(format!(
+                        "if=pflash,format=raw,file={}", vars.display(),
+                    ));
+                code.add_to(&mut temp_files);
+                vars.add_to(&mut temp_files);
+            },
         };
         if use_gdb {
             info!("The machine starts paused, waiting for GDB to attach to localhost:1234.");
@@ -293,9 +275,10 @@ pub struct BootImageCommand {
     #[argh(switch)]
     gdb: bool,
 
-    /// use the specified firmware instead of OVMF
+    /// use the specified firmware instead of OVMF,
+    /// pass "nightly" to download a nightly build
     #[argh(option)]
-    firmware: Option<PathBuf>,
+    firmware: Option<String>,
 
     /// additional arguments to pass to the hypervisor
     #[argh(positional, greedy)]
@@ -311,8 +294,13 @@ impl BootImageCommand {
             (false, true) => Architecture::Aarch64,
             (true, true) => return Err(anyhow!("choose at most one architecture").into()),
         };
+        let firmware = match self.firmware.as_ref().map(String::as_ref) {
+            None => WantedFirmware::SystemOvmf,
+            Some("nightly") => WantedFirmware::NightlyOvmf,
+            Some(path) => WantedFirmware::LocalFile(PathBuf::from(path)),
+        };
         let (mut process, _temp_files) = boot_image(
-            self.firmware.as_deref(), &self.image, architecture, self.bochs,
+            firmware, &self.image, architecture, self.bochs,
             self.kvm, self.gdb,
         )?;
         process
@@ -330,7 +318,7 @@ mod tests {
     #[test]
     fn aarch64_bochs_is_rejected() {
         let result = boot_image(
-            None,
+            WantedFirmware::SystemOvmf,
             Path::new("image.img"),
             Architecture::Aarch64,
             true,
