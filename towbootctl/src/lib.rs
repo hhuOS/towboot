@@ -277,6 +277,7 @@ pub struct BootImageCommand {
 
     /// use the specified firmware instead of OVMF,
     /// pass "nightly" to download a nightly build
+    // TODO: we might want to allow "code:vars"
     #[argh(option)]
     firmware: Option<String>,
 

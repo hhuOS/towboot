@@ -12,33 +12,38 @@ use tempfile::{NamedTempFile, TempPath};
 
 use crate::Architecture;
 
+// TODO: we could also switch the x86 builds over to code and vars,
+// but I'm not sure if this has any benefits
 const OVMF_X64_URL: &str = "https://retrage.github.io/edk2-nightly/bin/RELEASEX64_OVMF.fd";
 const OVMF_IA32_URL: &str = "https://retrage.github.io/edk2-nightly/bin/RELEASEIa32_OVMF.fd";
 const OVMF_AARCH64_CODE_URL: &str = "https://retrage.github.io/edk2-nightly/bin/RELEASEAARCH64_QEMU_EFI.fd";
 const OVMF_AARCH64_VARS_URL: &str = "https://retrage.github.io/edk2-nightly/bin/RELEASEAARCH64_QEMU_VARS.fd";
 
-const OVMF_X64_PATHS: &[&str] = &[
-    "/usr/share/ovmf/OVMF.fd", // Ubuntu
-    // TODO: Homebrew and Fedora only have this split in code and vars
+// These paths have either one element and are a combined image
+// or they have two elements and are code and vars.
+// It feels weird to combine 64-bit code and 32-bit vars,
+// but that's what the JSON in there says.
+
+const OVMF_X64_PATHS: &[(&str, Option<&str>)] = &[
+    ("/usr/share/ovmf/OVMF.fd", None), // Ubuntu
+    ("/usr/share/OVMF/OVMF_CODE.fd", Some("/usr/share/OVMF/OVMF_VARS.fd")), // Fedora
+    ("/opt/homebrew/share/qemu/edk2-x86_64-code.fd", Some("/opt/homebrew/share/qemu/edk2-i386-vars.fd")), // Homebrew on macOS aarch64
+    ("/usr/local/share/qemu/edk2-x86_64-code.fd", Some("/usr/local/share/qemu/edk2-i386-vars.fd")), // Homebrew on macOS x86_64
 ];
-const OVMF_IA32_PATHS: &[&str] = &[
-    // Ubuntu doesn't seem to ship this
-    // TODO: Homebrew and Fedora only have this split in code and vars
+const OVMF_IA32_PATHS: &[(&str, Option<&str>)] = &[
+    // Ubuntu and Fedora don't seem to ship this
+    ("/opt/homebrew/share/qemu/edk2-i386-code.fd", Some("/opt/homebrew/share/qemu/edk2-i386-vars.fd")), // Homebrew on macOS aarch64
+    ("/usr/local/share/qemu/edk2-i386-code.fd", Some("/usr/local/share/qemu/edk2-i386-vars.fd")), // Homebrew on macOS x86_64
 ];
 
-const OVMF_AARCH64_CODE_PATHS: &[&str] = &[
-    "/opt/homebrew/share/qemu/edk2-aarch64-code.fd", // Homebrew on macOS aarch64
-    "/usr/local/share/qemu/edk2-aarch64-code.fd", // Homebrew on macOS x86_64
-    "/usr/share/AAVMF/AAVMF_CODE.fd", // Ubuntu
-    "/usr/share/qemu-efi-aarch64/QEMU_EFI.fd",
+const OVMF_AARCH64_PATHS: &[(&str, Option<&str>)] = &[
+    ("/opt/homebrew/share/qemu/edk2-aarch64-code.fd", Some("/opt/homebrew/share/qemu/edk2-arm-vars.fd")), // Homebrew on macOS aarch64
+    ("/usr/local/share/qemu/edk2-aarch64-code.fd", Some("/usr/local/share/qemu/edk2-arm-vars.fd")), // Homebrew on macOS x86_64
+    ("/usr/share/AAVMF/AAVMF_CODE.fd", Some("/usr/share/AAVMF/AAVMF_VARS.fd")), // Ubuntu
+    ("/usr/share/qemu-efi-aarch64/QEMU_EFI.fd", Some("/usr/share/qemu-efi-aarch64/QEMU_VARS.fd")),
+    // Fedora doesn't seem to ship this
 ];
 
-const OVMF_AARCH64_VARS_PATHS: &[&str] = &[
-    "/opt/homebrew/share/qemu/edk2-arm-vars.fd", // Homebrew on macOS aarch64
-    "/usr/local/share/qemu/edk2-aarch64-vars.fd", // Homebrew on macOS x86_64
-    "/usr/share/AAVMF/AAVMF_VARS.fd", // Ubuntu
-    "/usr/share/qemu-efi-aarch64/QEMU_VARS.fd",
-];
 const UEFI_FLASH_SIZE: u64 = 64 * 1024 * 1024;
 
 /// The firmware we want to use for the VM.
@@ -75,20 +80,9 @@ impl WantedFirmware {
             WantedFirmware::SystemOvmf => {
                 // try to find the system files for the specified architecture
                 match architecture {
-                    Architecture::I686 => try_local(OVMF_IA32_PATHS).map(
-                        ExistingFirmware::Combined
-                    ),
-                    Architecture::X86_64 => try_local(OVMF_X64_PATHS).map(
-                        ExistingFirmware::Combined
-                    ),
-                    Architecture::Aarch64 => {
-                        try_local(OVMF_AARCH64_CODE_PATHS)
-                            .and_then(|code|
-                                try_local(OVMF_AARCH64_VARS_PATHS).map(|vars|
-                                    ExistingFirmware::CodeAndVars(code.into(), vars.into())
-                                )
-                            )
-                    },
+                    Architecture::I686 => try_local(OVMF_IA32_PATHS),
+                    Architecture::X86_64 => try_local(OVMF_X64_PATHS),
+                    Architecture::Aarch64 => try_local(OVMF_AARCH64_PATHS),
                 }.ok_or(anyhow!("couldn't find a local OVMF image"))
                 .or_else(|err| {
                     warn!("{err}, downloading a nightly one");
@@ -190,9 +184,16 @@ fn download(url: &str) -> Result<PathBuf> {
 }
 
 /// Try different local files, return the first one that exists.
-fn try_local(paths: &[&str]) -> Option<PathBuf> {
+/// 
+/// This can be a pair of two paths, in this case both need to exist.
+fn try_local(paths: &[(&str, Option<&str>)]) -> Option<ExistingFirmware> {
     paths
         .iter()
-        .map(PathBuf::from)
-        .find(|path| path.exists())
+        .map(|(code, vars)| (PathBuf::from(code), vars.map(PathBuf::from)))
+        .filter(|(code, _vars)| code.exists())
+        .find(|(_code, vars)| if let Some(v) = vars { v.exists() } else { true })
+        .map(|(code, vars)| match vars {
+            Some(v) => ExistingFirmware::CodeAndVars(code.into(), v.into()),
+            None => ExistingFirmware::Combined(code.into()),
+        })
 }
