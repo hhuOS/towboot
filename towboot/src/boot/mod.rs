@@ -194,7 +194,7 @@ impl LoadedKernel {
 }
 
 /// Check whether the kernel is compatible to the firmware we are running on.
-#[cfg(target_arch = "x86")]
+#[cfg(target_pointer_width = "32")]
 fn get_kernel_uefi_entry(
     header: &Header, quirks: &BTreeSet<Quirk>,
 ) -> Option<EntryPoint> {
@@ -218,7 +218,7 @@ fn get_kernel_uefi_entry(
 }
 
 /// Check whether the kernel is compatible to the firmware we are running on.
-#[cfg(target_arch = "x86_64")]
+#[cfg(target_pointer_width = "64")]
 fn get_kernel_uefi_entry(
     header: &Header, quirks: &BTreeSet<Quirk>,
 ) -> Option<EntryPoint> {
@@ -239,17 +239,6 @@ fn get_kernel_uefi_entry(
         }
         None
     }
-}
-
-/// Check whether the kernel is compatible to the firmware we are running on.
-#[cfg(target_arch = "aarch64")]
-fn get_kernel_uefi_entry(
-    header: &Header, _quirks: &BTreeSet<Quirk>,
-) -> Option<EntryPoint> {
-    if header.get_efi32_entry_address().is_some() || header.get_efi64_entry_address().is_some() {
-        warn!("ignoring x86 UEFI entry tags on aarch64; use the generic entry address instead");
-    }
-    header.get_entry_address().map(|e| EntryPoint::Uefi(e as usize))
 }
 
 /// Prepare information for the kernel.
