@@ -58,6 +58,10 @@ impl OurElfLoader {
         quirks: &BTreeSet<Quirk>,
     ) -> Result<(), &'static str> {
         for program_header in &binary.program_headers {
+            if program_header.p_memsz == 0 {
+                warn!("skipping empty segment at 0x{:x}", program_header.p_vaddr);
+                continue;
+            }
             if program_header.p_type == elf::program_header::PT_LOAD {
                 self.allocate(program_header, quirks, self.should_exit_boot_services)?;
                 self.load(program_header.p_vaddr, &data[program_header.file_range()]);
