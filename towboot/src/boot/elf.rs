@@ -7,6 +7,7 @@ use alloc::collections::btree_set::BTreeSet;
 use alloc::rc::Rc;
 use alloc::vec::Vec;
 
+use log::error;
 use log::{trace, debug, warn};
 
 use goblin::elf;
@@ -102,7 +103,13 @@ impl OurElfLoader {
         .map_err(|_e| "failed to allocate memory for the kernel")?;
         let mem_slice = allocation.as_mut_slice();
         mem_slice.fill(0);
-        self.allocations.insert(header.p_vaddr, allocation);
+        self
+            .allocations
+            .try_insert(header.p_vaddr, allocation)
+            .map_err(|e| {
+                error!("allocation for 0x{:x} already exists: {:?}", header.p_vaddr, e);
+                "kernel contains duplicate segment"
+            })?;
         if header.p_vaddr <= self.virtual_entry_point
             && header.p_vaddr + header.p_memsz >= self.virtual_entry_point
         {
